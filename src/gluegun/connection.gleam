@@ -115,13 +115,21 @@ pub fn await_up(
   timeout: Timeout,
 ) -> Result(Protocol, error.GluegunError) {
   ffi_await_up(internal.connection_raw(connection), timeout_to_ffi(timeout))
+  |> decode_await_up_result
+}
+
+@internal
+pub fn decode_await_up_result(
+  await_result: Result(dynamic.Dynamic, dynamic.Dynamic),
+) -> Result(Protocol, error.GluegunError) {
+  await_result
+  |> result.map_error(error.decode_ffi_error)
   |> result.try(fn(protocol) {
     case decode_protocol(protocol) {
       Ok(protocol) -> Ok(protocol)
-      Error(error) -> Error(dynamic.string(error))
+      Error(message) -> Error(error.DecodeError(message))
     }
   })
-  |> result.map_error(error.decode_ffi_error)
 }
 
 /// Close a Gun connection.

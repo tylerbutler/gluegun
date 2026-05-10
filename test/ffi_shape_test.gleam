@@ -30,6 +30,11 @@ pub fn ffi_protocol_ordering_test() {
   |> should.equal(Ok(["http2", "http"]))
 }
 
+pub fn ffi_await_up_invalid_protocol_preserves_decode_error_test() {
+  connection.decode_await_up_result(Ok(atom.to_dynamic(atom.create("spdy"))))
+  |> should.equal(Error(error.DecodeError("Invalid protocol")))
+}
+
 pub fn ffi_error_timeout_maps_to_error_variant_test() {
   message.decode_ffi_error(atom.to_dynamic(atom.create("timeout")))
   |> should.equal(error.Timeout)
@@ -84,6 +89,12 @@ pub fn ffi_shutdown_errors_are_explicit_test() {
   |> should.equal(Error(error.ConnectionError("Error(FunctionClause)")))
 }
 
+pub fn ffi_invalid_utf8_websocket_text_is_invalid_message_test() {
+  gluegun_ffi_safe_message_to_map(gluegun_ffi_test_invalid_utf8_websocket())
+  |> result.map_error(error.decode_ffi_error)
+  |> should.equal(Error(error.InvalidMessage("Ws(Text(InvalidUtf8))")))
+}
+
 @external(erlang, "gluegun_ffi_test", "test_response_message")
 fn gluegun_ffi_test_response() -> dynamic.Dynamic
 
@@ -95,3 +106,11 @@ fn gluegun_ffi_test_stream_ref() -> dynamic.Dynamic
 
 @external(erlang, "gluegun_ffi_test", "test_erlang_error")
 fn gluegun_ffi_test_erlang_error() -> dynamic.Dynamic
+
+@external(erlang, "gluegun_ffi_test", "test_invalid_utf8_websocket")
+fn gluegun_ffi_test_invalid_utf8_websocket() -> dynamic.Dynamic
+
+@external(erlang, "gluegun_ffi", "safe_message_to_map")
+fn gluegun_ffi_safe_message_to_map(
+  message: dynamic.Dynamic,
+) -> Result(dynamic.Dynamic, dynamic.Dynamic)

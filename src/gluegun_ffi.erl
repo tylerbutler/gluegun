@@ -10,7 +10,8 @@
     await/3,
     await_body/3,
     cancel/2,
-    flush/1
+    flush/1,
+    safe_message_to_map/1
 ]).
 
 open(Host, Port, Options) ->
@@ -150,7 +151,8 @@ protocol_to_gun(<<"http2">>) -> http2.
 fin_to_gun(fin) -> fin;
 fin_to_gun(<<"fin">>) -> fin;
 fin_to_gun(nofin) -> nofin;
-fin_to_gun(<<"nofin">>) -> nofin.
+fin_to_gun(<<"nofin">>) -> nofin;
+fin_to_gun(Other) -> error({invalid_fin, Other}).
 
 normalize_connection_error(timeout) -> timeout;
 normalize_connection_error({down, _Protocol, Reason, _KilledStreams, _UnprocessedStreams}) ->
@@ -193,7 +195,16 @@ message_to_map({error, Reason}) ->
 message_to_map(Other) ->
     error({invalid_message, Other}).
 
-frame_to_map({text, Data}) -> #{<<"type">> => <<"text">>, <<"data">> => iolist_to_binary(Data)};
+frame_to_map({text, Data}) ->
+    DataBin = iolist_to_binary(Data),
+    case unicode:characters_to_binary(DataBin, utf8, utf8) of
+        ValidText when is_binary(ValidText) ->
+            #{<<"type">> => <<"text">>, <<"data">> => ValidText};
+        {error, _Encoded, _Rest} ->
+            error({invalid_message, {ws, {text, invalid_utf8}}});
+        {incomplete, _Encoded, _Rest} ->
+            error({invalid_message, {ws, {text, invalid_utf8}}})
+    end;
 frame_to_map({binary, Data}) -> #{<<"type">> => <<"binary">>, <<"data">> => iolist_to_binary(Data)};
 frame_to_map({close, Code, Reason}) -> #{<<"type">> => <<"close">>, <<"code">> => Code, <<"reason">> => to_binary(Reason)};
 frame_to_map({ping, Data}) -> #{<<"type">> => <<"ping">>, <<"data">> => iolist_to_binary(Data)};
@@ -204,7 +215,8 @@ frame_to_map(Other) -> error({invalid_message, {ws, Other}}).
 fin_to_bool(fin) -> true;
 fin_to_bool(nofin) -> false;
 fin_to_bool(true) -> true;
-fin_to_bool(false) -> false.
+fin_to_bool(false) -> false;
+fin_to_bool(Other) -> error({invalid_fin, Other}).
 
 normalize_headers(Headers) ->
     [{to_binary(Name), to_binary(Value)} || {Name, Value} <- Headers].
@@ -212,4 +224,5 @@ normalize_headers(Headers) ->
 to_binary(Value) when is_binary(Value) -> Value;
 to_binary(Value) when is_atom(Value) -> atom_to_binary(Value, utf8);
 to_binary(Value) when is_list(Value) -> iolist_to_binary(Value);
-to_binary(Value) when is_integer(Value) -> integer_to_binary(Value).
+to_binary(Value) when is_integer(Value) -> integer_to_binary(Value);
+to_binary(Value) -> error({invalid_binary, Value}).
