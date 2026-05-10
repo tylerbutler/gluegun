@@ -114,7 +114,9 @@ pub fn websocket_invalid_send_frame_list_returns_error_test() {
 pub fn websocket_invalid_send_text_utf8_returns_error_test() {
   gluegun_ws_test_invalid_ws_send_text_utf8_result()
   |> result.map_error(error.decode_ffi_error)
-  |> should.equal(Error(error.InvalidMessage("InvalidFrame(Text(InvalidUtf8))")))
+  |> should.equal(
+    Error(error.InvalidMessage("InvalidFrame(Text(InvalidUtf8))")),
+  )
 }
 
 // ── Inbound frame decoding ───────────────────────────────────────────────────

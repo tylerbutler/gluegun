@@ -1,13 +1,13 @@
 import gleam/dynamic
 import gleam/option.{None, Some}
 import gleeunit/should
+import gluegun
 import gluegun/connection
 import gluegun/error
 import gluegun/internal
 import gluegun/message
 import gluegun/request
 import gluegun/response
-import gluegun/types
 
 pub fn default_connect_options_test() {
   let options = connection.connect_options()
@@ -29,13 +29,37 @@ pub fn protocol_ordering_test() {
 }
 
 pub fn method_conversion_test() {
-  request.method_to_string(types.Get)
+  request.method_to_string(request.Get)
   |> should.equal("GET")
 
-  request.method_to_string(types.Post)
+  gluegun.method_to_string(request.Get)
+  |> should.equal("GET")
+
+  request.method_to_string(request.Post)
   |> should.equal("POST")
 
-  request.method_to_string(types.Custom("PROPFIND"))
+  request.method_to_string(request.Head)
+  |> should.equal("HEAD")
+
+  request.method_to_string(request.Put)
+  |> should.equal("PUT")
+
+  request.method_to_string(request.Patch)
+  |> should.equal("PATCH")
+
+  request.method_to_string(request.Delete)
+  |> should.equal("DELETE")
+
+  request.method_to_string(request.Options)
+  |> should.equal("OPTIONS")
+
+  request.method_to_string(request.Trace)
+  |> should.equal("TRACE")
+
+  request.method_to_string(request.Connect)
+  |> should.equal("CONNECT")
+
+  request.method_to_string(request.Custom("PROPFIND"))
   |> should.equal("PROPFIND")
 }
 
@@ -184,7 +208,7 @@ pub fn message_decode_push_test() {
   message.decode(value)
   |> should.equal(
     Ok(
-      message.Push(internal.stream(stream), types.Post, "/assets/app.css", [
+      message.Push(internal.stream(stream), request.Post, "/assets/app.css", [
         #("accept", "text/css"),
       ]),
     ),
@@ -207,7 +231,7 @@ pub fn message_decode_push_preserves_custom_method_case_test() {
     Ok(
       message.Push(
         internal.stream(stream),
-        types.Custom("PropFind"),
+        request.Custom("PropFind"),
         "/collection",
         [],
       ),
@@ -227,7 +251,9 @@ pub fn message_decode_push_matches_known_methods_case_insensitively_test() {
     ])
 
   message.decode(value)
-  |> should.equal(Ok(message.Push(internal.stream(stream), types.Get, "/", [])))
+  |> should.equal(
+    Ok(message.Push(internal.stream(stream), request.Get, "/", [])),
+  )
 }
 
 pub fn message_decode_unknown_message_tag_fails_test() {

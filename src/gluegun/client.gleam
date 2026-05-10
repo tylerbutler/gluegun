@@ -17,7 +17,6 @@ import gluegun/internal.{type Connection, type Stream}
 import gluegun/message.{type Message}
 import gluegun/request as low_request
 import gluegun/response.{type Informational, type Response}
-import gluegun/types
 
 type Collection {
   AwaitingResponse(informational: List(Informational))
@@ -83,7 +82,7 @@ pub fn post(
 ) -> Result(Response, error.GluegunError) {
   request(
     connection,
-    types.Post,
+    low_request.Post,
     path,
     headers,
     body,
@@ -101,7 +100,7 @@ pub fn put(
 ) -> Result(Response, error.GluegunError) {
   request(
     connection,
-    types.Put,
+    low_request.Put,
     path,
     headers,
     body,
@@ -119,7 +118,7 @@ pub fn patch(
 ) -> Result(Response, error.GluegunError) {
   request(
     connection,
-    types.Patch,
+    low_request.Patch,
     path,
     headers,
     body,
@@ -136,7 +135,7 @@ pub fn delete(
 ) -> Result(Response, error.GluegunError) {
   request(
     connection,
-    types.Delete,
+    low_request.Delete,
     path,
     headers,
     <<>>,
@@ -153,7 +152,7 @@ pub fn head(
 ) -> Result(Response, error.GluegunError) {
   request(
     connection,
-    types.Head,
+    low_request.Head,
     path,
     headers,
     <<>>,
@@ -170,7 +169,7 @@ pub fn options(
 ) -> Result(Response, error.GluegunError) {
   request(
     connection,
-    types.Options,
+    low_request.Options,
     path,
     headers,
     <<>>,
@@ -206,7 +205,7 @@ pub fn get_with(
 ) -> Result(Response, error.GluegunError) {
   request_with(
     connection,
-    types.Get,
+    low_request.Get,
     path,
     headers,
     <<>>,

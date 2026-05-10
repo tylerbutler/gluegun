@@ -5,15 +5,15 @@ import gleam/string
 import gluegun/connection.{type Timeout, timeout_to_ffi}
 import gluegun/error
 import gluegun/internal.{type Connection, type Stream}
-import gluegun/types.{
+import gluegun/request.{
   Connect, Custom, Delete, Get, Head, Options, Patch, Post, Put, Trace,
 }
 
 pub type Method =
-  types.Method
+  request.Method
 
 pub type Header =
-  types.Header
+  request.Header
 
 pub type Fin {
   Fin
@@ -235,7 +235,7 @@ fn fin_decoder() -> dyn_decode.Decoder(Fin) {
 }
 
 fn headers_decoder() -> dyn_decode.Decoder(List(Header)) {
-  dyn_decode.map(dyn_decode.list(header_decoder()), types.normalize_headers)
+  dyn_decode.map(dyn_decode.list(header_decoder()), request.normalize_headers)
 }
 
 fn header_decoder() -> dyn_decode.Decoder(Header) {

@@ -1,17 +1,25 @@
 import gleam/dynamic
-import gleam/erlang/atom
 import gleam/list
+import gleam/string
 import gluegun/error
 import gluegun/internal.{type Connection, type Stream}
 import gluegun/internal/ffi_result
-import gluegun/message
-import gluegun/types
 
-pub type Method =
-  types.Method
+pub type Method {
+  Get
+  Head
+  Post
+  Put
+  Patch
+  Delete
+  Options
+  Trace
+  Connect
+  Custom(String)
+}
 
 pub type Header =
-  types.Header
+  #(String, String)
 
 pub opaque type RequestOptions {
   RequestOptions(headers: List(Header), reserved: Nil)
@@ -29,12 +37,26 @@ pub fn with_headers(
 }
 
 pub fn method_to_string(method: Method) -> String {
-  types.method_to_string(method)
+  case method {
+    Get -> "GET"
+    Head -> "HEAD"
+    Post -> "POST"
+    Put -> "PUT"
+    Patch -> "PATCH"
+    Delete -> "DELETE"
+    Options -> "OPTIONS"
+    Trace -> "TRACE"
+    Connect -> "CONNECT"
+    Custom(method) -> method
+  }
 }
 
 /// Lowercase header names for the Erlang Gun FFI boundary without changing values.
 pub fn normalize_headers(headers: List(Header)) -> List(Header) {
-  types.normalize_headers(headers)
+  list.map(headers, fn(header) {
+    let #(name, value) = header
+    #(string.lowercase(name), value)
+  })
 }
 
 /// Send a low-level HTTP request on an open Gun connection.
@@ -89,13 +111,13 @@ pub fn headers(
 pub fn data(
   connection: Connection,
   stream: Stream,
-  fin: message.Fin,
+  fin: fin,
   data: BitArray,
 ) -> Result(Nil, error.GluegunError) {
   ffi_data(
     internal.connection_raw(connection),
     internal.stream_raw(stream),
-    fin_to_ffi(fin),
+    fin,
     data,
   )
   |> ffi_result.decode_nil_result
@@ -159,12 +181,12 @@ pub fn headers_args_to_ffi(
 }
 
 @internal
-pub fn fin_to_ffi(fin: message.Fin) -> dynamic.Dynamic {
-  case fin {
-    message.Fin -> atom.to_dynamic(atom.create("fin"))
-    message.NoFin -> atom.to_dynamic(atom.create("nofin"))
-  }
+pub fn fin_to_ffi(fin: fin) -> dynamic.Dynamic {
+  ffi_fin_to_ffi(fin)
 }
+
+@external(erlang, "gluegun_ffi", "fin_to_ffi")
+fn ffi_fin_to_ffi(fin: fin) -> dynamic.Dynamic
 
 @internal
 pub fn update_flow_args_to_ffi(
@@ -198,7 +220,7 @@ fn ffi_request(
 fn ffi_data(
   connection: dynamic.Dynamic,
   stream: dynamic.Dynamic,
-  fin: dynamic.Dynamic,
+  fin: fin,
   data: BitArray,
 ) -> Result(dynamic.Dynamic, dynamic.Dynamic)
 

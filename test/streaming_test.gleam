@@ -7,12 +7,11 @@ import gluegun/internal
 import gluegun/internal/ffi_result
 import gluegun/message
 import gluegun/request
-import gluegun/types
 
 pub fn streaming_headers_ffi_shape_normalizes_request_test() {
   let #(method, path, headers, _options) =
     request.headers_args_to_ffi(
-      types.Post,
+      request.Post,
       "/upload",
       [#("Content-Type", "text/plain")],
       request.request_options()

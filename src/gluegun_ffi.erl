@@ -13,6 +13,7 @@
     cancel/2,
     update_flow/3,
     flush/1,
+    fin_to_ffi/1,
     ws_upgrade/4,
     ws_send/3,
     safe_message_to_map/1
@@ -225,9 +226,12 @@ protocol_to_gun(<<"http2">>) -> http2.
 
 fin_to_gun(fin) -> fin;
 fin_to_gun(<<"fin">>) -> fin;
+fin_to_gun(no_fin) -> nofin;
 fin_to_gun(nofin) -> nofin;
 fin_to_gun(<<"nofin">>) -> nofin;
 fin_to_gun(Other) -> error({invalid_fin, Other}).
+
+fin_to_ffi(Fin) -> fin_to_gun(Fin).
 
 normalize_connection_error(timeout) -> timeout;
 normalize_connection_error({down, _Protocol, Reason, _KilledStreams, _UnprocessedStreams}) ->

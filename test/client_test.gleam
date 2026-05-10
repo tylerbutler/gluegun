@@ -4,8 +4,8 @@ import gluegun/client
 import gluegun/error
 import gluegun/internal
 import gluegun/message
+import gluegun/request
 import gluegun/response
-import gluegun/types
 
 pub fn client_collects_single_final_body_test() {
   client.collect_messages([
@@ -78,7 +78,7 @@ pub fn client_rejects_push_upgrade_and_websocket_test() {
   let stream = internal.stream(dynamic.string("stream-1"))
 
   client.collect_messages([
-    Ok(message.Push(stream, types.Get, "/pushed", [])),
+    Ok(message.Push(stream, request.Get, "/pushed", [])),
   ])
   |> should.equal(
     Error(error.InvalidMessage("HTTP helper received push message")),
