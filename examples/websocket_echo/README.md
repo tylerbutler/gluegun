@@ -1,6 +1,6 @@
 # websocket_echo
 
-A minimal example showing how to use **gluegun**'s WebSocket API to connect to
+A minimal example showing how to use **Gluegun**'s WebSocket API to connect to
 an echo server, send a text frame, and receive the echoed reply.
 
 ## Protocol limitations

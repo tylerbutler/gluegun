@@ -9,5 +9,5 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
-- Initial gluegun package for typed Gleam access to Erlang Gun connections, HTTP requests, streaming messages, and WebSocket helpers.
+- Initial Gluegun package for typed Gleam access to Erlang Gun connections, HTTP requests, streaming messages, and WebSocket helpers.
 - Documentation, examples, and release-readiness checks for the first Hex package release.

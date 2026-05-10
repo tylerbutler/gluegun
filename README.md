@@ -6,7 +6,7 @@
 
 A Gleam wrapper for the Erlang [Gun](https://ninenines.eu/docs/en/gun/) HTTP client.
 
-Gun is an asynchronous HTTP client supporting HTTP/1.1, HTTP/2, and WebSocket over HTTP/1.1. gluegun gives Gleam callers typed connection, request, response, message, and WebSocket helpers while preserving access to Gun's stream-oriented model. Because Gun is Erlang-only, gluegun targets the Erlang runtime.
+Gun is an asynchronous HTTP client supporting HTTP/1.1, HTTP/2, and WebSocket over HTTP/1.1. Gluegun gives Gleam callers typed connection, request, response, message, and WebSocket helpers while preserving access to Gun's stream-oriented model. Because Gun is Erlang-only, Gluegun targets the Erlang runtime.
 
 ## Installation
 
@@ -16,7 +16,7 @@ gleam add gluegun
 
 ## Compatibility
 
-- Erlang target only; gluegun wraps the Erlang Gun client and does not support the JavaScript target.
+- Erlang target only; Gluegun wraps the Erlang Gun client and does not support the JavaScript target.
 - Supports Gleam `>= 1.7.0` and Gun `>= 2.1.0 and < 3.0.0`.
 
 ## Basic GET
@@ -51,7 +51,7 @@ pub fn main() {
 
 ## One-shot helper on an existing connection
 
-`gluegun/client` helpers are one-shot per request: they send one request on an existing connection and collect that response. gluegun does not parse URLs; pass the host and port to `connection.open`, then pass a path to request helpers.
+`gluegun/client` helpers are one-shot per request: they send one request on an existing connection and collect that response. Gluegun does not parse URLs; pass the host and port to `connection.open`, then pass a path to request helpers.
 
 ```gleam
 import gluegun/client
@@ -206,10 +206,10 @@ fn safe_get(conn) {
 
 ## Limitations
 
-- Erlang target only. gluegun wraps Erlang Gun and is not available on the JavaScript target.
+- Erlang target only. Gluegun wraps Erlang Gun and is not available on the JavaScript target.
 - Gun process ownership matters. Requests and WebSocket frames are asynchronous messages sent to the process that owns or awaits the Gun stream unless request options redirect replies.
 - `client` helpers collect full response bodies in memory. Use low-level `request` and `message` APIs for streaming or advanced Gun flows.
-- WebSocket over HTTP/2 is unsupported by Gun. gluegun rejects it in `websocket.upgrade_with_protocol`.
+- WebSocket over HTTP/2 is unsupported by Gun. Gluegun rejects it in `websocket.upgrade_with_protocol`.
 - TLS option surface is intentionally small at first. Advanced TLS options may require future typed additions.
 
 ## Examples
