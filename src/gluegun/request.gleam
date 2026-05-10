@@ -1,3 +1,9 @@
+//// Low-level HTTP request and stream operations.
+////
+//// Use this module when you need Gun stream references, chunked request
+//// bodies, flow-control updates, cancellation, or direct access to asynchronous
+//// Gun messages. For simple full-body responses, prefer `gluegun/client`.
+
 import gleam/dynamic
 import gleam/list
 import gleam/string
@@ -6,6 +12,10 @@ import gluegun/fin.{type Fin}
 import gluegun/internal.{type Connection, type Stream}
 import gluegun/internal/ffi_result
 
+/// HTTP request method constructors.
+///
+/// Use canonical constructors such as `Get`, `Post`, and `Put`, or `Custom`
+/// for extension methods.
 pub type Method {
   Get
   Head
@@ -19,17 +29,21 @@ pub type Method {
   Custom(String)
 }
 
+/// HTTP header represented as `#(name, value)`.
 pub type Header =
   #(String, String)
 
+/// Request options passed through the low-level request API.
 pub opaque type RequestOptions {
   RequestOptions(headers: List(Header), reserved: Nil)
 }
 
+/// Construct default request options.
 pub fn request_options() -> RequestOptions {
   RequestOptions(headers: [], reserved: Nil)
 }
 
+/// Add option-level headers that are appended to per-call headers.
 pub fn with_headers(
   options: RequestOptions,
   headers headers: List(Header),
@@ -37,6 +51,7 @@ pub fn with_headers(
   RequestOptions(..options, headers: headers)
 }
 
+/// Convert a method constructor to its HTTP method string.
 pub fn method_to_string(method: Method) -> String {
   case method {
     Get -> "GET"

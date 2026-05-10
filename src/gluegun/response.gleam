@@ -1,11 +1,18 @@
+//// HTTP response values collected by `gluegun/client`.
+////
+//// A response contains the final status, headers, full body, trailers, and any
+//// informational `1xx` responses seen before the final response.
+
 import gleam/bit_array
 import gleam/result
 import gluegun/error
 import gluegun/request.{type Header}
 
+/// Informational `1xx` response represented by status and headers.
 pub type Informational =
   #(Int, List(Header))
 
+/// Full HTTP response collected from a Gun stream.
 pub type Response {
   Response(
     status: Int,
@@ -16,6 +23,7 @@ pub type Response {
   )
 }
 
+/// Construct a response without informational responses.
 pub fn new(
   status status: Int,
   headers headers: List(Header),
@@ -31,10 +39,12 @@ pub fn new(
   )
 }
 
+/// Return a response with a replaced body.
 pub fn with_body(response: Response, body body: BitArray) -> Response {
   Response(..response, body: body)
 }
 
+/// Return a response with replaced trailers.
 pub fn with_trailers(
   response: Response,
   trailers trailers: List(Header),
@@ -42,6 +52,7 @@ pub fn with_trailers(
   Response(..response, trailers: trailers)
 }
 
+/// Return a response with replaced informational responses.
 pub fn with_informational(
   response: Response,
   informational informational: List(Informational),

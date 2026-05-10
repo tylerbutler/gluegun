@@ -1,3 +1,9 @@
+//// Decoding and awaiting asynchronous Gun stream messages.
+////
+//// Gun sends HTTP, HTTP/2 push, upgrade, and WebSocket events as Erlang
+//// messages. This module decodes those messages into Gleam types for callers
+//// using lower-level streaming or advanced flows.
+
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode as dyn_decode
 import gleam/result
@@ -10,9 +16,11 @@ import gluegun/request.{
   Connect, Custom, Delete, Get, Head, Options, Patch, Post, Put, Trace,
 }
 
+/// Alias for `gluegun/request.Method` used in decoded messages.
 pub type Method =
   request.Method
 
+/// Alias for `gluegun/request.Header` used in decoded messages.
 pub type Header =
   request.Header
 
@@ -43,14 +51,17 @@ pub type Message {
   WebSocket(frame: Frame)
 }
 
+/// Alias for `gluegun/error.GluegunError`.
 pub type GluegunError =
   error.GluegunError
 
+/// Decode a raw Erlang Gun message into a typed Gleam message.
 pub fn decode(data: Dynamic) -> Result(Message, GluegunError) {
   dyn_decode.run(data, message_decoder())
   |> result.map_error(fn(_) { error.DecodeError("Invalid Gun message") })
 }
 
+/// Decode a raw Erlang FFI error into `GluegunError`.
 pub fn decode_ffi_error(error: Dynamic) -> GluegunError {
   error.decode_ffi_error(error)
 }

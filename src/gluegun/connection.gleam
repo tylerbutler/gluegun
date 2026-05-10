@@ -1,3 +1,9 @@
+//// Connection management for Erlang Gun.
+////
+//// Open a Gun process, wait for it to be ready, choose transport and HTTP
+//// protocol preferences, then close or shut down the connection. Connections
+//// are Erlang process resources and are available on the Erlang target only.
+
 import gleam/dynamic
 import gleam/erlang/atom
 import gleam/list

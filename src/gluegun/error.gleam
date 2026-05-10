@@ -1,8 +1,15 @@
+//// Error types returned by gluegun public APIs.
+////
+//// Most functions return `Result(_, GluegunError)`. Match variants such as
+//// `Timeout`, `ConnectionDown`, and `InvalidMessage` for application-specific
+//// recovery, and keep a fallback for Erlang or decode errors.
+
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode as dyn_decode
 import gleam/erlang/atom
 import gleam/string
 
+/// Errors returned by gluegun connection, request, message, and WebSocket APIs.
 pub type GluegunError {
   Timeout
   ConnectionDown(String)

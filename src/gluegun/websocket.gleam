@@ -1,31 +1,32 @@
-/// WebSocket helpers for Gun connections.
-///
-/// ## Protocol limitations
-///
-/// Gun supports WebSocket over HTTP/1.1 only. WebSocket over HTTP/2 (RFC 8441)
-/// is **not** supported by Gun. Call `upgrade_with_protocol` with the protocol
-/// returned by `connection.await_up` to reject HTTP/2 before calling Gun.
-///
-/// Once an HTTP/1.1 connection is upgraded to WebSocket the underlying TCP
-/// connection is exclusively used for WebSocket frames. You cannot send
-/// concurrent HTTP requests on that same connection after upgrading.
-///
-/// ## Typical usage
-///
-/// ```gleam
-/// import gluegun/connection
-/// import gluegun/websocket
-/// import gluegun/message
-///
-/// let assert Ok(conn) = connection.open("echo.example.com", 80, connection.connect_options())
-/// let assert Ok(protocol) = connection.await_up(conn, connection.Milliseconds(5000))
-///
-/// let assert Ok(stream) = websocket.upgrade_with_protocol(conn, protocol, "/ws", [])
-/// let assert Ok(Nil) = websocket.await_upgrade(conn, stream, connection.Milliseconds(5000))
-///
-/// let assert Ok(Nil) = websocket.send(conn, stream, message.Text("hello"))
-/// let assert Ok(message.Text(reply)) = websocket.receive(conn, stream, connection.Milliseconds(5000))
-/// ```
+//// WebSocket helpers for Gun connections.
+////
+//// ## Protocol limitations
+////
+//// Gun supports WebSocket over HTTP/1.1 only. WebSocket over HTTP/2 (RFC 8441)
+//// is **not** supported by Gun. Call `upgrade_with_protocol` with the protocol
+//// returned by `connection.await_up` to reject HTTP/2 before calling Gun.
+////
+//// Once an HTTP/1.1 connection is upgraded to WebSocket the underlying TCP
+//// connection is exclusively used for WebSocket frames. You cannot send
+//// concurrent HTTP requests on that same connection after upgrading.
+////
+//// ## Typical usage
+////
+//// ```gleam
+//// import gluegun/connection
+//// import gluegun/websocket
+//// import gluegun/message
+////
+//// let assert Ok(conn) = connection.open("echo.example.com", 80, connection.connect_options())
+//// let assert Ok(protocol) = connection.await_up(conn, connection.Milliseconds(5000))
+////
+//// let assert Ok(stream) = websocket.upgrade_with_protocol(conn, protocol, "/ws", [])
+//// let assert Ok(Nil) = websocket.await_upgrade(conn, stream, connection.Milliseconds(5000))
+////
+//// let assert Ok(Nil) = websocket.send(conn, stream, message.Text("hello"))
+//// let assert Ok(message.Text(reply)) = websocket.receive(conn, stream, connection.Milliseconds(5000))
+//// ```
+
 import gleam/dynamic
 import gleam/result
 import gluegun/connection.{type Protocol, type Timeout}

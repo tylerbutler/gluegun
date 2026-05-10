@@ -58,6 +58,7 @@ pub fn request(
   )
 }
 
+/// Send GET on an open connection and collect the full response.
 pub fn get(
   connection: Connection,
   path: String,
@@ -74,6 +75,7 @@ pub fn get(
   )
 }
 
+/// Send POST on an open connection and collect the full response.
 pub fn post(
   connection: Connection,
   path: String,
@@ -92,6 +94,7 @@ pub fn post(
   )
 }
 
+/// Send PUT on an open connection and collect the full response.
 pub fn put(
   connection: Connection,
   path: String,
@@ -110,6 +113,7 @@ pub fn put(
   )
 }
 
+/// Send PATCH on an open connection and collect the full response.
 pub fn patch(
   connection: Connection,
   path: String,
@@ -128,6 +132,7 @@ pub fn patch(
   )
 }
 
+/// Send DELETE on an open connection and collect the full response.
 pub fn delete(
   connection: Connection,
   path: String,
@@ -145,6 +150,7 @@ pub fn delete(
   )
 }
 
+/// Send HEAD on an open connection and collect the full response.
 pub fn head(
   connection: Connection,
   path: String,
@@ -162,6 +168,7 @@ pub fn head(
   )
 }
 
+/// Send OPTIONS on an open connection and collect the full response.
 pub fn options(
   connection: Connection,
   path: String,
