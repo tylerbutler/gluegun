@@ -1,0 +1,16 @@
+name = "gluegun"
+version = "0.1.0"
+description = "A Gleam wrapper for the Erlang Gun HTTP client"
+licences = ["MIT"]
+repository = { type = "github", user = "tylerbutler", repo = "gluegun" }
+gleam = ">= 1.7.0"
+target = "erlang"
+
+[dependencies]
+gleam_stdlib = ">= 0.48.0 and < 2.0.0"
+gleam_erlang = ">= 1.0.0 and < 2.0.0"
+gleam_otp = ">= 1.0.0 and < 2.0.0"
+gun = ">= 2.1.0 and < 3.0.0"
+
+[dev-dependencies]
+gleeunit = ">= 1.0.0 and < 2.0.0"
