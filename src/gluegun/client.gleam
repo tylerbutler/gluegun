@@ -1,6 +1,7 @@
 //// High-level HTTP helpers for existing Gun connections.
 ////
-//// These helpers collect regular HTTP responses into `response.Response`.
+//// These helpers collect regular HTTP/1.1 and HTTP/2 responses into
+//// `response.Response`.
 //// Informational `1xx` responses are preserved in `Response.informational`.
 //// Protocol messages for server push, upgrades, and WebSockets are rejected with
 //// `InvalidMessage`; use the lower-level `gluegun/message` API for those flows.

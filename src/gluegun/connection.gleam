@@ -15,6 +15,10 @@ pub type Transport {
 }
 
 /// HTTP protocol preference for a Gun connection.
+///
+/// `Http2` is encoded as Gun's `http2` protocol atom, so it can be placed
+/// before `Http1` when TLS + ALPN should prefer HTTP/2 and fall back to
+/// HTTP/1.1.
 pub type Protocol {
   Http1
   Http2
@@ -55,6 +59,8 @@ pub fn with_transport(
 }
 
 /// Set HTTP protocol preference ordering for a connection.
+///
+/// The list order is preserved when options are passed to Gun.
 pub fn with_protocols(
   options: ConnectOptions,
   protocols protocols: List(Protocol),
