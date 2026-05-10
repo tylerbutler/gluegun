@@ -1,4 +1,10 @@
+import gleam/dynamic
+import gleam/erlang/atom
+import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
+import gluegun/internal.{type Connection}
+import gluegun/message.{type GluegunError}
 
 /// Transport selection for a Gun connection.
 pub type Transport {
@@ -40,6 +46,7 @@ pub fn connect_options() -> ConnectOptions {
   )
 }
 
+/// Set the transport Gun should use for a connection.
 pub fn with_transport(
   options: ConnectOptions,
   transport transport: Transport,
@@ -47,6 +54,7 @@ pub fn with_transport(
   ConnectOptions(..options, transport: transport)
 }
 
+/// Set HTTP protocol preference ordering for a connection.
 pub fn with_protocols(
   options: ConnectOptions,
   protocols protocols: List(Protocol),
@@ -54,6 +62,7 @@ pub fn with_protocols(
   ConnectOptions(..options, protocols: Some(protocols))
 }
 
+/// Set Gun's retry timeout option.
 pub fn with_retry(
   options: ConnectOptions,
   retry retry: Timeout,
@@ -61,6 +70,7 @@ pub fn with_retry(
   ConnectOptions(..options, retry: retry)
 }
 
+/// Set Gun's connect timeout option.
 pub fn with_connect_timeout(
   options: ConnectOptions,
   timeout timeout: Timeout,
@@ -87,3 +97,120 @@ pub fn retry(options: ConnectOptions) -> Timeout {
 pub fn connect_timeout(options: ConnectOptions) -> Timeout {
   options.connect_timeout
 }
+
+/// Open a Gun connection.
+pub fn open(
+  host: String,
+  port: Int,
+  options: ConnectOptions,
+) -> Result(Connection, GluegunError) {
+  ffi_open(host, port, options_to_ffi(options))
+  |> result.map(internal.connection)
+  |> result.map_error(message.decode_ffi_error)
+}
+
+/// Wait until a Gun connection is up.
+pub fn await_up(
+  connection: Connection,
+  timeout: Timeout,
+) -> Result(Protocol, GluegunError) {
+  ffi_await_up(internal.connection_raw(connection), timeout_to_ffi(timeout))
+  |> result.try(fn(protocol) {
+    case decode_protocol(protocol) {
+      Ok(protocol) -> Ok(protocol)
+      Error(error) -> Error(dynamic.string(error))
+    }
+  })
+  |> result.map_error(message.decode_ffi_error)
+}
+
+/// Close a Gun connection.
+pub fn close(connection: Connection) -> Nil {
+  let _ = ffi_close(internal.connection_raw(connection))
+  Nil
+}
+
+/// Shut down a Gun connection.
+pub fn shutdown(connection: Connection) -> Nil {
+  let _ = ffi_shutdown(internal.connection_raw(connection))
+  Nil
+}
+
+/// Convert connection options to the Erlang FFI map shape.
+pub fn options_to_ffi(options: ConnectOptions) -> dynamic.Dynamic {
+  let protocol_entries = case options.protocols {
+    Some(protocols) -> [
+      #(
+        dynamic.string("protocols"),
+        dynamic.list(list.map(protocols, protocol_to_ffi)),
+      ),
+    ]
+    None -> []
+  }
+
+  dynamic.properties([
+    #(dynamic.string("transport"), transport_to_ffi(options.transport)),
+    #(dynamic.string("retry"), timeout_to_ffi(options.retry)),
+    #(
+      dynamic.string("connect_timeout"),
+      timeout_to_ffi(options.connect_timeout),
+    ),
+    ..protocol_entries
+  ])
+}
+
+/// Convert a timeout to the Erlang FFI shape.
+pub fn timeout_to_ffi(timeout: Timeout) -> dynamic.Dynamic {
+  case timeout {
+    Milliseconds(milliseconds) -> dynamic.int(milliseconds)
+    Infinity -> atom.to_dynamic(atom.create("infinity"))
+  }
+}
+
+fn transport_to_ffi(transport: Transport) -> dynamic.Dynamic {
+  case transport {
+    Auto -> atom.to_dynamic(atom.create("auto"))
+    Tcp -> atom.to_dynamic(atom.create("tcp"))
+    Tls -> atom.to_dynamic(atom.create("tls"))
+  }
+}
+
+fn protocol_to_ffi(protocol: Protocol) -> dynamic.Dynamic {
+  case protocol {
+    Http1 -> atom.to_dynamic(atom.create("http"))
+    Http2 -> atom.to_dynamic(atom.create("http2"))
+  }
+}
+
+fn decode_protocol(protocol: dynamic.Dynamic) -> Result(Protocol, String) {
+  case dynamic.classify(protocol) {
+    "Atom" -> {
+      let name = atom.to_string(atom.cast_from_dynamic(protocol))
+      case name {
+        "http" -> Ok(Http1)
+        "http2" -> Ok(Http2)
+        _ -> Error("Invalid protocol")
+      }
+    }
+    _ -> Error("Invalid protocol")
+  }
+}
+
+@external(erlang, "gluegun_ffi", "open")
+fn ffi_open(
+  host: String,
+  port: Int,
+  options: dynamic.Dynamic,
+) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+
+@external(erlang, "gluegun_ffi", "await_up")
+fn ffi_await_up(
+  connection: dynamic.Dynamic,
+  timeout: dynamic.Dynamic,
+) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+
+@external(erlang, "gluegun_ffi", "close")
+fn ffi_close(connection: dynamic.Dynamic) -> dynamic.Dynamic
+
+@external(erlang, "gluegun_ffi", "shutdown")
+fn ffi_shutdown(connection: dynamic.Dynamic) -> dynamic.Dynamic

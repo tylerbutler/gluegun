@@ -1,8 +1,9 @@
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode as dyn_decode
+import gleam/erlang/atom
 import gleam/result
 import gleam/string
-import gluegun/internal.{type Stream}
+import gluegun/internal.{type Connection, type Stream}
 import gluegun/request.{type Header, type Method, normalize_headers}
 
 pub type Fin {
@@ -31,12 +32,82 @@ pub type Message {
 }
 
 pub type GluegunError {
+  Timeout
+  ConnectionDown(String)
+  ConnectionError(String)
+  StreamError(String)
+  InvalidOptions(String)
+  InvalidMessage(String)
+  ErlangError(String)
   DecodeError(String)
 }
 
 pub fn decode(data: Dynamic) -> Result(Message, GluegunError) {
   dyn_decode.run(data, message_decoder())
   |> result.map_error(fn(_) { DecodeError("Invalid Gun message") })
+}
+
+/// Decode an FFI error reason into a gluegun error.
+pub fn decode_ffi_error(error: Dynamic) -> GluegunError {
+  case dyn_decode.run(error, atom.decoder()) {
+    Ok(tag) ->
+      case atom.to_string(tag) {
+        "timeout" -> Timeout
+        _ -> ErlangError(string.inspect(error))
+      }
+    Error(_) -> decode_tagged_ffi_error(error)
+  }
+}
+
+/// Await the next Gun message for a stream.
+pub fn await(
+  connection: Connection,
+  stream: Stream,
+  timeout: anything,
+) -> Result(Message, GluegunError) {
+  ffi_await(
+    internal.connection_raw(connection),
+    internal.stream_raw(stream),
+    unsafe_coerce(timeout),
+  )
+  |> result.map_error(decode_ffi_error)
+  |> result.try(decode)
+}
+
+/// Await and collect the full response body for a stream.
+pub fn await_body(
+  connection: Connection,
+  stream: Stream,
+  timeout: anything,
+) -> Result(BitArray, GluegunError) {
+  ffi_await_body(
+    internal.connection_raw(connection),
+    internal.stream_raw(stream),
+    unsafe_coerce(timeout),
+  )
+  |> result.map_error(decode_ffi_error)
+}
+
+fn decode_tagged_ffi_error(error: Dynamic) -> GluegunError {
+  let tag_result = dyn_decode.run(error, dyn_decode.at([0], atom.decoder()))
+  let reason_result =
+    dyn_decode.run(error, dyn_decode.at([1], dyn_decode.dynamic))
+
+  case tag_result, reason_result {
+    Ok(tag), Ok(reason) -> {
+      let reason = string.inspect(reason)
+      case atom.to_string(tag) {
+        "invalid_options" -> InvalidOptions(reason)
+        "connection_down" -> ConnectionDown(reason)
+        "connection_error" -> ConnectionError(reason)
+        "stream_error" -> StreamError(reason)
+        "invalid_message" -> InvalidMessage(reason)
+        "erlang_error" -> ErlangError(reason)
+        _ -> ErlangError(string.inspect(error))
+      }
+    }
+    _, _ -> ErlangError(string.inspect(error))
+  }
 }
 
 fn message_decoder() -> dyn_decode.Decoder(Message) {
@@ -124,8 +195,6 @@ fn method_decoder() -> dyn_decode.Decoder(Method) {
       "OPTIONS" -> request.Options
       "TRACE" -> request.Trace
       "CONNECT" -> request.Connect
-      // Preserve unrecognised methods exactly as received. This keeps decoded
-      // custom methods consistent with request.method_to_string(Custom(method)).
       _ -> request.Custom(method)
     }
   })
@@ -197,3 +266,20 @@ fn header_decoder() -> dyn_decode.Decoder(Header) {
     })
   })
 }
+
+@external(erlang, "gleam_stdlib", "identity")
+fn unsafe_coerce(a: anything) -> Dynamic
+
+@external(erlang, "gluegun_ffi", "await")
+fn ffi_await(
+  connection: Dynamic,
+  stream: Dynamic,
+  timeout: Dynamic,
+) -> Result(Dynamic, Dynamic)
+
+@external(erlang, "gluegun_ffi", "await_body")
+fn ffi_await_body(
+  connection: Dynamic,
+  stream: Dynamic,
+  timeout: Dynamic,
+) -> Result(BitArray, Dynamic)
