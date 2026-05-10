@@ -189,6 +189,73 @@ pub fn message_decode_push_test() {
   )
 }
 
+pub fn message_decode_push_preserves_custom_method_case_test() {
+  let stream = dynamic.string("stream-1")
+  let value =
+    dynamic.properties([
+      #(dynamic.string("type"), dynamic.string("push")),
+      #(dynamic.string("stream"), stream),
+      #(dynamic.string("method"), dynamic.string("PropFind")),
+      #(dynamic.string("uri"), dynamic.string("/collection")),
+      #(dynamic.string("headers"), dynamic.list([])),
+    ])
+
+  message.decode(value)
+  |> should.equal(
+    Ok(
+      message.Push(
+        internal.stream(stream),
+        request.Custom("PropFind"),
+        "/collection",
+        [],
+      ),
+    ),
+  )
+}
+
+pub fn message_decode_push_matches_known_methods_case_insensitively_test() {
+  let stream = dynamic.string("stream-1")
+  let value =
+    dynamic.properties([
+      #(dynamic.string("type"), dynamic.string("push")),
+      #(dynamic.string("stream"), stream),
+      #(dynamic.string("method"), dynamic.string("get")),
+      #(dynamic.string("uri"), dynamic.string("/")),
+      #(dynamic.string("headers"), dynamic.list([])),
+    ])
+
+  message.decode(value)
+  |> should.equal(
+    Ok(message.Push(internal.stream(stream), request.Get, "/", [])),
+  )
+}
+
+pub fn message_decode_unknown_message_tag_fails_test() {
+  let value =
+    dynamic.properties([
+      #(dynamic.string("type"), dynamic.string("mystery")),
+    ])
+
+  message.decode(value)
+  |> should.equal(Error(message.DecodeError("Invalid Gun message")))
+}
+
+pub fn message_decode_unknown_websocket_frame_tag_fails_test() {
+  let value =
+    dynamic.properties([
+      #(dynamic.string("type"), dynamic.string("websocket")),
+      #(
+        dynamic.string("frame"),
+        dynamic.properties([
+          #(dynamic.string("type"), dynamic.string("mystery")),
+        ]),
+      ),
+    ])
+
+  message.decode(value)
+  |> should.equal(Error(message.DecodeError("Invalid Gun message")))
+}
+
 pub fn message_decode_websocket_test() {
   let value =
     dynamic.properties([

@@ -10,6 +10,7 @@ pub type Fin {
   NoFin
 }
 
+/// WebSocket frames delivered inside Gun stream messages.
 pub type Frame {
   Text(String)
   Binary(BitArray)
@@ -18,6 +19,7 @@ pub type Frame {
   Pong(BitArray)
 }
 
+/// Gun HTTP stream messages delivered by the Erlang Gun client.
 pub type Message {
   Inform(status: Int, headers: List(Header))
   Response(fin: Fin, status: Int, headers: List(Header))
@@ -48,8 +50,16 @@ fn message_decoder() -> dyn_decode.Decoder(Message) {
     "upgrade" -> upgrade_decoder()
     "websocket" -> websocket_decoder()
     "ws" -> websocket_decoder()
-    _ -> dyn_decode.failure(Data(NoFin, <<>>), expected: "Message")
+    _ -> fail_message_decode()
   }
+}
+
+fn fail_message_decode() -> dyn_decode.Decoder(Message) {
+  dyn_decode.failure(message_decode_placeholder(), expected: "Message")
+}
+
+fn message_decode_placeholder() -> Message {
+  Data(NoFin, <<"gluegun decode failure placeholder":utf8>>)
 }
 
 fn inform_decoder() -> dyn_decode.Decoder(Message) {
@@ -114,6 +124,8 @@ fn method_decoder() -> dyn_decode.Decoder(Method) {
       "OPTIONS" -> request.Options
       "TRACE" -> request.Trace
       "CONNECT" -> request.Connect
+      // Preserve unrecognised methods exactly as received. This keeps decoded
+      // custom methods consistent with request.method_to_string(Custom(method)).
       _ -> request.Custom(method)
     }
   })
@@ -127,8 +139,16 @@ fn frame_decoder() -> dyn_decode.Decoder(Frame) {
     "close" -> close_frame_decoder()
     "ping" -> ping_frame_decoder()
     "pong" -> pong_frame_decoder()
-    _ -> dyn_decode.failure(Text(""), expected: "Frame")
+    _ -> fail_frame_decode()
   }
+}
+
+fn fail_frame_decode() -> dyn_decode.Decoder(Frame) {
+  dyn_decode.failure(frame_decode_placeholder(), expected: "Frame")
+}
+
+fn frame_decode_placeholder() -> Frame {
+  Text("gluegun decode failure placeholder")
 }
 
 fn text_frame_decoder() -> dyn_decode.Decoder(Frame) {

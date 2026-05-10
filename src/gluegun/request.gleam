@@ -18,18 +18,18 @@ pub type Header =
   #(String, String)
 
 pub opaque type RequestOptions {
-  RequestOptions(headers: List(Header))
+  RequestOptions(headers: List(Header), reserved: Nil)
 }
 
 pub fn request_options() -> RequestOptions {
-  RequestOptions(headers: [])
+  RequestOptions(headers: [], reserved: Nil)
 }
 
 pub fn with_headers(
-  _options: RequestOptions,
+  options: RequestOptions,
   headers headers: List(Header),
 ) -> RequestOptions {
-  RequestOptions(headers: headers)
+  RequestOptions(..options, headers: headers)
 }
 
 pub fn headers(options: RequestOptions) -> List(Header) {
