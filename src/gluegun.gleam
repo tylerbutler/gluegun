@@ -6,9 +6,11 @@ import gluegun/connection.{
   type ConnectOptions, type Protocol, type Timeout, type Transport,
 }
 import gluegun/error
-import gluegun/internal.{type Connection}
+import gluegun/internal.{type Connection, type Stream}
+import gluegun/message
 import gluegun/request as low_request
 import gluegun/response as http_response
+import gluegun/websocket as ws
 
 pub fn name() -> String {
   "gluegun"
@@ -156,4 +158,48 @@ pub fn options(
   timeout: Timeout,
 ) -> Result(http_response.Response, error.GluegunError) {
   http_client.options(connection, path, headers, timeout)
+}
+
+/// Initiate a WebSocket upgrade on an HTTP/1.1 connection.
+///
+/// See `gluegun/websocket` for full documentation and protocol limitations.
+pub fn ws_upgrade(
+  connection: Connection,
+  path: String,
+  headers: List(low_request.Header),
+) -> Result(Stream, error.GluegunError) {
+  ws.upgrade(connection, path, headers)
+}
+
+/// Wait for the WebSocket handshake confirmation.
+///
+/// See `gluegun/websocket.await_upgrade` for details.
+pub fn ws_await_upgrade(
+  connection: Connection,
+  stream: Stream,
+  timeout: Timeout,
+) -> Result(Nil, error.GluegunError) {
+  ws.await_upgrade(connection, stream, timeout)
+}
+
+/// Send a single WebSocket frame.
+///
+/// See `gluegun/websocket.send` for details.
+pub fn ws_send(
+  connection: Connection,
+  stream: Stream,
+  frame: message.Frame,
+) -> Result(Nil, error.GluegunError) {
+  ws.send(connection, stream, frame)
+}
+
+/// Receive the next WebSocket frame from the stream.
+///
+/// See `gluegun/websocket.receive` for details.
+pub fn ws_receive(
+  connection: Connection,
+  stream: Stream,
+  timeout: Timeout,
+) -> Result(message.Frame, error.GluegunError) {
+  ws.receive(connection, stream, timeout)
 }

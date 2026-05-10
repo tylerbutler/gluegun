@@ -13,12 +13,19 @@ pub type Fin {
 }
 
 /// WebSocket frames delivered inside Gun stream messages.
+///
+/// `Close` represents a plain close with no status code or reason.
+/// `CloseWithReason` carries a numeric close code and an opaque reason payload.
+///
+/// On the wire Gun delivers `close` (atom) as `Close` and
+/// `{close, Code, Reason}` as `CloseWithReason`.
 pub type Frame {
   Text(String)
   Binary(BitArray)
-  Close(Int, String)
   Ping(BitArray)
   Pong(BitArray)
+  Close
+  CloseWithReason(code: Int, reason: BitArray)
 }
 
 /// Gun HTTP stream messages delivered by the Erlang Gun client.
@@ -168,7 +175,8 @@ fn frame_decoder() -> dyn_decode.Decoder(Frame) {
   case tag {
     "text" -> text_frame_decoder()
     "binary" -> binary_frame_decoder()
-    "close" -> close_frame_decoder()
+    "close" -> dyn_decode.success(Close)
+    "close_with_reason" -> close_with_reason_frame_decoder()
     "ping" -> ping_frame_decoder()
     "pong" -> pong_frame_decoder()
     _ -> fail_frame_decode()
@@ -193,10 +201,10 @@ fn binary_frame_decoder() -> dyn_decode.Decoder(Frame) {
   dyn_decode.success(Binary(data))
 }
 
-fn close_frame_decoder() -> dyn_decode.Decoder(Frame) {
+fn close_with_reason_frame_decoder() -> dyn_decode.Decoder(Frame) {
   use code <- dyn_decode.field("code", dyn_decode.int)
-  use reason <- dyn_decode.field("reason", dyn_decode.string)
-  dyn_decode.success(Close(code, reason))
+  use reason <- dyn_decode.field("reason", dyn_decode.bit_array)
+  dyn_decode.success(CloseWithReason(code, reason))
 }
 
 fn ping_frame_decoder() -> dyn_decode.Decoder(Frame) {

@@ -11,6 +11,8 @@
     await_body/3,
     cancel/2,
     flush/1,
+    ws_upgrade/4,
+    ws_send/3,
     safe_message_to_map/1
 ]).
 
@@ -107,6 +109,39 @@ flush(ConnPid) ->
     catch
         Class:Reason:_Stack -> {error, {connection_error, {Class, Reason}}}
     end.
+
+ws_upgrade(ConnPid, Path, Headers, WsOpts) ->
+    try gun:ws_upgrade(ConnPid, Path, normalize_headers(Headers), WsOpts) of
+        StreamRef -> {ok, StreamRef}
+    catch
+        Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
+    end.
+
+ws_send(ConnPid, StreamRef, Frame) ->
+    GunFrame = gleam_frame_to_gun(Frame),
+    try gun:ws_send(ConnPid, StreamRef, GunFrame) of
+        ok -> {ok, nil};
+        {error, Reason} -> {error, normalize_stream_error(Reason)};
+        Other -> {error, normalize_stream_error(Other)}
+    catch
+        Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
+    end.
+
+%% Convert a Gleam Frame (compiled Erlang tagged tuple) to a Gun frame term.
+%% Gleam compiles:
+%%   Text(S)               -> {text, S}
+%%   Binary(B)             -> {binary, B}
+%%   Close                 -> close  (zero-arg atom)
+%%   CloseWithReason(C, R) -> {close_with_reason, C, R}
+%%   Ping(B)               -> {ping, B}
+%%   Pong(B)               -> {pong, B}
+gleam_frame_to_gun({text, Data}) -> {text, Data};
+gleam_frame_to_gun({binary, Data}) -> {binary, Data};
+gleam_frame_to_gun(close) -> close;
+gleam_frame_to_gun({close_with_reason, Code, Reason}) -> {close, Code, Reason};
+gleam_frame_to_gun({ping, Data}) -> {ping, Data};
+gleam_frame_to_gun({pong, Data}) -> {pong, Data};
+gleam_frame_to_gun(Other) -> error({invalid_frame, Other}).
 
 normalize_host(Host) when is_binary(Host) -> unicode:characters_to_list(Host);
 normalize_host(Host) -> Host.
@@ -206,10 +241,13 @@ frame_to_map({text, Data}) ->
             error({invalid_message, {ws, {text, invalid_utf8}}})
     end;
 frame_to_map({binary, Data}) -> #{<<"type">> => <<"binary">>, <<"data">> => iolist_to_binary(Data)};
-frame_to_map({close, Code, Reason}) -> #{<<"type">> => <<"close">>, <<"code">> => Code, <<"reason">> => to_binary(Reason)};
+frame_to_map({close, Code, Reason}) ->
+    #{<<"type">> => <<"close_with_reason">>,
+      <<"code">> => Code,
+      <<"reason">> => iolist_to_binary(Reason)};
 frame_to_map({ping, Data}) -> #{<<"type">> => <<"ping">>, <<"data">> => iolist_to_binary(Data)};
 frame_to_map({pong, Data}) -> #{<<"type">> => <<"pong">>, <<"data">> => iolist_to_binary(Data)};
-frame_to_map(close) -> #{<<"type">> => <<"close">>, <<"code">> => 1000, <<"reason">> => <<>>};
+frame_to_map(close) -> #{<<"type">> => <<"close">>};
 frame_to_map(Other) -> error({invalid_message, {ws, Other}}).
 
 fin_to_bool(fin) -> true;
