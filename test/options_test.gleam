@@ -183,7 +183,7 @@ pub fn message_decode_push_test() {
   message.decode(value)
   |> should.equal(
     Ok(
-      message.Push(internal.stream(stream), request.Post, "/assets/app.css", [
+      message.Push(internal.stream(stream), message.Post, "/assets/app.css", [
         #("accept", "text/css"),
       ]),
     ),
@@ -206,7 +206,7 @@ pub fn message_decode_push_preserves_custom_method_case_test() {
     Ok(
       message.Push(
         internal.stream(stream),
-        request.Custom("PropFind"),
+        message.Custom("PropFind"),
         "/collection",
         [],
       ),
@@ -227,7 +227,7 @@ pub fn message_decode_push_matches_known_methods_case_insensitively_test() {
 
   message.decode(value)
   |> should.equal(
-    Ok(message.Push(internal.stream(stream), request.Get, "/", [])),
+    Ok(message.Push(internal.stream(stream), message.Get, "/", [])),
   )
 }
 

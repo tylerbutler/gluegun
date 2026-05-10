@@ -5,11 +5,13 @@
     await_up/2,
     close/1,
     shutdown/1,
+    headers/5,
     request/6,
     data/4,
     await/3,
     await_body/3,
     cancel/2,
+    update_flow/3,
     flush/1,
     ws_upgrade/4,
     ws_send/3,
@@ -65,6 +67,19 @@ request(ConnPid, Method, Path, Headers, Body, ReqOpts) ->
         Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
     end.
 
+headers(ConnPid, Method, Path, Headers, ReqOpts) ->
+    try gun:headers(
+        ConnPid,
+        to_binary(Method),
+        to_binary(Path),
+        normalize_headers(Headers),
+        req_opts_to_gun(ReqOpts)
+    ) of
+        StreamRef -> {ok, StreamRef}
+    catch
+        Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
+    end.
+
 data(ConnPid, StreamRef, Fin, Data) ->
     try gun:data(ConnPid, StreamRef, fin_to_gun(Fin), Data) of
         ok -> {ok, nil};
@@ -94,6 +109,15 @@ await_body(ConnPid, StreamRef, Timeout) ->
 
 cancel(ConnPid, StreamRef) ->
     try gun:cancel(ConnPid, StreamRef) of
+        ok -> {ok, nil};
+        {error, Reason} -> {error, normalize_stream_error(Reason)};
+        Other -> {error, normalize_stream_error(Other)}
+    catch
+        Class:Reason:_Stack -> {error, {stream_error, {Class, Reason}}}
+    end.
+
+update_flow(ConnPid, StreamRef, Increment) ->
+    try gun:update_flow(ConnPid, StreamRef, Increment) of
         ok -> {ok, nil};
         {error, Reason} -> {error, normalize_stream_error(Reason)};
         Other -> {error, normalize_stream_error(Other)}

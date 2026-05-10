@@ -1,9 +1,11 @@
 import gleam/dynamic
+import gleam/erlang/atom
 import gleam/list
 import gleam/string
 import gluegun/error
 import gluegun/internal.{type Connection, type Stream}
 import gluegun/internal/ffi_result
+import gluegun/message
 
 pub type Method {
   Get
@@ -34,10 +36,6 @@ pub fn with_headers(
   headers headers: List(Header),
 ) -> RequestOptions {
   RequestOptions(..options, headers: headers)
-}
-
-pub fn headers(options: RequestOptions) -> List(Header) {
-  options.headers
 }
 
 pub fn method_to_string(method: Method) -> String {
@@ -86,11 +84,36 @@ pub fn request(
   |> ffi_result.decode_request_result
 }
 
+/// Start a low-level HTTP request whose body will be streamed later.
+///
+/// The caller must send request body chunks with `data(..., NoFin, ...)` and
+/// complete the request with `data(..., Fin, ...)`. Gun response messages go to
+/// the calling process by default unless Gun request options redirect replies.
+pub fn headers(
+  connection: Connection,
+  method: Method,
+  path: String,
+  headers: List(Header),
+  options: RequestOptions,
+) -> Result(Stream, error.GluegunError) {
+  let #(method, path, headers, options) =
+    headers_args_to_ffi(method, path, headers, options)
+
+  ffi_headers(
+    internal.connection_raw(connection),
+    method,
+    path,
+    headers,
+    options,
+  )
+  |> ffi_result.decode_request_result
+}
+
 /// Stream request body data for a request.
 pub fn data(
   connection: Connection,
   stream: Stream,
-  fin: anything,
+  fin: message.Fin,
   data: BitArray,
 ) -> Result(Nil, error.GluegunError) {
   ffi_data(
@@ -111,6 +134,19 @@ pub fn cancel(
   |> ffi_result.decode_nil_result
 }
 
+/// Update HTTP/1.1 or HTTP/2 stream flow control by the given increment.
+pub fn update_flow(
+  connection: Connection,
+  stream: Stream,
+  increment: Int,
+) -> Result(Nil, error.GluegunError) {
+  let #(connection, stream, increment) =
+    update_flow_args_to_ffi(connection, stream, increment)
+
+  ffi_update_flow(connection, stream, increment)
+  |> decode_update_flow_result
+}
+
 /// Flush Gun messages for a connection.
 pub fn flush(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_flush(internal.connection_raw(connection))
@@ -121,12 +157,53 @@ fn options_to_ffi(_options: RequestOptions) -> dynamic.Dynamic {
   dynamic.properties([])
 }
 
-fn fin_to_ffi(fin) -> dynamic.Dynamic {
-  unsafe_coerce(fin)
+@internal
+pub fn headers_args_to_ffi(
+  method: Method,
+  path: String,
+  headers: List(Header),
+  options: RequestOptions,
+) -> #(String, String, List(Header), dynamic.Dynamic) {
+  #(
+    method_to_string(method),
+    path,
+    normalize_headers(list.append(headers, options.headers)),
+    options_to_ffi(options),
+  )
 }
 
-@external(erlang, "gleam_stdlib", "identity")
-fn unsafe_coerce(a: anything) -> dynamic.Dynamic
+@internal
+pub fn fin_to_ffi(fin: message.Fin) -> dynamic.Dynamic {
+  case fin {
+    message.Fin -> atom.to_dynamic(atom.create("fin"))
+    message.NoFin -> atom.to_dynamic(atom.create("nofin"))
+  }
+}
+
+@internal
+pub fn update_flow_args_to_ffi(
+  connection: Connection,
+  stream: Stream,
+  increment: Int,
+) -> #(dynamic.Dynamic, dynamic.Dynamic, Int) {
+  #(internal.connection_raw(connection), internal.stream_raw(stream), increment)
+}
+
+@internal
+pub fn decode_update_flow_result(
+  result: Result(dynamic.Dynamic, dynamic.Dynamic),
+) -> Result(Nil, error.GluegunError) {
+  ffi_result.decode_nil_result(result)
+}
+
+@external(erlang, "gluegun_ffi", "headers")
+fn ffi_headers(
+  connection: dynamic.Dynamic,
+  method: String,
+  path: String,
+  headers: List(Header),
+  options: dynamic.Dynamic,
+) -> Result(dynamic.Dynamic, dynamic.Dynamic)
 
 @external(erlang, "gluegun_ffi", "request")
 fn ffi_request(
@@ -150,6 +227,13 @@ fn ffi_data(
 fn ffi_cancel(
   connection: dynamic.Dynamic,
   stream: dynamic.Dynamic,
+) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+
+@external(erlang, "gluegun_ffi", "update_flow")
+fn ffi_update_flow(
+  connection: dynamic.Dynamic,
+  stream: dynamic.Dynamic,
+  increment: Int,
 ) -> Result(dynamic.Dynamic, dynamic.Dynamic)
 
 @external(erlang, "gluegun_ffi", "flush")
