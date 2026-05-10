@@ -4,6 +4,8 @@
 //// Informational `1xx` responses are preserved in `Response.informational`.
 //// Protocol messages for server push, upgrades, and WebSockets are rejected with
 //// `InvalidMessage`; use the lower-level `gluegun/message` API for those flows.
+//// Full response bodies are collected in memory; use the lower-level APIs for
+//// streaming or very large responses.
 
 import gleam/bit_array
 import gleam/list
@@ -250,7 +252,7 @@ fn step(
         AwaitingResponse(_) ->
           invalid("HTTP helper received body before response")
         Collecting(status, headers, chunks, trailers, informational) -> {
-          let chunks = list.append(chunks, [data])
+          let chunks = [data, ..chunks]
           case fin {
             message.Fin ->
               Ok(
@@ -316,7 +318,7 @@ fn build_response(
   response.Response(
     status: status,
     headers: headers,
-    body: bit_array.concat(chunks),
+    body: bit_array.concat(list.reverse(chunks)),
     trailers: trailers,
     informational: informational,
   )

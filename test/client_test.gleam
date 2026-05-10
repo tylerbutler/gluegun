@@ -28,13 +28,15 @@ pub fn client_collects_multiple_data_chunks_in_order_test() {
   let assert Ok(res) =
     client.collect_messages([
       Ok(message.Response(message.NoFin, 200, [])),
-      Ok(message.Data(message.NoFin, <<"hel":utf8>>)),
-      Ok(message.Data(message.NoFin, <<"lo ":utf8>>)),
-      Ok(message.Data(message.Fin, <<"world":utf8>>)),
+      Ok(message.Data(message.NoFin, <<"chunk-1|":utf8>>)),
+      Ok(message.Data(message.NoFin, <<"chunk-2|":utf8>>)),
+      Ok(message.Data(message.NoFin, <<"chunk-3|":utf8>>)),
+      Ok(message.Data(message.NoFin, <<"chunk-4|":utf8>>)),
+      Ok(message.Data(message.Fin, <<"chunk-5":utf8>>)),
     ])
 
   res.body
-  |> should.equal(<<"hello world":utf8>>)
+  |> should.equal(<<"chunk-1|chunk-2|chunk-3|chunk-4|chunk-5":utf8>>)
 }
 
 pub fn client_preserves_trailers_test() {
@@ -97,6 +99,23 @@ pub fn client_body_before_response_is_invalid_test() {
   client.collect_messages([Ok(message.Data(message.Fin, <<"oops":utf8>>))])
   |> should.equal(
     Error(error.InvalidMessage("HTTP helper received body before response")),
+  )
+}
+
+pub fn client_duplicate_response_is_invalid_test() {
+  client.collect_messages([
+    Ok(message.Response(message.NoFin, 200, [])),
+    Ok(message.Response(message.Fin, 204, [])),
+  ])
+  |> should.equal(
+    Error(error.InvalidMessage("HTTP helper received duplicate response")),
+  )
+}
+
+pub fn client_trailers_before_response_is_invalid_test() {
+  client.collect_messages([Ok(message.Trailers([#("expires", "soon")]))])
+  |> should.equal(
+    Error(error.InvalidMessage("HTTP helper received trailers before response")),
   )
 }
 
