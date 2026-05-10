@@ -2,6 +2,7 @@
 
 [![Package Version](https://img.shields.io/hexpm/v/gluegun)](https://hex.pm/packages/gluegun)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/gluegun/)
+[![CI](https://github.com/tylerbutler/gluegun/actions/workflows/ci.yml/badge.svg)](https://github.com/tylerbutler/gluegun/actions/workflows/ci.yml)
 
 A Gleam wrapper for the Erlang [Gun](https://ninenines.eu/docs/en/gun/) HTTP client.
 
@@ -12,6 +13,11 @@ Gun is an asynchronous HTTP client supporting HTTP/1.1, HTTP/2, and WebSocket ov
 ```sh
 gleam add gluegun
 ```
+
+## Compatibility
+
+- Erlang target only; gluegun wraps the Erlang Gun client and does not support the JavaScript target.
+- Supports Gleam `>= 1.7.0` and Gun `>= 2.1.0 and < 3.0.0`.
 
 ## Basic GET
 
@@ -223,6 +229,8 @@ just docs         # Build documentation
 just ci           # Run all CI checks
 just main         # Run CI checks and build docs
 ```
+
+Before publishing a release, run `just ci`, `gleam docs build`, and `gleam publish --dry-run` when supported by your installed Gleam version.
 
 ## License
 
