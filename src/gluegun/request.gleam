@@ -1,27 +1,17 @@
 import gleam/dynamic
 import gleam/erlang/atom
 import gleam/list
-import gleam/string
 import gluegun/error
 import gluegun/internal.{type Connection, type Stream}
 import gluegun/internal/ffi_result
 import gluegun/message
+import gluegun/types
 
-pub type Method {
-  Get
-  Head
-  Post
-  Put
-  Patch
-  Delete
-  Options
-  Trace
-  Connect
-  Custom(String)
-}
+pub type Method =
+  types.Method
 
 pub type Header =
-  #(String, String)
+  types.Header
 
 pub opaque type RequestOptions {
   RequestOptions(headers: List(Header), reserved: Nil)
@@ -39,26 +29,12 @@ pub fn with_headers(
 }
 
 pub fn method_to_string(method: Method) -> String {
-  case method {
-    Get -> "GET"
-    Head -> "HEAD"
-    Post -> "POST"
-    Put -> "PUT"
-    Patch -> "PATCH"
-    Delete -> "DELETE"
-    Options -> "OPTIONS"
-    Trace -> "TRACE"
-    Connect -> "CONNECT"
-    Custom(method) -> method
-  }
+  types.method_to_string(method)
 }
 
 /// Lowercase header names for the Erlang Gun FFI boundary without changing values.
 pub fn normalize_headers(headers: List(Header)) -> List(Header) {
-  list.map(headers, fn(header) {
-    let #(name, value) = header
-    #(string.lowercase(name), value)
-  })
+  types.normalize_headers(headers)
 }
 
 /// Send a low-level HTTP request on an open Gun connection.
@@ -135,16 +111,26 @@ pub fn cancel(
 }
 
 /// Update HTTP/1.1 or HTTP/2 stream flow control by the given increment.
+///
+/// The increment must be positive. Gun rejects non-positive flow-control
+/// increments, so this function validates the value before crossing the FFI
+/// boundary and returns `InvalidOptions` for zero or negative increments.
 pub fn update_flow(
   connection: Connection,
   stream: Stream,
   increment: Int,
 ) -> Result(Nil, error.GluegunError) {
-  let #(connection, stream, increment) =
-    update_flow_args_to_ffi(connection, stream, increment)
+  case increment > 0 {
+    True -> {
+      let #(connection, stream, increment) =
+        update_flow_args_to_ffi(connection, stream, increment)
 
-  ffi_update_flow(connection, stream, increment)
-  |> decode_update_flow_result
+      ffi_update_flow(connection, stream, increment)
+      |> ffi_result.decode_nil_result
+    }
+    False ->
+      Error(error.InvalidOptions("flow-control increment must be positive"))
+  }
 }
 
 /// Flush Gun messages for a connection.
@@ -187,13 +173,6 @@ pub fn update_flow_args_to_ffi(
   increment: Int,
 ) -> #(dynamic.Dynamic, dynamic.Dynamic, Int) {
   #(internal.connection_raw(connection), internal.stream_raw(stream), increment)
-}
-
-@internal
-pub fn decode_update_flow_result(
-  result: Result(dynamic.Dynamic, dynamic.Dynamic),
-) -> Result(Nil, error.GluegunError) {
-  ffi_result.decode_nil_result(result)
 }
 
 @external(erlang, "gluegun_ffi", "headers")

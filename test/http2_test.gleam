@@ -10,8 +10,8 @@ import gluegun/connection
 import gluegun/error
 import gluegun/internal
 import gluegun/message
-import gluegun/request
 import gluegun/response
+import gluegun/types
 
 pub fn http2_protocol_preference_encodes_to_ffi_in_order_test() {
   connection.connect_options()
@@ -112,5 +112,5 @@ pub fn http2_await_up_then_get_response_path_succeeds_test() {
     ),
   )
   process.receive(request_subject, within: 0)
-  |> should.equal(Ok(#(request.Get, expected_path, expected_headers, <<>>)))
+  |> should.equal(Ok(#(types.Get, expected_path, expected_headers, <<>>)))
 }

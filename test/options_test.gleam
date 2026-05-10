@@ -7,6 +7,7 @@ import gluegun/internal
 import gluegun/message
 import gluegun/request
 import gluegun/response
+import gluegun/types
 
 pub fn default_connect_options_test() {
   let options = connection.connect_options()
@@ -28,13 +29,13 @@ pub fn protocol_ordering_test() {
 }
 
 pub fn method_conversion_test() {
-  request.method_to_string(request.Get)
+  request.method_to_string(types.Get)
   |> should.equal("GET")
 
-  request.method_to_string(request.Post)
+  request.method_to_string(types.Post)
   |> should.equal("POST")
 
-  request.method_to_string(request.Custom("PROPFIND"))
+  request.method_to_string(types.Custom("PROPFIND"))
   |> should.equal("PROPFIND")
 }
 
@@ -183,7 +184,7 @@ pub fn message_decode_push_test() {
   message.decode(value)
   |> should.equal(
     Ok(
-      message.Push(internal.stream(stream), message.Post, "/assets/app.css", [
+      message.Push(internal.stream(stream), types.Post, "/assets/app.css", [
         #("accept", "text/css"),
       ]),
     ),
@@ -206,7 +207,7 @@ pub fn message_decode_push_preserves_custom_method_case_test() {
     Ok(
       message.Push(
         internal.stream(stream),
-        message.Custom("PropFind"),
+        types.Custom("PropFind"),
         "/collection",
         [],
       ),
@@ -226,9 +227,7 @@ pub fn message_decode_push_matches_known_methods_case_insensitively_test() {
     ])
 
   message.decode(value)
-  |> should.equal(
-    Ok(message.Push(internal.stream(stream), message.Get, "/", [])),
-  )
+  |> should.equal(Ok(message.Push(internal.stream(stream), types.Get, "/", [])))
 }
 
 pub fn message_decode_unknown_message_tag_fails_test() {

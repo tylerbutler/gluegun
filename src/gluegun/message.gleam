@@ -1,27 +1,19 @@
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode as dyn_decode
-import gleam/list
 import gleam/result
 import gleam/string
 import gluegun/connection.{type Timeout, timeout_to_ffi}
 import gluegun/error
 import gluegun/internal.{type Connection, type Stream}
-
-pub type Method {
-  Get
-  Head
-  Post
-  Put
-  Patch
-  Delete
-  Options
-  Trace
-  Connect
-  Custom(String)
+import gluegun/types.{
+  Connect, Custom, Delete, Get, Head, Options, Patch, Post, Put, Trace,
 }
 
+pub type Method =
+  types.Method
+
 pub type Header =
-  #(String, String)
+  types.Header
 
 pub type Fin {
   Fin
@@ -243,14 +235,7 @@ fn fin_decoder() -> dyn_decode.Decoder(Fin) {
 }
 
 fn headers_decoder() -> dyn_decode.Decoder(List(Header)) {
-  dyn_decode.map(dyn_decode.list(header_decoder()), normalize_headers)
-}
-
-fn normalize_headers(headers: List(Header)) -> List(Header) {
-  list.map(headers, fn(header) {
-    let #(name, value) = header
-    #(string.lowercase(name), value)
-  })
+  dyn_decode.map(dyn_decode.list(header_decoder()), types.normalize_headers)
 }
 
 fn header_decoder() -> dyn_decode.Decoder(Header) {

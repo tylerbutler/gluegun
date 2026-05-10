@@ -7,11 +7,12 @@ import gluegun/internal
 import gluegun/internal/ffi_result
 import gluegun/message
 import gluegun/request
+import gluegun/types
 
 pub fn streaming_headers_ffi_shape_normalizes_request_test() {
   let #(method, path, headers, _options) =
     request.headers_args_to_ffi(
-      request.Post,
+      types.Post,
       "/upload",
       [#("Content-Type", "text/plain")],
       request.request_options()
@@ -70,11 +71,33 @@ pub fn streaming_update_flow_ffi_shape_encodes_increment_test() {
 }
 
 pub fn streaming_update_flow_decodes_success_and_error_test() {
-  request.decode_update_flow_result(Ok(dynamic.nil()))
+  ffi_result.decode_nil_result(Ok(dynamic.nil()))
   |> should.equal(Ok(Nil))
 
-  request.decode_update_flow_result(Error(gluegun_ffi_test_stream_error()))
+  ffi_result.decode_nil_result(Error(gluegun_ffi_test_stream_error()))
   |> should.equal(Error(error.StreamError("Boom")))
+}
+
+pub fn streaming_update_flow_rejects_zero_increment_test() {
+  request.update_flow(
+    internal.connection(dynamic.string("conn")),
+    internal.stream(dynamic.string("stream")),
+    0,
+  )
+  |> should.equal(
+    Error(error.InvalidOptions("flow-control increment must be positive")),
+  )
+}
+
+pub fn streaming_update_flow_rejects_negative_increment_test() {
+  request.update_flow(
+    internal.connection(dynamic.string("conn")),
+    internal.stream(dynamic.string("stream")),
+    -1,
+  )
+  |> should.equal(
+    Error(error.InvalidOptions("flow-control increment must be positive")),
+  )
 }
 
 @external(erlang, "gluegun_ffi_test", "test_stream_error")
