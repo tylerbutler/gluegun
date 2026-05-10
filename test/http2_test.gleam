@@ -46,3 +46,26 @@ pub fn http2_like_response_stream_collects_normal_http_response_test() {
     ),
   )
 }
+
+pub fn http2_await_up_then_get_response_path_succeeds_test() {
+  let negotiated =
+    connection.decode_await_up_result(Ok(atom.to_dynamic(atom.create("http2"))))
+
+  // Deterministic coverage: after Gun reports HTTP/2 and accepts a GET stream,
+  // the normal client response collector is protocol-agnostic.
+  client.collect_get_after_await_up(negotiated, [
+    Ok(message.Response(message.NoFin, 200, [#("content-type", "text/plain")])),
+    Ok(message.Data(message.NoFin, <<"hello ":utf8>>)),
+    Ok(message.Data(message.Fin, <<"from deterministic get":utf8>>)),
+  ])
+  |> should.equal(
+    Ok(
+      response.new(
+        status: 200,
+        headers: [#("content-type", "text/plain")],
+        body: <<"hello from deterministic get":utf8>>,
+        trailers: [],
+      ),
+    ),
+  )
+}

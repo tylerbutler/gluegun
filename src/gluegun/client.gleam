@@ -11,7 +11,7 @@
 import gleam/bit_array
 import gleam/list
 import gleam/result
-import gluegun/connection.{type Timeout}
+import gluegun/connection.{type Protocol, type Timeout}
 import gluegun/error
 import gluegun/internal.{type Connection, type Stream}
 import gluegun/message.{type Message}
@@ -182,6 +182,20 @@ pub fn collect_messages(
   messages: List(Result(Message, error.GluegunError)),
 ) -> Result(Response, error.GluegunError) {
   collect_message_results(messages, AwaitingResponse([]))
+}
+
+/// Test seam for the deterministic part of `get` after `connection.await_up`.
+///
+/// A live `get` also sends a Gun request to obtain a stream reference. Once Gun
+/// has accepted that request, HTTP/1.1 and HTTP/2 responses use the same message
+/// collection path.
+@internal
+pub fn collect_get_after_await_up(
+  await_up_result: Result(Protocol, error.GluegunError),
+  messages: List(Result(Message, error.GluegunError)),
+) -> Result(Response, error.GluegunError) {
+  use _protocol <- result.try(await_up_result)
+  collect_messages(messages)
 }
 
 fn collect_stream(
