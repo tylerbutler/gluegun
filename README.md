@@ -66,7 +66,7 @@ fn fetch_json(conn, path, timeout) {
 
 ## Streaming a request body
 
-Use `gluegun/request` when the request body is produced in chunks. Start with `request.headers`, send zero or more chunks with `fin.NoFin`, and complete the body with `fin.Fin`. Response messages are asynchronous Gun stream messages; use `gluegun/message` or your own receive loop for advanced flows.
+Use `gluegun/request` when the request body is produced in chunks. Start with `request.headers`, send zero or more chunks with `fin.NoFin`, and complete the body with `fin.Fin`. Response headers and body are separate asynchronous Gun stream messages; use `gluegun/message` helpers or your own receive loop for advanced flows.
 
 ```gleam
 import gluegun/connection
@@ -89,11 +89,23 @@ pub fn upload_chunks(conn) {
   let assert Ok(Nil) = request.data(conn, stream, fin.NoFin, <<"first ":utf8>>)
   let assert Ok(Nil) = request.data(conn, stream, fin.Fin, <<"last":utf8>>)
 
-  // Await Gun messages for this stream until the final response data arrives.
-  let assert Ok(message.Response(_, _status, _headers)) =
+  // Await response headers, then consume the response body.
+  let assert Ok(message.Response(response_fin, _status, _headers)) =
     message.await(conn, stream, timeout)
+
+  case response_fin {
+    fin.Fin -> <<>>
+    fin.NoFin -> {
+      let assert Ok(body) = message.await_body(conn, stream, timeout)
+      body
+    }
+  }
 }
 ```
+
+If you need response chunks or trailers as they arrive, continue awaiting
+`message.Data` and `message.Trailers` with `message.await` instead of collecting
+the full body with `message.await_body`.
 
 ## Prefer HTTP/2
 
