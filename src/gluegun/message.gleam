@@ -2,6 +2,7 @@ import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode as dyn_decode
 import gleam/result
 import gleam/string
+import gluegun/connection.{type Timeout, timeout_to_ffi}
 import gluegun/error
 import gluegun/internal.{type Connection, type Stream}
 import gluegun/request.{type Header, type Method, normalize_headers}
@@ -47,12 +48,12 @@ pub fn decode_ffi_error(error: Dynamic) -> GluegunError {
 pub fn await(
   connection: Connection,
   stream: Stream,
-  timeout: anything,
+  timeout: Timeout,
 ) -> Result(Message, GluegunError) {
   ffi_await(
     internal.connection_raw(connection),
     internal.stream_raw(stream),
-    unsafe_coerce(timeout),
+    timeout_to_ffi(timeout),
   )
   |> result.map_error(error.decode_ffi_error)
   |> result.try(decode)
@@ -62,12 +63,12 @@ pub fn await(
 pub fn await_body(
   connection: Connection,
   stream: Stream,
-  timeout: anything,
+  timeout: Timeout,
 ) -> Result(BitArray, GluegunError) {
   ffi_await_body(
     internal.connection_raw(connection),
     internal.stream_raw(stream),
-    unsafe_coerce(timeout),
+    timeout_to_ffi(timeout),
   )
   |> result.map_error(error.decode_ffi_error)
 }
@@ -228,9 +229,6 @@ fn header_decoder() -> dyn_decode.Decoder(Header) {
     })
   })
 }
-
-@external(erlang, "gleam_stdlib", "identity")
-fn unsafe_coerce(a: anything) -> Dynamic
 
 @external(erlang, "gluegun_ffi", "await")
 fn ffi_await(

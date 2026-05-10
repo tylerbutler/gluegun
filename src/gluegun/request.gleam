@@ -63,7 +63,10 @@ pub fn normalize_headers(headers: List(Header)) -> List(Header) {
   })
 }
 
-/// Send an HTTP request on an open Gun connection.
+/// Send a low-level HTTP request on an open Gun connection.
+///
+/// This returns a stream reference. Use `gluegun/client` helpers to collect a
+/// regular HTTP response into a `Response`.
 pub fn request(
   connection: Connection,
   method: Method,
