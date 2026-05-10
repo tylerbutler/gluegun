@@ -3,8 +3,8 @@ import gleam/erlang/atom
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
+import gluegun/error
 import gluegun/internal.{type Connection}
-import gluegun/message.{type GluegunError}
 
 /// Transport selection for a Gun connection.
 pub type Transport {
@@ -103,17 +103,17 @@ pub fn open(
   host: String,
   port: Int,
   options: ConnectOptions,
-) -> Result(Connection, GluegunError) {
+) -> Result(Connection, error.GluegunError) {
   ffi_open(host, port, options_to_ffi(options))
   |> result.map(internal.connection)
-  |> result.map_error(message.decode_ffi_error)
+  |> result.map_error(error.decode_ffi_error)
 }
 
 /// Wait until a Gun connection is up.
 pub fn await_up(
   connection: Connection,
   timeout: Timeout,
-) -> Result(Protocol, GluegunError) {
+) -> Result(Protocol, error.GluegunError) {
   ffi_await_up(internal.connection_raw(connection), timeout_to_ffi(timeout))
   |> result.try(fn(protocol) {
     case decode_protocol(protocol) {
@@ -121,19 +121,21 @@ pub fn await_up(
       Error(error) -> Error(dynamic.string(error))
     }
   })
-  |> result.map_error(message.decode_ffi_error)
+  |> result.map_error(error.decode_ffi_error)
 }
 
 /// Close a Gun connection.
-pub fn close(connection: Connection) -> Nil {
-  let _ = ffi_close(internal.connection_raw(connection))
-  Nil
+pub fn close(connection: Connection) -> Result(Nil, error.GluegunError) {
+  ffi_close(internal.connection_raw(connection))
+  |> result.map(fn(_) { Nil })
+  |> result.map_error(error.decode_ffi_error)
 }
 
 /// Shut down a Gun connection.
-pub fn shutdown(connection: Connection) -> Nil {
-  let _ = ffi_shutdown(internal.connection_raw(connection))
-  Nil
+pub fn shutdown(connection: Connection) -> Result(Nil, error.GluegunError) {
+  ffi_shutdown(internal.connection_raw(connection))
+  |> result.map(fn(_) { Nil })
+  |> result.map_error(error.decode_ffi_error)
 }
 
 /// Convert connection options to the Erlang FFI map shape.
@@ -210,7 +212,11 @@ fn ffi_await_up(
 ) -> Result(dynamic.Dynamic, dynamic.Dynamic)
 
 @external(erlang, "gluegun_ffi", "close")
-fn ffi_close(connection: dynamic.Dynamic) -> dynamic.Dynamic
+fn ffi_close(
+  connection: dynamic.Dynamic,
+) -> Result(dynamic.Dynamic, dynamic.Dynamic)
 
 @external(erlang, "gluegun_ffi", "shutdown")
-fn ffi_shutdown(connection: dynamic.Dynamic) -> dynamic.Dynamic
+fn ffi_shutdown(
+  connection: dynamic.Dynamic,
+) -> Result(dynamic.Dynamic, dynamic.Dynamic)

@@ -1,8 +1,9 @@
 import gleam/dynamic
 import gleam/list
-import gleam/result
 import gleam/string
+import gluegun/error
 import gluegun/internal.{type Connection, type Stream}
+import gluegun/internal/ffi_result
 
 pub type Method {
   Get
@@ -70,7 +71,7 @@ pub fn request(
   headers: List(Header),
   body: BitArray,
   options: RequestOptions,
-) -> Stream {
+) -> Result(Stream, error.GluegunError) {
   ffi_request(
     internal.connection_raw(connection),
     method_to_string(method),
@@ -79,7 +80,7 @@ pub fn request(
     body,
     options_to_ffi(options),
   )
-  |> internal.stream
+  |> ffi_result.decode_request_result
 }
 
 /// Stream request body data for a request.
@@ -88,26 +89,29 @@ pub fn data(
   stream: Stream,
   fin: anything,
   data: BitArray,
-) {
+) -> Result(Nil, error.GluegunError) {
   ffi_data(
     internal.connection_raw(connection),
     internal.stream_raw(stream),
     fin_to_ffi(fin),
     data,
   )
-  |> result.map(fn(_) { Nil })
+  |> ffi_result.decode_nil_result
 }
 
 /// Cancel a request stream.
-pub fn cancel(connection: Connection, stream: Stream) {
+pub fn cancel(
+  connection: Connection,
+  stream: Stream,
+) -> Result(Nil, error.GluegunError) {
   ffi_cancel(internal.connection_raw(connection), internal.stream_raw(stream))
-  |> result.map(fn(_) { Nil })
+  |> ffi_result.decode_nil_result
 }
 
 /// Flush Gun messages for a connection.
-pub fn flush(connection: Connection) {
+pub fn flush(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_flush(internal.connection_raw(connection))
-  |> result.map(fn(_) { Nil })
+  |> ffi_result.decode_nil_result
 }
 
 fn options_to_ffi(_options: RequestOptions) -> dynamic.Dynamic {
@@ -129,7 +133,7 @@ fn ffi_request(
   headers: List(Header),
   body: BitArray,
   options: dynamic.Dynamic,
-) -> dynamic.Dynamic
+) -> Result(dynamic.Dynamic, dynamic.Dynamic)
 
 @external(erlang, "gluegun_ffi", "data")
 fn ffi_data(

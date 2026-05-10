@@ -5,7 +5,9 @@ import gleam/list
 import gleam/result
 import gleeunit/should
 import gluegun/connection
+import gluegun/error
 import gluegun/internal
+import gluegun/internal/ffi_result
 import gluegun/message
 
 pub fn ffi_timeout_conversion_test() {
@@ -30,7 +32,7 @@ pub fn ffi_protocol_ordering_test() {
 
 pub fn ffi_error_timeout_maps_to_error_variant_test() {
   message.decode_ffi_error(atom.to_dynamic(atom.create("timeout")))
-  |> should.equal(message.Timeout)
+  |> should.equal(error.Timeout)
 }
 
 pub fn ffi_response_message_shape_decodes_test() {
@@ -55,11 +57,41 @@ pub fn ffi_stream_refs_are_opaque_test() {
   |> should.equal(stream)
 }
 
-@external(erlang, "gluegun_ffi", "test_response_message")
+pub fn ffi_ok_nil_result_decodes_to_nil_test() {
+  ffi_result.decode_nil_result(Ok(dynamic.nil()))
+  |> should.equal(Ok(Nil))
+}
+
+pub fn ffi_request_error_result_decodes_instead_of_stream_wrapping_test() {
+  ffi_result.decode_request_result(Error(gluegun_ffi_test_erlang_error()))
+  |> should.equal(Error(error.ErlangError("Error(Badarg)")))
+}
+
+pub fn ffi_non_options_open_errors_are_not_invalid_options_test() {
+  message.decode_ffi_error(gluegun_ffi_test_erlang_error())
+  |> should.equal(error.ErlangError("Error(Badarg)"))
+}
+
+pub fn ffi_close_errors_are_explicit_test() {
+  internal.connection(dynamic.string("not-a-pid"))
+  |> connection.close
+  |> should.equal(Error(error.ConnectionError("Error(SimpleOneForOne)")))
+}
+
+pub fn ffi_shutdown_errors_are_explicit_test() {
+  internal.connection(dynamic.string("not-a-pid"))
+  |> connection.shutdown
+  |> should.equal(Error(error.ConnectionError("Error(FunctionClause)")))
+}
+
+@external(erlang, "gluegun_ffi_test", "test_response_message")
 fn gluegun_ffi_test_response() -> dynamic.Dynamic
 
-@external(erlang, "gluegun_ffi", "test_data_message")
+@external(erlang, "gluegun_ffi_test", "test_data_message")
 fn gluegun_ffi_test_data() -> dynamic.Dynamic
 
-@external(erlang, "gluegun_ffi", "test_stream_ref")
+@external(erlang, "gluegun_ffi_test", "test_stream_ref")
 fn gluegun_ffi_test_stream_ref() -> dynamic.Dynamic
+
+@external(erlang, "gluegun_ffi_test", "test_erlang_error")
+fn gluegun_ffi_test_erlang_error() -> dynamic.Dynamic

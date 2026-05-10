@@ -2,6 +2,7 @@ import gleam/dynamic
 import gleam/option.{None, Some}
 import gleeunit/should
 import gluegun/connection
+import gluegun/error
 import gluegun/internal
 import gluegun/message
 import gluegun/request
@@ -237,7 +238,7 @@ pub fn message_decode_unknown_message_tag_fails_test() {
     ])
 
   message.decode(value)
-  |> should.equal(Error(message.DecodeError("Invalid Gun message")))
+  |> should.equal(Error(error.DecodeError("Invalid Gun message")))
 }
 
 pub fn message_decode_unknown_websocket_frame_tag_fails_test() {
@@ -253,7 +254,7 @@ pub fn message_decode_unknown_websocket_frame_tag_fails_test() {
     ])
 
   message.decode(value)
-  |> should.equal(Error(message.DecodeError("Invalid Gun message")))
+  |> should.equal(Error(error.DecodeError("Invalid Gun message")))
 }
 
 pub fn message_decode_websocket_test() {

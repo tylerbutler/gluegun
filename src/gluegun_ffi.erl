@@ -10,10 +10,7 @@
     await/3,
     await_body/3,
     cancel/2,
-    flush/1,
-    test_response_message/0,
-    test_data_message/0,
-    test_stream_ref/0
+    flush/1
 ]).
 
 open(Host, Port, Options) ->
@@ -21,7 +18,8 @@ open(Host, Port, Options) ->
         {ok, Pid} -> {ok, Pid};
         {error, Reason} -> {error, normalize_connection_error(Reason)}
     catch
-        error:Reason:_Stack -> {error, {invalid_options, Reason}};
+        error:{options, Reason}:_Stack -> {error, {invalid_options, Reason}};
+        error:{invalid_options, Reason}:_Stack -> {error, {invalid_options, Reason}};
         Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
     end.
 
@@ -35,12 +33,20 @@ await_up(ConnPid, Timeout) ->
     end.
 
 close(ConnPid) ->
-    try gun:close(ConnPid) catch _:_ -> ok end,
-    ok.
+    try gun:close(ConnPid) of
+        ok -> {ok, nil};
+        Other -> {error, normalize_connection_error(Other)}
+    catch
+        Class:Reason:_Stack -> {error, {connection_error, {Class, Reason}}}
+    end.
 
 shutdown(ConnPid) ->
-    try gun:shutdown(ConnPid) catch _:_ -> ok end,
-    ok.
+    try gun:shutdown(ConnPid) of
+        ok -> {ok, nil};
+        Other -> {error, normalize_connection_error(Other)}
+    catch
+        Class:Reason:_Stack -> {error, {connection_error, {Class, Reason}}}
+    end.
 
 request(ConnPid, Method, Path, Headers, Body, ReqOpts) ->
     try gun:request(
@@ -51,15 +57,16 @@ request(ConnPid, Method, Path, Headers, Body, ReqOpts) ->
         Body,
         req_opts_to_gun(ReqOpts)
     ) of
-        StreamRef -> StreamRef
+        StreamRef -> {ok, StreamRef}
     catch
         Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
     end.
 
 data(ConnPid, StreamRef, Fin, Data) ->
     try gun:data(ConnPid, StreamRef, fin_to_gun(Fin), Data) of
-        ok -> ok;
-        Other -> Other
+        ok -> {ok, nil};
+        {error, Reason} -> {error, normalize_stream_error(Reason)};
+        Other -> {error, normalize_stream_error(Other)}
     catch
         Class:Reason:_Stack -> {error, {stream_error, {Class, Reason}}}
     end.
@@ -84,28 +91,21 @@ await_body(ConnPid, StreamRef, Timeout) ->
 
 cancel(ConnPid, StreamRef) ->
     try gun:cancel(ConnPid, StreamRef) of
-        ok -> ok;
-        Other -> Other
+        ok -> {ok, nil};
+        {error, Reason} -> {error, normalize_stream_error(Reason)};
+        Other -> {error, normalize_stream_error(Other)}
     catch
         Class:Reason:_Stack -> {error, {stream_error, {Class, Reason}}}
     end.
 
 flush(ConnPid) ->
     try gun:flush(ConnPid) of
-        ok -> ok;
-        Other -> Other
+        ok -> {ok, nil};
+        {error, Reason} -> {error, normalize_connection_error(Reason)};
+        Other -> {error, normalize_connection_error(Other)}
     catch
         Class:Reason:_Stack -> {error, {connection_error, {Class, Reason}}}
     end.
-
-test_response_message() ->
-    message_to_map({response, fin, 200, [{<<"Content-Type">>, <<"text/plain">>}]}).
-
-test_data_message() ->
-    message_to_map({data, nofin, <<"hello">>}).
-
-test_stream_ref() ->
-    make_ref().
 
 normalize_host(Host) when is_binary(Host) -> unicode:characters_to_list(Host);
 normalize_host(Host) -> Host.
