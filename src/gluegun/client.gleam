@@ -11,7 +11,7 @@
 import gleam/bit_array
 import gleam/list
 import gleam/result
-import gluegun/connection.{type Protocol, type Timeout}
+import gluegun/connection.{type Timeout}
 import gluegun/error
 import gluegun/internal.{type Connection, type Stream}
 import gluegun/message.{type Message}
@@ -44,15 +44,17 @@ pub fn request(
   options: low_request.RequestOptions,
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
-  use stream <- result.try(low_request.request(
+  request_with(
     connection,
     method,
     path,
     headers,
     body,
     options,
-  ))
-  collect_stream(connection, stream, AwaitingResponse([]), timeout)
+    timeout,
+    low_request.request,
+    message.await,
+  )
 }
 
 pub fn get(
@@ -61,14 +63,13 @@ pub fn get(
   headers: List(low_request.Header),
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
-  request(
+  get_with(
     connection,
-    low_request.Get,
     path,
     headers,
-    <<>>,
-    low_request.request_options(),
     timeout,
+    low_request.request,
+    message.await,
   )
 }
 
@@ -184,32 +185,89 @@ pub fn collect_messages(
   collect_message_results(messages, AwaitingResponse([]))
 }
 
-/// Test seam for the deterministic part of `get` after `connection.await_up`.
-///
-/// A live `get` also sends a Gun request to obtain a stream reference. Once Gun
-/// has accepted that request, HTTP/1.1 and HTTP/2 responses use the same message
-/// collection path.
 @internal
-pub fn collect_get_after_await_up(
-  await_up_result: Result(Protocol, error.GluegunError),
-  messages: List(Result(Message, error.GluegunError)),
+pub fn get_with(
+  connection: Connection,
+  path: String,
+  headers: List(low_request.Header),
+  timeout: Timeout,
+  request_fn: fn(
+    Connection,
+    low_request.Method,
+    String,
+    List(low_request.Header),
+    BitArray,
+    low_request.RequestOptions,
+  ) ->
+    Result(Stream, error.GluegunError),
+  await_fn: fn(Connection, Stream, Timeout) ->
+    Result(Message, error.GluegunError),
 ) -> Result(Response, error.GluegunError) {
-  use _protocol <- result.try(await_up_result)
-  collect_messages(messages)
+  request_with(
+    connection,
+    low_request.Get,
+    path,
+    headers,
+    <<>>,
+    low_request.request_options(),
+    timeout,
+    request_fn,
+    await_fn,
+  )
 }
 
-fn collect_stream(
+@internal
+pub fn request_with(
+  connection: Connection,
+  method: low_request.Method,
+  path: String,
+  headers: List(low_request.Header),
+  body: BitArray,
+  options: low_request.RequestOptions,
+  timeout: Timeout,
+  request_fn: fn(
+    Connection,
+    low_request.Method,
+    String,
+    List(low_request.Header),
+    BitArray,
+    low_request.RequestOptions,
+  ) ->
+    Result(Stream, error.GluegunError),
+  await_fn: fn(Connection, Stream, Timeout) ->
+    Result(Message, error.GluegunError),
+) -> Result(Response, error.GluegunError) {
+  use stream <- result.try(request_fn(
+    connection,
+    method,
+    path,
+    headers,
+    body,
+    options,
+  ))
+  collect_stream_with(
+    connection,
+    stream,
+    AwaitingResponse([]),
+    timeout,
+    await_fn,
+  )
+}
+
+fn collect_stream_with(
   connection: Connection,
   stream: Stream,
   collection: Collection,
   timeout: Timeout,
+  await_fn: fn(Connection, Stream, Timeout) ->
+    Result(Message, error.GluegunError),
 ) -> Result(Response, error.GluegunError) {
-  use awaited <- result.try(message.await(connection, stream, timeout))
+  use awaited <- result.try(await_fn(connection, stream, timeout))
   use next <- result.try(step(collection, awaited))
   case next {
     Done(response) -> Ok(response)
     Continue(collection) ->
-      collect_stream(connection, stream, collection, timeout)
+      collect_stream_with(connection, stream, collection, timeout, await_fn)
   }
 }
 
