@@ -1,0 +1,105 @@
+import gleam/dynamic
+import gleam/option.{None, Some}
+import gleeunit/should
+import gluegun/connection
+import gluegun/message
+import gluegun/request
+import gluegun/response
+
+pub fn default_connect_options_test() {
+  let options = connection.connect_options()
+
+  options
+  |> connection.transport
+  |> should.equal(connection.Auto)
+
+  options
+  |> connection.protocols
+  |> should.equal(None)
+}
+
+pub fn protocol_ordering_test() {
+  connection.connect_options()
+  |> connection.with_protocols([connection.Http2, connection.Http1])
+  |> connection.protocols
+  |> should.equal(Some([connection.Http2, connection.Http1]))
+}
+
+pub fn method_conversion_test() {
+  request.method_to_string(request.Get)
+  |> should.equal("GET")
+
+  request.method_to_string(request.Post)
+  |> should.equal("POST")
+
+  request.method_to_string(request.Custom("PROPFIND"))
+  |> should.equal("PROPFIND")
+}
+
+pub fn header_normalization_test() {
+  [#("Content-Type", "text/plain"), #("X-Request-ID", "ABC123")]
+  |> request.normalize_headers
+  |> should.equal([#("content-type", "text/plain"), #("x-request-id", "ABC123")])
+}
+
+pub fn response_construction_test() {
+  let res =
+    response.new(
+      status: 200,
+      headers: [#("content-type", "text/plain")],
+      body: <<"hello":utf8>>,
+      trailers: [#("expires", "soon")],
+    )
+
+  res.status
+  |> should.equal(200)
+
+  res.headers
+  |> should.equal([#("content-type", "text/plain")])
+
+  res.body
+  |> should.equal(<<"hello":utf8>>)
+
+  res.trailers
+  |> should.equal([#("expires", "soon")])
+}
+
+pub fn message_construction_test() {
+  message.Response(message.NoFin, 204, [#("server", "gun")])
+  |> should.equal(message.Response(message.NoFin, 204, [#("server", "gun")]))
+}
+
+pub fn message_decode_response_test() {
+  let value =
+    dynamic.properties([
+      #(dynamic.string("type"), dynamic.string("response")),
+      #(dynamic.string("fin"), dynamic.bool(False)),
+      #(dynamic.string("status"), dynamic.int(201)),
+      #(
+        dynamic.string("headers"),
+        dynamic.list([
+          dynamic.array([
+            dynamic.string("Content-Type"),
+            dynamic.string("text/plain"),
+          ]),
+        ]),
+      ),
+    ])
+
+  message.decode(value)
+  |> should.equal(
+    Ok(message.Response(message.NoFin, 201, [#("content-type", "text/plain")])),
+  )
+}
+
+pub fn message_decode_data_test() {
+  let value =
+    dynamic.properties([
+      #(dynamic.string("type"), dynamic.string("data")),
+      #(dynamic.string("fin"), dynamic.bool(True)),
+      #(dynamic.string("data"), dynamic.bit_array(<<"ok":utf8>>)),
+    ])
+
+  message.decode(value)
+  |> should.equal(Ok(message.Data(message.Fin, <<"ok":utf8>>)))
+}
