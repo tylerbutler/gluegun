@@ -143,13 +143,21 @@ gleam_frame_or_frames_to_gun(Frames) when is_list(Frames) ->
 gleam_frame_or_frames_to_gun(Frame) ->
     gleam_frame_to_gun(Frame).
 
-gleam_frame_to_gun({text, Data}) -> {text, Data};
+gleam_frame_to_gun({text, Data}) -> {text, validate_text_frame_data(Data)};
 gleam_frame_to_gun({binary, Data}) -> {binary, Data};
 gleam_frame_to_gun(close) -> close;
 gleam_frame_to_gun({close_with_reason, Code, Reason}) -> {close, Code, Reason};
 gleam_frame_to_gun({ping, Data}) -> {ping, Data};
 gleam_frame_to_gun({pong, Data}) -> {pong, Data};
 gleam_frame_to_gun(Other) -> error({invalid_frame, Other}).
+
+validate_text_frame_data(Data) ->
+    DataBin = iolist_to_binary(Data),
+    case unicode:characters_to_binary(DataBin, utf8, utf8) of
+        ValidText when is_binary(ValidText) -> ValidText;
+        {error, _Encoded, _Rest} -> error({invalid_frame, {text, invalid_utf8}});
+        {incomplete, _Encoded, _Rest} -> error({invalid_frame, {text, invalid_utf8}})
+    end.
 
 normalize_host(Host) when is_binary(Host) -> unicode:characters_to_list(Host);
 normalize_host(Host) -> Host.

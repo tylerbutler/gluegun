@@ -111,6 +111,12 @@ pub fn websocket_invalid_send_frame_list_returns_error_test() {
   |> should.equal(Error(error.InvalidMessage("InvalidFrame(BadFrame)")))
 }
 
+pub fn websocket_invalid_send_text_utf8_returns_error_test() {
+  gluegun_ws_test_invalid_ws_send_text_utf8_result()
+  |> result.map_error(error.decode_ffi_error)
+  |> should.equal(Error(error.InvalidMessage("InvalidFrame(Text(InvalidUtf8))")))
+}
+
 // ── Inbound frame decoding ───────────────────────────────────────────────────
 
 pub fn websocket_decode_text_frame_test() {
@@ -350,6 +356,12 @@ fn gluegun_ws_test_invalid_ws_send_frame_result() -> Result(
 
 @external(erlang, "gluegun_ws_test", "invalid_ws_send_frame_list_result")
 fn gluegun_ws_test_invalid_ws_send_frame_list_result() -> Result(
+  dynamic.Dynamic,
+  dynamic.Dynamic,
+)
+
+@external(erlang, "gluegun_ws_test", "invalid_ws_send_text_utf8_result")
+fn gluegun_ws_test_invalid_ws_send_text_utf8_result() -> Result(
   dynamic.Dynamic,
   dynamic.Dynamic,
 )

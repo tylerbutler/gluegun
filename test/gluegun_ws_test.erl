@@ -6,6 +6,7 @@
     current_process/0,
     invalid_ws_send_frame_result/0,
     invalid_ws_send_frame_list_result/0,
+    invalid_ws_send_text_utf8_result/0,
     test_close_plain_message/0,
     test_close_with_reason_message/0,
     test_ws_close_gun_tuple/0,
@@ -43,6 +44,9 @@ invalid_ws_send_frame_result() ->
 
 invalid_ws_send_frame_list_result() ->
     gluegun_ffi:ws_send(self(), make_ref(), [{text, <<"ok">>}, bad_frame]).
+
+invalid_ws_send_text_utf8_result() ->
+    gluegun_ffi:ws_send(self(), make_ref(), {text, <<255>>}).
 
 current_process() ->
     self().
