@@ -13,7 +13,7 @@ pub type Informational =
   #(Int, List(Header))
 
 /// Full HTTP response collected from a Gun stream.
-pub type Response {
+pub opaque type Response {
   Response(
     status: Int,
     headers: List(Header),
@@ -21,6 +21,31 @@ pub type Response {
     trailers: List(Header),
     informational: List(Informational),
   )
+}
+
+/// Return the final response status.
+pub fn status(response: Response) -> Int {
+  response.status
+}
+
+/// Return final response headers.
+pub fn headers(response: Response) -> List(Header) {
+  response.headers
+}
+
+/// Return the full collected response body.
+pub fn body(response: Response) -> BitArray {
+  response.body
+}
+
+/// Return response trailers.
+pub fn trailers(response: Response) -> List(Header) {
+  response.trailers
+}
+
+/// Return informational `1xx` responses received before the final response.
+pub fn informational(response: Response) -> List(Informational) {
+  response.informational
 }
 
 /// Construct a response without informational responses.

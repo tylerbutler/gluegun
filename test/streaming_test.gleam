@@ -14,7 +14,7 @@ pub fn streaming_headers_ffi_shape_normalizes_request_test() {
       request.Post,
       "/upload",
       [#("Content-Type", "text/plain")],
-      request.request_options()
+      request.options()
         |> request.with_headers([#("X-Trace", "abc")]),
     )
 

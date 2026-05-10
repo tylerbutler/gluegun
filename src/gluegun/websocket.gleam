@@ -17,7 +17,9 @@
 //// import gluegun/websocket
 //// import gluegun/message
 ////
-//// let assert Ok(conn) = connection.open("echo.example.com", 80, connection.connect_options())
+//// let assert Ok(conn) =
+////   connection.options()
+////   |> connection.open(host: "echo.example.com", port: 80)
 //// let assert Ok(protocol) = connection.await_up(conn, connection.Milliseconds(5000))
 ////
 //// let assert Ok(stream) = websocket.upgrade_with_protocol(conn, protocol, "/ws", [])

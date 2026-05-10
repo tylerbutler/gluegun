@@ -18,7 +18,7 @@ const path = "/"
 pub fn main() {
   let timeout = connection.Milliseconds(5000)
 
-  case connection.open(host, port, connection.connect_options()) {
+  case connection.options() |> connection.open(host: host, port: port) {
     Ok(conn) -> {
       let assert Ok(_protocol) = connection.await_up(conn, timeout)
 
@@ -35,7 +35,7 @@ pub fn main() {
 }
 
 fn print_response(res) {
-  io.println("status: " <> int.to_string(res.status))
+  io.println("status: " <> int.to_string(response.status(res)))
 
   case response.body_text(res) {
     Ok(text) -> io.println(text)

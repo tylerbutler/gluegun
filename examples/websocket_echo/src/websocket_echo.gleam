@@ -28,7 +28,8 @@ const timeout = Milliseconds(5000)
 pub fn main() {
   // 1. Open a TCP connection to the server.
   let assert Ok(conn) =
-    connection.open(host, port, connection.connect_options())
+    connection.options()
+    |> connection.open(host: host, port: port)
 
   // 2. Wait until Gun confirms the connection is ready.
   let assert Ok(protocol) = connection.await_up(conn, timeout)

@@ -1,12 +1,29 @@
 import gleam/dynamic
 import gleeunit/should
 import gluegun/client
+import gluegun/connection
 import gluegun/error
 import gluegun/fin
 import gluegun/internal
 import gluegun/message
 import gluegun/request
 import gluegun/response
+
+pub fn client_request_builder_sets_fields_test() {
+  client.new(request.Get, "/")
+  |> client.with_header("accept", "application/json")
+  |> client.with_body(<<"":utf8>>)
+  |> client.with_timeout(connection.Milliseconds(1000))
+  |> client.inspect_request
+  |> should.equal(client.RequestFields(
+    method: request.Get,
+    path: "/",
+    headers: [#("accept", "application/json")],
+    body: <<"":utf8>>,
+    options: request.options(),
+    timeout: connection.Milliseconds(1000),
+  ))
+}
 
 pub fn client_collects_single_final_body_test() {
   client.collect_messages([
@@ -36,7 +53,8 @@ pub fn client_collects_multiple_data_chunks_in_order_test() {
       Ok(message.Data(fin.Fin, <<"chunk-5":utf8>>)),
     ])
 
-  res.body
+  res
+  |> response.body
   |> should.equal(<<"chunk-1|chunk-2|chunk-3|chunk-4|chunk-5":utf8>>)
 }
 
@@ -48,7 +66,8 @@ pub fn client_preserves_trailers_test() {
       Ok(message.Trailers([#("expires", "soon")])),
     ])
 
-  res.trailers
+  res
+  |> response.trailers
   |> should.equal([#("expires", "soon")])
 }
 
@@ -59,7 +78,8 @@ pub fn client_preserves_informational_responses_test() {
       Ok(message.Response(fin.Fin, 204, [#("server", "gun")])),
     ])
 
-  res.informational
+  res
+  |> response.informational
   |> should.equal([#(103, [#("link", "</style.css>; rel=preload")])])
 }
 

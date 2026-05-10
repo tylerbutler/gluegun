@@ -23,7 +23,7 @@ pub fn ffi_timeout_conversion_test() {
 }
 
 pub fn ffi_protocol_ordering_test() {
-  connection.connect_options()
+  connection.options()
   |> connection.with_protocols([connection.Http2, connection.Http1])
   |> connection.options_to_ffi
   |> decode.run(decode.at(["protocols"], decode.list(atom.decoder())))

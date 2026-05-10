@@ -2,7 +2,8 @@
 ////
 //// These helpers collect regular HTTP/1.1 and HTTP/2 responses into
 //// `response.Response`.
-//// Informational `1xx` responses are preserved in `Response.informational`.
+//// Informational `1xx` responses are preserved and can be inspected with
+//// `response.informational`.
 //// Protocol messages for server push, upgrades, and WebSockets are rejected with
 //// `InvalidMessage`; use the lower-level `gluegun/message` API for those flows.
 //// Full response bodies are collected in memory; use the lower-level APIs for
@@ -11,13 +12,38 @@
 import gleam/bit_array
 import gleam/list
 import gleam/result
-import gluegun/connection.{type Timeout}
+import gluegun/connection.{type Timeout, Milliseconds}
 import gluegun/error
 import gluegun/fin
 import gluegun/internal.{type Connection, type Stream}
 import gluegun/message.{type Message}
 import gluegun/request as low_request
 import gluegun/response.{type Informational, type Response}
+
+/// A collected HTTP request command.
+pub opaque type Request {
+  Request(
+    method: low_request.Method,
+    path: String,
+    headers: List(low_request.Header),
+    body: BitArray,
+    options: low_request.RequestOptions,
+    timeout: Timeout,
+  )
+}
+
+/// Inspectable request fields for deterministic tests.
+@internal
+pub type RequestFields {
+  RequestFields(
+    method: low_request.Method,
+    path: String,
+    headers: List(low_request.Header),
+    body: BitArray,
+    options: low_request.RequestOptions,
+    timeout: Timeout,
+  )
+}
 
 type Collection {
   AwaitingResponse(informational: List(Informational))
@@ -35,8 +61,84 @@ type Step {
   Done(Response)
 }
 
+/// Construct a collected HTTP request command.
+pub fn new(method: low_request.Method, path: String) -> Request {
+  Request(
+    method: method,
+    path: path,
+    headers: [],
+    body: <<>>,
+    options: low_request.options(),
+    timeout: Milliseconds(5000),
+  )
+}
+
+/// Append a single request header.
+pub fn with_header(
+  request: Request,
+  name name: String,
+  value value: String,
+) -> Request {
+  Request(..request, headers: list.append(request.headers, [#(name, value)]))
+}
+
+/// Append request headers.
+pub fn with_headers(
+  request: Request,
+  headers headers: List(low_request.Header),
+) -> Request {
+  Request(..request, headers: list.append(request.headers, headers))
+}
+
+/// Replace the request body.
+pub fn with_body(request: Request, body body: BitArray) -> Request {
+  Request(..request, body: body)
+}
+
+/// Replace low-level request options.
+pub fn with_options(
+  request: Request,
+  options options: low_request.RequestOptions,
+) -> Request {
+  Request(..request, options: options)
+}
+
+/// Replace the request timeout.
+pub fn with_timeout(request: Request, timeout timeout: Timeout) -> Request {
+  Request(..request, timeout: timeout)
+}
+
+/// Inspect a request command.
+@internal
+pub fn inspect_request(request: Request) -> RequestFields {
+  RequestFields(
+    method: request.method,
+    path: request.path,
+    headers: request.headers,
+    body: request.body,
+    options: request.options,
+    timeout: request.timeout,
+  )
+}
+
+/// Send a collected HTTP request command on an open connection.
+pub fn send(
+  request: Request,
+  connection connection: Connection,
+) -> Result(Response, error.GluegunError) {
+  send_raw(
+    connection,
+    request.method,
+    request.path,
+    request.headers,
+    request.body,
+    request.options,
+    request.timeout,
+  )
+}
+
 /// Send an HTTP request on an open connection and collect its full response.
-pub fn request(
+pub fn send_raw(
   connection: Connection,
   method: low_request.Method,
   path: String,
@@ -65,14 +167,10 @@ pub fn get(
   headers: List(low_request.Header),
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
-  get_with(
-    connection,
-    path,
-    headers,
-    timeout,
-    low_request.request,
-    message.await,
-  )
+  new(low_request.Get, path)
+  |> with_headers(headers: headers)
+  |> with_timeout(timeout: timeout)
+  |> send(connection: connection)
 }
 
 /// Send POST on an open connection and collect the full response.
@@ -83,15 +181,11 @@ pub fn post(
   body: BitArray,
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
-  request(
-    connection,
-    low_request.Post,
-    path,
-    headers,
-    body,
-    low_request.request_options(),
-    timeout,
-  )
+  new(low_request.Post, path)
+  |> with_headers(headers: headers)
+  |> with_body(body: body)
+  |> with_timeout(timeout: timeout)
+  |> send(connection: connection)
 }
 
 /// Send PUT on an open connection and collect the full response.
@@ -102,15 +196,11 @@ pub fn put(
   body: BitArray,
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
-  request(
-    connection,
-    low_request.Put,
-    path,
-    headers,
-    body,
-    low_request.request_options(),
-    timeout,
-  )
+  new(low_request.Put, path)
+  |> with_headers(headers: headers)
+  |> with_body(body: body)
+  |> with_timeout(timeout: timeout)
+  |> send(connection: connection)
 }
 
 /// Send PATCH on an open connection and collect the full response.
@@ -121,15 +211,11 @@ pub fn patch(
   body: BitArray,
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
-  request(
-    connection,
-    low_request.Patch,
-    path,
-    headers,
-    body,
-    low_request.request_options(),
-    timeout,
-  )
+  new(low_request.Patch, path)
+  |> with_headers(headers: headers)
+  |> with_body(body: body)
+  |> with_timeout(timeout: timeout)
+  |> send(connection: connection)
 }
 
 /// Send DELETE on an open connection and collect the full response.
@@ -139,15 +225,10 @@ pub fn delete(
   headers: List(low_request.Header),
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
-  request(
-    connection,
-    low_request.Delete,
-    path,
-    headers,
-    <<>>,
-    low_request.request_options(),
-    timeout,
-  )
+  new(low_request.Delete, path)
+  |> with_headers(headers: headers)
+  |> with_timeout(timeout: timeout)
+  |> send(connection: connection)
 }
 
 /// Send HEAD on an open connection and collect the full response.
@@ -157,15 +238,10 @@ pub fn head(
   headers: List(low_request.Header),
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
-  request(
-    connection,
-    low_request.Head,
-    path,
-    headers,
-    <<>>,
-    low_request.request_options(),
-    timeout,
-  )
+  new(low_request.Head, path)
+  |> with_headers(headers: headers)
+  |> with_timeout(timeout: timeout)
+  |> send(connection: connection)
 }
 
 /// Send OPTIONS on an open connection and collect the full response.
@@ -175,15 +251,10 @@ pub fn options(
   headers: List(low_request.Header),
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
-  request(
-    connection,
-    low_request.Options,
-    path,
-    headers,
-    <<>>,
-    low_request.request_options(),
-    timeout,
-  )
+  new(low_request.Options, path)
+  |> with_headers(headers: headers)
+  |> with_timeout(timeout: timeout)
+  |> send(connection: connection)
 }
 
 @internal
@@ -217,7 +288,7 @@ pub fn get_with(
     path,
     headers,
     <<>>,
-    low_request.request_options(),
+    low_request.options(),
     timeout,
     request_fn,
     await_fn,
@@ -396,13 +467,13 @@ fn build_response(
   trailers: List(low_request.Header),
   informational: List(Informational),
 ) -> Response {
-  response.Response(
+  response.new(
     status: status,
     headers: headers,
     body: bit_array.concat(list.reverse(chunks)),
     trailers: trailers,
-    informational: informational,
   )
+  |> response.with_informational(informational: informational)
 }
 
 fn invalid(message: String) -> Result(a, error.GluegunError) {

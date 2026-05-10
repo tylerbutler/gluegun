@@ -11,7 +11,7 @@ import gluegun/request
 import gluegun/response
 
 pub fn default_connect_options_test() {
-  let options = connection.connect_options()
+  let options = connection.options()
 
   options
   |> connection.transport
@@ -22,11 +22,35 @@ pub fn default_connect_options_test() {
   |> should.equal(None)
 }
 
+pub fn connection_options_alias_test() {
+  connection.options()
+  |> connection.transport
+  |> should.equal(connection.Auto)
+}
+
 pub fn protocol_ordering_test() {
-  connection.connect_options()
+  connection.options()
   |> connection.with_protocols([connection.Http2, connection.Http1])
   |> connection.protocols
   |> should.equal(Some([connection.Http2, connection.Http1]))
+}
+
+pub fn request_options_alias_test() {
+  request.options()
+  |> request.with_headers([#("accept", "application/json")])
+  |> request.headers_option
+  |> should.equal([#("accept", "application/json")])
+}
+
+pub fn request_with_headers_appends_test() {
+  request.options()
+  |> request.with_headers([#("accept", "application/json")])
+  |> request.with_headers([#("x-request-id", "abc")])
+  |> request.headers_option
+  |> should.equal([
+    #("accept", "application/json"),
+    #("x-request-id", "abc"),
+  ])
 }
 
 pub fn method_conversion_test() {
@@ -79,16 +103,20 @@ pub fn response_construction_test() {
       trailers: [#("expires", "soon")],
     )
 
-  res.status
+  res
+  |> response.status
   |> should.equal(200)
 
-  res.headers
+  res
+  |> response.headers
   |> should.equal([#("content-type", "text/plain")])
 
-  res.body
+  res
+  |> response.body
   |> should.equal(<<"hello":utf8>>)
 
-  res.trailers
+  res
+  |> response.trailers
   |> should.equal([#("expires", "soon")])
 }
 

@@ -28,17 +28,23 @@ import gleam/int
 import gleam/io
 import gluegun/client
 import gluegun/connection
+import gluegun/request
 import gluegun/response
 
 pub fn main() {
   let timeout = connection.Milliseconds(5000)
 
   let assert Ok(conn) =
-    connection.open("example.com", 80, connection.connect_options())
+    connection.options()
+    |> connection.open(host: "example.com", port: 80)
   let assert Ok(_protocol) = connection.await_up(conn, timeout)
 
-  let assert Ok(res) = client.get(conn, "/", [], timeout)
-  io.println("status: " <> int.to_string(res.status))
+  let assert Ok(res) =
+    client.new(request.Get, "/")
+    |> client.with_timeout(timeout: timeout)
+    |> client.send(connection: conn)
+
+  io.println("status: " <> int.to_string(response.status(res)))
 
   case response.body_text(res) {
     Ok(text) -> io.println(text)
@@ -58,15 +64,10 @@ import gluegun/client
 import gluegun/request
 
 fn fetch_json(conn, path, timeout) {
-  client.request(
-    conn,
-    request.Get,
-    path,
-    [#("accept", "application/json")],
-    <<>>,
-    request.request_options(),
-    timeout,
-  )
+  client.new(request.Get, path)
+  |> client.with_header(name: "accept", value: "application/json")
+  |> client.with_timeout(timeout: timeout)
+  |> client.send(connection: conn)
 }
 ```
 
@@ -89,7 +90,7 @@ pub fn upload_chunks(conn) {
       request.Post,
       "/upload",
       [#("content-type", "text/plain")],
-      request.request_options(),
+      request.options(),
     )
 
   let assert Ok(Nil) = request.data(conn, stream, fin.NoFin, <<"first ":utf8>>)
@@ -123,11 +124,13 @@ import gluegun/connection
 
 pub fn get_over_http2() {
   let options =
-    connection.connect_options()
+    connection.options()
     |> connection.with_transport(transport: connection.Tls)
     |> connection.with_protocols(protocols: [connection.Http2, connection.Http1])
 
-  let assert Ok(conn) = connection.open("example.com", 443, options)
+  let assert Ok(conn) =
+    options
+    |> connection.open(host: "example.com", port: 443)
   let assert Ok(protocol) =
     connection.await_up(conn, connection.Milliseconds(5000))
 
@@ -153,7 +156,8 @@ import gluegun/websocket
 pub fn echo() {
   let timeout = connection.Milliseconds(5000)
   let assert Ok(conn) =
-    connection.open("localhost", 8080, connection.connect_options())
+    connection.options()
+    |> connection.open(host: "localhost", port: 8080)
   let assert Ok(protocol) = connection.await_up(conn, timeout)
 
   let assert Ok(stream) =

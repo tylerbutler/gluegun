@@ -39,7 +39,7 @@ pub opaque type RequestOptions {
 }
 
 /// Construct default request options.
-pub fn request_options() -> RequestOptions {
+pub fn options() -> RequestOptions {
   RequestOptions(headers: [], reserved: Nil)
 }
 
@@ -48,7 +48,21 @@ pub fn with_headers(
   options: RequestOptions,
   headers headers: List(Header),
 ) -> RequestOptions {
+  RequestOptions(..options, headers: list.append(options.headers, headers))
+}
+
+/// Replace option-level headers.
+pub fn set_headers(
+  options: RequestOptions,
+  headers headers: List(Header),
+) -> RequestOptions {
   RequestOptions(..options, headers: headers)
+}
+
+/// Inspect option-level headers.
+@internal
+pub fn headers_option(options: RequestOptions) -> List(Header) {
+  options.headers
 }
 
 /// Convert a method constructor to its HTTP method string.

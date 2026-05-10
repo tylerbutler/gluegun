@@ -47,7 +47,7 @@ pub opaque type ConnectOptions {
 }
 
 /// Construct default connection options.
-pub fn connect_options() -> ConnectOptions {
+pub fn options() -> ConnectOptions {
   ConnectOptions(
     transport: Auto,
     protocols: None,
@@ -112,9 +112,9 @@ pub fn connect_timeout(options: ConnectOptions) -> Timeout {
 
 /// Open a Gun connection.
 pub fn open(
-  host: String,
-  port: Int,
   options: ConnectOptions,
+  host host: String,
+  port port: Int,
 ) -> Result(Connection, error.GluegunError) {
   ffi_open(host, port, options_to_ffi(options))
   |> result.map(internal.connection)

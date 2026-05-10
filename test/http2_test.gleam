@@ -15,7 +15,7 @@ import gluegun/request
 import gluegun/response
 
 pub fn http2_protocol_preference_encodes_to_ffi_in_order_test() {
-  connection.connect_options()
+  connection.options()
   |> connection.with_protocols([connection.Http2, connection.Http1])
   |> connection.options_to_ffi
   |> decode.run(decode.at(["protocols"], decode.list(atom.decoder())))

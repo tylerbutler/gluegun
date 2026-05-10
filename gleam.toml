@@ -5,6 +5,10 @@ licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "gluegun" }
 gleam = ">= 1.7.0"
 target = "erlang"
+internal_modules = [
+  "gluegun/internal",
+  "gluegun/internal/*",
+]
 
 [dependencies]
 gleam_stdlib = ">= 0.48.0 and < 2.0.0"
