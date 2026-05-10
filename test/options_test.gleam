@@ -2,6 +2,7 @@ import gleam/dynamic
 import gleam/option.{None, Some}
 import gleeunit/should
 import gluegun/connection
+import gluegun/internal
 import gluegun/message
 import gluegun/request
 import gluegun/response
@@ -102,4 +103,105 @@ pub fn message_decode_data_test() {
 
   message.decode(value)
   |> should.equal(Ok(message.Data(message.Fin, <<"ok":utf8>>)))
+}
+
+pub fn message_decode_inform_test() {
+  let value =
+    dynamic.properties([
+      #(dynamic.string("type"), dynamic.string("inform")),
+      #(dynamic.string("status"), dynamic.int(102)),
+      #(
+        dynamic.string("headers"),
+        dynamic.list([
+          dynamic.array([dynamic.string("Server"), dynamic.string("gun")]),
+        ]),
+      ),
+    ])
+
+  message.decode(value)
+  |> should.equal(Ok(message.Inform(102, [#("server", "gun")])))
+}
+
+pub fn message_decode_trailers_test() {
+  let value =
+    dynamic.properties([
+      #(dynamic.string("type"), dynamic.string("trailers")),
+      #(
+        dynamic.string("headers"),
+        dynamic.list([
+          dynamic.array([dynamic.string("Expires"), dynamic.string("soon")]),
+        ]),
+      ),
+    ])
+
+  message.decode(value)
+  |> should.equal(Ok(message.Trailers([#("expires", "soon")])))
+}
+
+pub fn message_decode_upgrade_test() {
+  let value =
+    dynamic.properties([
+      #(dynamic.string("type"), dynamic.string("upgrade")),
+      #(
+        dynamic.string("protocols"),
+        dynamic.list([dynamic.string("websocket")]),
+      ),
+      #(
+        dynamic.string("headers"),
+        dynamic.list([
+          dynamic.array([
+            dynamic.string("Connection"),
+            dynamic.string("upgrade"),
+          ]),
+        ]),
+      ),
+    ])
+
+  message.decode(value)
+  |> should.equal(
+    Ok(message.Upgrade(["websocket"], [#("connection", "upgrade")])),
+  )
+}
+
+pub fn message_decode_push_test() {
+  let stream = dynamic.string("stream-1")
+  let value =
+    dynamic.properties([
+      #(dynamic.string("type"), dynamic.string("push")),
+      #(dynamic.string("stream"), stream),
+      #(dynamic.string("method"), dynamic.string("POST")),
+      #(dynamic.string("uri"), dynamic.string("/assets/app.css")),
+      #(
+        dynamic.string("headers"),
+        dynamic.list([
+          dynamic.array([dynamic.string("Accept"), dynamic.string("text/css")]),
+        ]),
+      ),
+    ])
+
+  message.decode(value)
+  |> should.equal(
+    Ok(
+      message.Push(internal.stream(stream), request.Post, "/assets/app.css", [
+        #("accept", "text/css"),
+      ]),
+    ),
+  )
+}
+
+pub fn message_decode_websocket_test() {
+  let value =
+    dynamic.properties([
+      #(dynamic.string("type"), dynamic.string("websocket")),
+      #(
+        dynamic.string("frame"),
+        dynamic.properties([
+          #(dynamic.string("type"), dynamic.string("text")),
+          #(dynamic.string("data"), dynamic.string("hello")),
+        ]),
+      ),
+    ])
+
+  message.decode(value)
+  |> should.equal(Ok(message.WebSocket(message.Text("hello"))))
 }

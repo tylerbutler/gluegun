@@ -1,6 +1,7 @@
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode as dyn_decode
 import gleam/result
+import gleam/string
 import gluegun/internal.{type Stream}
 import gluegun/request.{type Header, type Method, normalize_headers}
 
@@ -43,7 +44,10 @@ fn message_decoder() -> dyn_decode.Decoder(Message) {
     "response" -> response_decoder()
     "data" -> data_decoder()
     "trailers" -> trailers_decoder()
+    "push" -> push_decoder()
     "upgrade" -> upgrade_decoder()
+    "websocket" -> websocket_decoder()
+    "ws" -> websocket_decoder()
     _ -> dyn_decode.failure(Data(NoFin, <<>>), expected: "Message")
   }
 }
@@ -79,6 +83,78 @@ fn upgrade_decoder() -> dyn_decode.Decoder(Message) {
   )
   use headers <- dyn_decode.field("headers", headers_decoder())
   dyn_decode.success(Upgrade(protocols, headers))
+}
+
+fn push_decoder() -> dyn_decode.Decoder(Message) {
+  use stream <- dyn_decode.field("stream", stream_decoder())
+  use method <- dyn_decode.field("method", method_decoder())
+  use uri <- dyn_decode.field("uri", dyn_decode.string)
+  use headers <- dyn_decode.field("headers", headers_decoder())
+  dyn_decode.success(Push(stream, method, uri, headers))
+}
+
+fn websocket_decoder() -> dyn_decode.Decoder(Message) {
+  use frame <- dyn_decode.field("frame", frame_decoder())
+  dyn_decode.success(WebSocket(frame))
+}
+
+fn stream_decoder() -> dyn_decode.Decoder(Stream) {
+  dyn_decode.map(dyn_decode.dynamic, internal.stream)
+}
+
+fn method_decoder() -> dyn_decode.Decoder(Method) {
+  dyn_decode.map(dyn_decode.string, fn(method) {
+    case string.uppercase(method) {
+      "GET" -> request.Get
+      "HEAD" -> request.Head
+      "POST" -> request.Post
+      "PUT" -> request.Put
+      "PATCH" -> request.Patch
+      "DELETE" -> request.Delete
+      "OPTIONS" -> request.Options
+      "TRACE" -> request.Trace
+      "CONNECT" -> request.Connect
+      _ -> request.Custom(method)
+    }
+  })
+}
+
+fn frame_decoder() -> dyn_decode.Decoder(Frame) {
+  use tag <- dyn_decode.field("type", dyn_decode.string)
+  case tag {
+    "text" -> text_frame_decoder()
+    "binary" -> binary_frame_decoder()
+    "close" -> close_frame_decoder()
+    "ping" -> ping_frame_decoder()
+    "pong" -> pong_frame_decoder()
+    _ -> dyn_decode.failure(Text(""), expected: "Frame")
+  }
+}
+
+fn text_frame_decoder() -> dyn_decode.Decoder(Frame) {
+  use data <- dyn_decode.field("data", dyn_decode.string)
+  dyn_decode.success(Text(data))
+}
+
+fn binary_frame_decoder() -> dyn_decode.Decoder(Frame) {
+  use data <- dyn_decode.field("data", dyn_decode.bit_array)
+  dyn_decode.success(Binary(data))
+}
+
+fn close_frame_decoder() -> dyn_decode.Decoder(Frame) {
+  use code <- dyn_decode.field("code", dyn_decode.int)
+  use reason <- dyn_decode.field("reason", dyn_decode.string)
+  dyn_decode.success(Close(code, reason))
+}
+
+fn ping_frame_decoder() -> dyn_decode.Decoder(Frame) {
+  use data <- dyn_decode.field("data", dyn_decode.bit_array)
+  dyn_decode.success(Ping(data))
+}
+
+fn pong_frame_decoder() -> dyn_decode.Decoder(Frame) {
+  use data <- dyn_decode.field("data", dyn_decode.bit_array)
+  dyn_decode.success(Pong(data))
 }
 
 fn fin_decoder() -> dyn_decode.Decoder(Fin) {
