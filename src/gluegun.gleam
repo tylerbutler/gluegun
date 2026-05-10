@@ -171,6 +171,18 @@ pub fn ws_upgrade(
   ws.upgrade(connection, path, headers)
 }
 
+/// Initiate a WebSocket upgrade with the negotiated protocol.
+///
+/// See `gluegun/websocket.upgrade_with_protocol` for details.
+pub fn ws_upgrade_with_protocol(
+  connection: Connection,
+  protocol: Protocol,
+  path: String,
+  headers: List(low_request.Header),
+) -> Result(Stream, error.GluegunError) {
+  ws.upgrade_with_protocol(connection, protocol, path, headers)
+}
+
 /// Wait for the WebSocket handshake confirmation.
 ///
 /// See `gluegun/websocket.await_upgrade` for details.
@@ -191,6 +203,17 @@ pub fn ws_send(
   frame: message.Frame,
 ) -> Result(Nil, error.GluegunError) {
   ws.send(connection, stream, frame)
+}
+
+/// Send one or more WebSocket frames.
+///
+/// See `gluegun/websocket.send_many` for details.
+pub fn ws_send_many(
+  connection: Connection,
+  stream: Stream,
+  frames: List(message.Frame),
+) -> Result(Nil, error.GluegunError) {
+  ws.send_many(connection, stream, frames)
 }
 
 /// Receive the next WebSocket frame from the stream.

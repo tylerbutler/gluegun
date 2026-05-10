@@ -6,8 +6,8 @@
 /// ## Protocol note
 ///
 /// This example uses HTTP/1.1. Gun does NOT support WebSocket over HTTP/2
-/// (RFC 8441). If the connection negotiates HTTP/2, `websocket.upgrade` will
-/// return an error.
+/// (RFC 8441). Use `websocket.upgrade_with_protocol` with the protocol from
+/// `connection.await_up` so HTTP/2 is rejected before calling Gun.
 ///
 /// Once the connection is upgraded to WebSocket it is exclusively used for
 /// WebSocket frames; you cannot send concurrent HTTP requests on it.
@@ -31,11 +31,12 @@ pub fn main() {
     connection.open(host, port, connection.connect_options())
 
   // 2. Wait until Gun confirms the connection is ready.
-  let assert Ok(_protocol) = connection.await_up(conn, timeout)
+  let assert Ok(protocol) = connection.await_up(conn, timeout)
 
   // 3. Send the WebSocket upgrade request.
   //    Returns a stream reference used for all subsequent WebSocket I/O.
-  let assert Ok(stream) = websocket.upgrade(conn, path, [])
+  let assert Ok(stream) =
+    websocket.upgrade_with_protocol(conn, protocol, path, [])
 
   // 4. Wait for the server's 101 Switching Protocols confirmation.
   let assert Ok(Nil) = websocket.await_upgrade(conn, stream, timeout)

@@ -49,7 +49,9 @@ pub fn get_over_http2() {
 
 gluegun supports normal HTTP/2 request/response streams through Gun's HTTP
 message flow. Gun does not support WebSocket over HTTP/2, so gluegun only
-supports WebSocket over HTTP/1.1.
+supports WebSocket over HTTP/1.1. When opening a WebSocket on a connection that
+may negotiate HTTP/2, pass the protocol returned by `connection.await_up` to
+`websocket.upgrade_with_protocol` so HTTP/2 is rejected before calling Gun.
 
 ## Development
 

@@ -117,13 +117,16 @@ ws_upgrade(ConnPid, Path, Headers, WsOpts) ->
         Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
     end.
 
-ws_send(ConnPid, StreamRef, Frame) ->
-    GunFrame = gleam_frame_to_gun(Frame),
-    try gun:ws_send(ConnPid, StreamRef, GunFrame) of
+ws_send(ConnPid, StreamRef, Frames) ->
+    try
+        GunFrames = gleam_frame_or_frames_to_gun(Frames),
+        gun:ws_send(ConnPid, StreamRef, GunFrames)
+    of
         ok -> {ok, nil};
         {error, Reason} -> {error, normalize_stream_error(Reason)};
         Other -> {error, normalize_stream_error(Other)}
     catch
+        error:{invalid_frame, Reason}:_Stack -> {error, {invalid_message, {invalid_frame, Reason}}};
         Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
     end.
 
@@ -135,6 +138,11 @@ ws_send(ConnPid, StreamRef, Frame) ->
 %%   CloseWithReason(C, R) -> {close_with_reason, C, R}
 %%   Ping(B)               -> {ping, B}
 %%   Pong(B)               -> {pong, B}
+gleam_frame_or_frames_to_gun(Frames) when is_list(Frames) ->
+    [gleam_frame_to_gun(Frame) || Frame <- Frames];
+gleam_frame_or_frames_to_gun(Frame) ->
+    gleam_frame_to_gun(Frame).
+
 gleam_frame_to_gun({text, Data}) -> {text, Data};
 gleam_frame_to_gun({binary, Data}) -> {binary, Data};
 gleam_frame_to_gun(close) -> close;

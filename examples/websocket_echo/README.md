@@ -5,9 +5,9 @@ an echo server, send a text frame, and receive the echoed reply.
 
 ## Protocol limitations
 
-- **HTTP/2 WebSocket is not supported** by Gun (RFC 8441). Calling
-  `websocket.upgrade` on an HTTP/2 connection returns an error rather than
-  succeeding silently.
+- **HTTP/2 WebSocket is not supported** by Gun (RFC 8441). Call
+  `websocket.upgrade_with_protocol` with the protocol returned by
+  `connection.await_up` so HTTP/2 is rejected before calling Gun.
 - Once an HTTP/1.1 connection is upgraded to WebSocket the connection is
   **exclusively** used for WebSocket frames. You cannot send concurrent HTTP
   requests on the same connection.

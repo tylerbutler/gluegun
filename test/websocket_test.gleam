@@ -6,6 +6,7 @@ import gleam/dynamic
 import gleam/list
 import gleam/result
 import gleeunit/should
+import gluegun/connection
 import gluegun/error
 import gluegun/internal
 import gluegun/message
@@ -75,6 +76,39 @@ pub fn websocket_encode_close_with_reason_frame_test() {
       ),
     ),
   )
+}
+
+pub fn websocket_send_many_encodes_multiple_frames_test() {
+  let fake_conn = internal.connection(gluegun_ws_test_current_process())
+  let fake_stream = internal.stream(dynamic.string("test-stream"))
+
+  websocket.send_many(fake_conn, fake_stream, [
+    message.Text("hello"),
+    message.Binary(<<1, 2, 3>>),
+    message.Ping(<<"ping":utf8>>),
+  ])
+  |> should.equal(Ok(Nil))
+
+  capture_ws_send_message()
+  |> should.equal(
+    Ok([
+      #("text", <<"hello":utf8>>),
+      #("binary", <<1, 2, 3>>),
+      #("ping", <<"ping":utf8>>),
+    ]),
+  )
+}
+
+pub fn websocket_invalid_send_frame_returns_error_test() {
+  gluegun_ws_test_invalid_ws_send_frame_result()
+  |> result.map_error(error.decode_ffi_error)
+  |> should.equal(Error(error.InvalidMessage("InvalidFrame(BadFrame)")))
+}
+
+pub fn websocket_invalid_send_frame_list_returns_error_test() {
+  gluegun_ws_test_invalid_ws_send_frame_list_result()
+  |> result.map_error(error.decode_ffi_error)
+  |> should.equal(Error(error.InvalidMessage("InvalidFrame(BadFrame)")))
 }
 
 // ── Inbound frame decoding ───────────────────────────────────────────────────
@@ -254,6 +288,16 @@ pub fn websocket_await_upgrade_from_propagates_timeout_test() {
 
 // ── HTTP/2 WebSocket unsupported ─────────────────────────────────────────────
 
+pub fn websocket_upgrade_with_protocol_rejects_http2_before_ffi_test() {
+  let fake_conn = internal.connection(dynamic.string("not-a-pid"))
+  websocket.upgrade_with_protocol(fake_conn, connection.Http2, "/ws", [])
+  |> should.equal(
+    Error(error.InvalidMessage(
+      "websocket.upgrade: WebSocket over HTTP/2 is not supported by Gun",
+    )),
+  )
+}
+
 pub fn websocket_upgrade_surfaces_ffi_errors_test() {
   // Gun does not support WebSocket over HTTP/2 (RFC 8441). That
   // limitation is documented in src/gluegun/websocket.gleam and the echo
@@ -291,6 +335,24 @@ fn gluegun_ws_test_close_plain_message() -> dynamic.Dynamic
 fn capture_ws_send_frame_message(
   frame: message.Frame,
 ) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+
+@external(erlang, "gluegun_ws_test", "capture_ws_send_message")
+fn capture_ws_send_message() -> Result(List(#(String, BitArray)), Nil)
+
+@external(erlang, "gluegun_ws_test", "current_process")
+fn gluegun_ws_test_current_process() -> dynamic.Dynamic
+
+@external(erlang, "gluegun_ws_test", "invalid_ws_send_frame_result")
+fn gluegun_ws_test_invalid_ws_send_frame_result() -> Result(
+  dynamic.Dynamic,
+  dynamic.Dynamic,
+)
+
+@external(erlang, "gluegun_ws_test", "invalid_ws_send_frame_list_result")
+fn gluegun_ws_test_invalid_ws_send_frame_list_result() -> Result(
+  dynamic.Dynamic,
+  dynamic.Dynamic,
+)
 
 @external(erlang, "gluegun_ws_test", "test_close_with_reason_message")
 fn gluegun_ws_test_close_with_reason_message() -> dynamic.Dynamic

@@ -3,8 +3,8 @@
 /// ## Protocol limitations
 ///
 /// Gun supports WebSocket over HTTP/1.1 only. WebSocket over HTTP/2 (RFC 8441)
-/// is **not** supported by Gun. Calling `upgrade` on an HTTP/2 connection will
-/// return an `Error` rather than silently succeeding with a broken stream.
+/// is **not** supported by Gun. Call `upgrade_with_protocol` with the protocol
+/// returned by `connection.await_up` to reject HTTP/2 before calling Gun.
 ///
 /// Once an HTTP/1.1 connection is upgraded to WebSocket the underlying TCP
 /// connection is exclusively used for WebSocket frames. You cannot send
@@ -18,9 +18,9 @@
 /// import gluegun/message
 ///
 /// let assert Ok(conn) = connection.open("echo.example.com", 80, connection.connect_options())
-/// let assert Ok(_) = connection.await_up(conn, connection.Milliseconds(5000))
+/// let assert Ok(protocol) = connection.await_up(conn, connection.Milliseconds(5000))
 ///
-/// let assert Ok(stream) = websocket.upgrade(conn, "/ws", [])
+/// let assert Ok(stream) = websocket.upgrade_with_protocol(conn, protocol, "/ws", [])
 /// let assert Ok(Nil) = websocket.await_upgrade(conn, stream, connection.Milliseconds(5000))
 ///
 /// let assert Ok(Nil) = websocket.send(conn, stream, message.Text("hello"))
@@ -28,20 +28,41 @@
 /// ```
 import gleam/dynamic
 import gleam/result
-import gluegun/connection.{type Timeout}
+import gluegun/connection.{type Protocol, type Timeout}
 import gluegun/error
 import gluegun/internal.{type Connection, type Stream}
 import gluegun/internal/ffi_result
 import gluegun/message.{type Frame}
 import gluegun/request.{type Header}
 
-/// Initiate a WebSocket upgrade on an HTTP/1.1 connection.
+/// Initiate a WebSocket upgrade when the negotiated protocol is known.
 ///
 /// Sends the WebSocket upgrade request to the server and returns the stream
 /// reference. Call `await_upgrade` next to confirm the handshake completed.
 ///
-/// Returns an error if the connection is HTTP/2 (unsupported by Gun), the
-/// connection pid is invalid, or Gun throws during the upgrade call.
+/// Returns `InvalidMessage` for HTTP/2 because Gun does not support WebSocket
+/// over HTTP/2. Use this after `connection.await_up` when protocol negotiation
+/// may choose HTTP/2.
+pub fn upgrade_with_protocol(
+  connection: Connection,
+  protocol: Protocol,
+  path: String,
+  headers: List(Header),
+) -> Result(Stream, error.GluegunError) {
+  case protocol {
+    connection.Http1 -> upgrade(connection, path, headers)
+    connection.Http2 ->
+      Error(error.InvalidMessage(
+        "websocket.upgrade: WebSocket over HTTP/2 is not supported by Gun",
+      ))
+  }
+}
+
+/// Initiate a WebSocket upgrade on an assumed HTTP/1.1 connection.
+///
+/// Prefer `upgrade_with_protocol` after `connection.await_up` when the
+/// connection may negotiate HTTP/2. This function keeps the original HTTP/1.1
+/// default path for callers that constrain the connection to HTTP/1.1.
 pub fn upgrade(
   connection: Connection,
   path: String,
@@ -79,10 +100,22 @@ pub fn send(
   stream: Stream,
   frame: Frame,
 ) -> Result(Nil, error.GluegunError) {
+  send_many(connection, stream, [frame])
+}
+
+/// Send one or more WebSocket frames on the stream.
+///
+/// Gun accepts either a single frame or a list of frames. `send` delegates to
+/// this function with a one-element list.
+pub fn send_many(
+  connection: Connection,
+  stream: Stream,
+  frames: List(Frame),
+) -> Result(Nil, error.GluegunError) {
   ffi_ws_send(
     internal.connection_raw(connection),
     internal.stream_raw(stream),
-    frame,
+    frames,
   )
   |> ffi_result.decode_nil_result
 }
@@ -157,5 +190,5 @@ fn ffi_ws_upgrade(
 fn ffi_ws_send(
   connection: dynamic.Dynamic,
   stream: dynamic.Dynamic,
-  frame: Frame,
+  frames: List(Frame),
 ) -> Result(dynamic.Dynamic, dynamic.Dynamic)
