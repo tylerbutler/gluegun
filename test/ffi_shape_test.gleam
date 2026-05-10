@@ -6,6 +6,7 @@ import gleam/result
 import gleeunit/should
 import gluegun/connection
 import gluegun/error
+import gluegun/fin
 import gluegun/internal
 import gluegun/internal/ffi_result
 import gluegun/message
@@ -44,14 +45,14 @@ pub fn ffi_response_message_shape_decodes_test() {
   gluegun_ffi_test_response()
   |> message.decode
   |> should.equal(
-    Ok(message.Response(message.Fin, 200, [#("content-type", "text/plain")])),
+    Ok(message.Response(fin.Fin, 200, [#("content-type", "text/plain")])),
   )
 }
 
 pub fn ffi_data_message_shape_decodes_binary_body_test() {
   gluegun_ffi_test_data()
   |> message.decode
-  |> should.equal(Ok(message.Data(message.NoFin, <<"hello":utf8>>)))
+  |> should.equal(Ok(message.Data(fin.NoFin, <<"hello":utf8>>)))
 }
 
 pub fn ffi_stream_refs_are_opaque_test() {

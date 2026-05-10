@@ -8,6 +8,7 @@ import gleam/result
 import gleeunit/should
 import gluegun/connection
 import gluegun/error
+import gluegun/fin
 import gluegun/internal
 import gluegun/message
 import gluegun/websocket
@@ -221,7 +222,7 @@ pub fn websocket_receive_from_accepts_websocket_close_with_reason_test() {
 }
 
 pub fn websocket_receive_from_rejects_http_response_test() {
-  websocket.receive_from(Ok(message.Response(message.Fin, 200, [])))
+  websocket.receive_from(Ok(message.Response(fin.Fin, 200, [])))
   |> should.equal(
     Error(error.InvalidMessage(
       "websocket.receive: expected WebSocket frame, got HTTP message",
@@ -230,7 +231,7 @@ pub fn websocket_receive_from_rejects_http_response_test() {
 }
 
 pub fn websocket_receive_from_rejects_http_data_test() {
-  websocket.receive_from(Ok(message.Data(message.Fin, <<"body":utf8>>)))
+  websocket.receive_from(Ok(message.Data(fin.Fin, <<"body":utf8>>)))
   |> should.equal(
     Error(error.InvalidMessage(
       "websocket.receive: expected WebSocket frame, got HTTP message",
@@ -281,7 +282,7 @@ pub fn websocket_await_upgrade_from_rejects_websocket_frame_test() {
 }
 
 pub fn websocket_await_upgrade_from_rejects_http_response_test() {
-  websocket.await_upgrade_from(Ok(message.Response(message.Fin, 101, [])))
+  websocket.await_upgrade_from(Ok(message.Response(fin.Fin, 101, [])))
   |> should.equal(
     Error(error.InvalidMessage(
       "websocket.await_upgrade: expected Upgrade message",

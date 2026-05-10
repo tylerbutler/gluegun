@@ -8,6 +8,7 @@ import gleeunit/should
 import gluegun/client
 import gluegun/connection
 import gluegun/error
+import gluegun/fin
 import gluegun/internal
 import gluegun/message
 import gluegun/request
@@ -34,10 +35,10 @@ pub fn http2_invalid_await_up_protocol_returns_decode_error_test() {
 
 pub fn http2_like_response_stream_collects_normal_http_response_test() {
   client.collect_messages([
-    Ok(message.Response(message.NoFin, 200, [#("content-type", "text/plain")])),
-    Ok(message.Data(message.NoFin, <<"hello ":utf8>>)),
-    Ok(message.Data(message.NoFin, <<"from ":utf8>>)),
-    Ok(message.Data(message.Fin, <<"http2":utf8>>)),
+    Ok(message.Response(fin.NoFin, 200, [#("content-type", "text/plain")])),
+    Ok(message.Data(fin.NoFin, <<"hello ":utf8>>)),
+    Ok(message.Data(fin.NoFin, <<"from ":utf8>>)),
+    Ok(message.Data(fin.Fin, <<"http2":utf8>>)),
   ])
   |> should.equal(
     Ok(
@@ -66,11 +67,11 @@ pub fn http2_await_up_then_get_response_path_succeeds_test() {
 
   process.send(
     message_subject,
-    Ok(message.Response(message.NoFin, 200, [#("content-type", "text/plain")])),
+    Ok(message.Response(fin.NoFin, 200, [#("content-type", "text/plain")])),
   )
   process.send(
     message_subject,
-    Ok(message.Data(message.Fin, <<"hello from deterministic get":utf8>>)),
+    Ok(message.Data(fin.Fin, <<"hello from deterministic get":utf8>>)),
   )
 
   let fake_request = fn(_connection, method, path, headers, body, _options) {

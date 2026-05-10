@@ -3,9 +3,9 @@ import gleam/dynamic/decode
 import gleam/erlang/atom
 import gleeunit/should
 import gluegun/error
+import gluegun/fin
 import gluegun/internal
 import gluegun/internal/ffi_result
-import gluegun/message
 import gluegun/request
 
 pub fn streaming_headers_ffi_shape_normalizes_request_test() {
@@ -36,13 +36,34 @@ pub fn streaming_headers_result_decodes_opaque_stream_test() {
 }
 
 pub fn streaming_data_fin_encodes_expected_ffi_values_test() {
-  request.fin_to_ffi(message.Fin)
+  request.fin_to_ffi(fin.Fin)
   |> decode.run(atom.decoder())
   |> should.equal(Ok(atom.create("fin")))
 
-  request.fin_to_ffi(message.NoFin)
+  request.fin_to_ffi(fin.NoFin)
   |> decode.run(atom.decoder())
   |> should.equal(Ok(atom.create("nofin")))
+}
+
+pub fn streaming_data_accepts_typed_fin_values_test() {
+  let _send = send_streaming_data
+
+  request.fin_to_ffi(fin.Fin)
+  |> decode.run(atom.decoder())
+  |> should.equal(Ok(atom.create("fin")))
+
+  request.fin_to_ffi(fin.NoFin)
+  |> decode.run(atom.decoder())
+  |> should.equal(Ok(atom.create("nofin")))
+}
+
+fn send_streaming_data(
+  connection: internal.Connection,
+  stream: internal.Stream,
+  fin: fin.Fin,
+  data: BitArray,
+) {
+  request.data(connection, stream, fin, data)
 }
 
 pub fn streaming_cancel_decodes_success_and_error_test() {

@@ -13,6 +13,7 @@ import gleam/list
 import gleam/result
 import gluegun/connection.{type Timeout}
 import gluegun/error
+import gluegun/fin
 import gluegun/internal.{type Connection, type Stream}
 import gluegun/message.{type Message}
 import gluegun/request as low_request
@@ -311,9 +312,9 @@ fn step(
       case collection {
         AwaitingResponse(informational) ->
           case fin {
-            message.Fin ->
+            fin.Fin ->
               Ok(Done(build_response(status, headers, [], [], informational)))
-            message.NoFin ->
+            fin.NoFin ->
               Ok(Continue(Collecting(status, headers, [], [], informational)))
           }
         Collecting(_, _, _, _, _) ->
@@ -327,7 +328,7 @@ fn step(
         Collecting(status, headers, chunks, trailers, informational) -> {
           let chunks = [data, ..chunks]
           case fin {
-            message.Fin ->
+            fin.Fin ->
               Ok(
                 Done(build_response(
                   status,
@@ -337,7 +338,7 @@ fn step(
                   informational,
                 )),
               )
-            message.NoFin ->
+            fin.NoFin ->
               Ok(
                 Continue(Collecting(
                   status,

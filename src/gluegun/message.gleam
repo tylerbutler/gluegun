@@ -4,6 +4,7 @@ import gleam/result
 import gleam/string
 import gluegun/connection.{type Timeout, timeout_to_ffi}
 import gluegun/error
+import gluegun/fin.{type Fin, Fin, NoFin}
 import gluegun/internal.{type Connection, type Stream}
 import gluegun/request.{
   Connect, Custom, Delete, Get, Head, Options, Patch, Post, Put, Trace,
@@ -14,11 +15,6 @@ pub type Method =
 
 pub type Header =
   request.Header
-
-pub type Fin {
-  Fin
-  NoFin
-}
 
 /// WebSocket frames delivered inside Gun stream messages.
 ///

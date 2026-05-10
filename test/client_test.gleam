@@ -2,6 +2,7 @@ import gleam/dynamic
 import gleeunit/should
 import gluegun/client
 import gluegun/error
+import gluegun/fin
 import gluegun/internal
 import gluegun/message
 import gluegun/request
@@ -9,8 +10,8 @@ import gluegun/response
 
 pub fn client_collects_single_final_body_test() {
   client.collect_messages([
-    Ok(message.Response(message.NoFin, 200, [#("content-type", "text/plain")])),
-    Ok(message.Data(message.Fin, <<"hello":utf8>>)),
+    Ok(message.Response(fin.NoFin, 200, [#("content-type", "text/plain")])),
+    Ok(message.Data(fin.Fin, <<"hello":utf8>>)),
   ])
   |> should.equal(
     Ok(
@@ -27,12 +28,12 @@ pub fn client_collects_single_final_body_test() {
 pub fn client_collects_multiple_data_chunks_in_order_test() {
   let assert Ok(res) =
     client.collect_messages([
-      Ok(message.Response(message.NoFin, 200, [])),
-      Ok(message.Data(message.NoFin, <<"chunk-1|":utf8>>)),
-      Ok(message.Data(message.NoFin, <<"chunk-2|":utf8>>)),
-      Ok(message.Data(message.NoFin, <<"chunk-3|":utf8>>)),
-      Ok(message.Data(message.NoFin, <<"chunk-4|":utf8>>)),
-      Ok(message.Data(message.Fin, <<"chunk-5":utf8>>)),
+      Ok(message.Response(fin.NoFin, 200, [])),
+      Ok(message.Data(fin.NoFin, <<"chunk-1|":utf8>>)),
+      Ok(message.Data(fin.NoFin, <<"chunk-2|":utf8>>)),
+      Ok(message.Data(fin.NoFin, <<"chunk-3|":utf8>>)),
+      Ok(message.Data(fin.NoFin, <<"chunk-4|":utf8>>)),
+      Ok(message.Data(fin.Fin, <<"chunk-5":utf8>>)),
     ])
 
   res.body
@@ -42,8 +43,8 @@ pub fn client_collects_multiple_data_chunks_in_order_test() {
 pub fn client_preserves_trailers_test() {
   let assert Ok(res) =
     client.collect_messages([
-      Ok(message.Response(message.NoFin, 200, [])),
-      Ok(message.Data(message.NoFin, <<"hello":utf8>>)),
+      Ok(message.Response(fin.NoFin, 200, [])),
+      Ok(message.Data(fin.NoFin, <<"hello":utf8>>)),
       Ok(message.Trailers([#("expires", "soon")])),
     ])
 
@@ -55,7 +56,7 @@ pub fn client_preserves_informational_responses_test() {
   let assert Ok(res) =
     client.collect_messages([
       Ok(message.Inform(103, [#("link", "</style.css>; rel=preload")])),
-      Ok(message.Response(message.Fin, 204, [#("server", "gun")])),
+      Ok(message.Response(fin.Fin, 204, [#("server", "gun")])),
     ])
 
   res.informational
@@ -64,7 +65,7 @@ pub fn client_preserves_informational_responses_test() {
 
 pub fn client_rejects_informational_after_final_response_test() {
   client.collect_messages([
-    Ok(message.Response(message.NoFin, 200, [])),
+    Ok(message.Response(fin.NoFin, 200, [])),
     Ok(message.Inform(103, [])),
   ])
   |> should.equal(
@@ -96,7 +97,7 @@ pub fn client_rejects_push_upgrade_and_websocket_test() {
 }
 
 pub fn client_body_before_response_is_invalid_test() {
-  client.collect_messages([Ok(message.Data(message.Fin, <<"oops":utf8>>))])
+  client.collect_messages([Ok(message.Data(fin.Fin, <<"oops":utf8>>))])
   |> should.equal(
     Error(error.InvalidMessage("HTTP helper received body before response")),
   )
@@ -104,8 +105,8 @@ pub fn client_body_before_response_is_invalid_test() {
 
 pub fn client_duplicate_response_is_invalid_test() {
   client.collect_messages([
-    Ok(message.Response(message.NoFin, 200, [])),
-    Ok(message.Response(message.Fin, 204, [])),
+    Ok(message.Response(fin.NoFin, 200, [])),
+    Ok(message.Response(fin.Fin, 204, [])),
   ])
   |> should.equal(
     Error(error.InvalidMessage("HTTP helper received duplicate response")),

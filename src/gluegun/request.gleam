@@ -2,6 +2,7 @@ import gleam/dynamic
 import gleam/list
 import gleam/string
 import gluegun/error
+import gluegun/fin.{type Fin}
 import gluegun/internal.{type Connection, type Stream}
 import gluegun/internal/ffi_result
 
@@ -84,8 +85,8 @@ pub fn request(
 
 /// Start a low-level HTTP request whose body will be streamed later.
 ///
-/// The caller must send request body chunks with `data(..., NoFin, ...)` and
-/// complete the request with `data(..., Fin, ...)`. Gun response messages go to
+/// The caller must send request body chunks with `data(..., fin.NoFin, ...)` and
+/// complete the request with `data(..., fin.Fin, ...)`. Gun response messages go to
 /// the calling process by default unless Gun request options redirect replies.
 pub fn headers(
   connection: Connection,
@@ -111,7 +112,7 @@ pub fn headers(
 pub fn data(
   connection: Connection,
   stream: Stream,
-  fin: fin,
+  fin: Fin,
   data: BitArray,
 ) -> Result(Nil, error.GluegunError) {
   ffi_data(
@@ -181,12 +182,12 @@ pub fn headers_args_to_ffi(
 }
 
 @internal
-pub fn fin_to_ffi(fin: fin) -> dynamic.Dynamic {
+pub fn fin_to_ffi(fin: Fin) -> dynamic.Dynamic {
   ffi_fin_to_ffi(fin)
 }
 
 @external(erlang, "gluegun_ffi", "fin_to_ffi")
-fn ffi_fin_to_ffi(fin: fin) -> dynamic.Dynamic
+fn ffi_fin_to_ffi(fin: Fin) -> dynamic.Dynamic
 
 @internal
 pub fn update_flow_args_to_ffi(
@@ -220,7 +221,7 @@ fn ffi_request(
 fn ffi_data(
   connection: dynamic.Dynamic,
   stream: dynamic.Dynamic,
-  fin: fin,
+  fin: Fin,
   data: BitArray,
 ) -> Result(dynamic.Dynamic, dynamic.Dynamic)
 

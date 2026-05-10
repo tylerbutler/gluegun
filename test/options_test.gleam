@@ -4,6 +4,7 @@ import gleeunit/should
 import gluegun
 import gluegun/connection
 import gluegun/error
+import gluegun/fin
 import gluegun/internal
 import gluegun/message
 import gluegun/request
@@ -92,8 +93,8 @@ pub fn response_construction_test() {
 }
 
 pub fn message_construction_test() {
-  message.Response(message.NoFin, 204, [#("server", "gun")])
-  |> should.equal(message.Response(message.NoFin, 204, [#("server", "gun")]))
+  message.Response(fin.NoFin, 204, [#("server", "gun")])
+  |> should.equal(message.Response(fin.NoFin, 204, [#("server", "gun")]))
 }
 
 pub fn message_decode_response_test() {
@@ -115,7 +116,7 @@ pub fn message_decode_response_test() {
 
   message.decode(value)
   |> should.equal(
-    Ok(message.Response(message.NoFin, 201, [#("content-type", "text/plain")])),
+    Ok(message.Response(fin.NoFin, 201, [#("content-type", "text/plain")])),
   )
 }
 
@@ -128,7 +129,7 @@ pub fn message_decode_data_test() {
     ])
 
   message.decode(value)
-  |> should.equal(Ok(message.Data(message.Fin, <<"ok":utf8>>)))
+  |> should.equal(Ok(message.Data(fin.Fin, <<"ok":utf8>>)))
 }
 
 pub fn message_decode_inform_test() {
