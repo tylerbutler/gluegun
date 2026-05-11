@@ -145,37 +145,61 @@ pub fn get_over_http2() {
 
 ## WebSocket echo
 
-Gun supports WebSocket over HTTP/1.1 only. Pass the negotiated protocol to `websocket.upgrade_with_protocol` so HTTP/2 is rejected before calling Gun.
+Gun supports WebSocket over HTTP/1.1 only. Gluegun's high-level WebSocket options default to HTTP/1.1, and the low-level `upgrade_with_protocol` helpers reject HTTP/2 before calling Gun.
+
+Use the reusable `Socket` API when you want explicit lifecycle control.
 
 ```gleam
 import gleam/io
-import gluegun/connection
 import gluegun/message
 import gluegun/websocket
 
 pub fn echo() {
-  let timeout = connection.Milliseconds(5000)
-  let assert Ok(conn) =
-    connection.options()
-    |> connection.open(host: "localhost", port: 8080)
-  let assert Ok(protocol) = connection.await_up(conn, timeout)
+  let assert Ok(socket) =
+    websocket.connect(
+      host: "localhost",
+      port: 8080,
+      path: "/echo",
+      options: websocket.options(),
+    )
 
-  let assert Ok(stream) =
-    websocket.upgrade_with_protocol(conn, protocol, "/echo", [])
-  let assert Ok(Nil) = websocket.await_upgrade(conn, stream, timeout)
+  let assert Ok(Nil) = websocket.send_text(socket, "hello")
 
-  let assert Ok(Nil) = websocket.send(conn, stream, message.Text("hello"))
-
-  case websocket.receive(conn, stream, timeout) {
+  case websocket.receive_app_frame(socket) {
     Ok(message.Text(reply)) -> io.println(reply)
     Ok(_) -> io.println("received a non-text frame")
     Error(_) -> io.println("websocket receive failed")
   }
 
-  let assert Ok(Nil) = websocket.send(conn, stream, message.Close)
-  let assert Ok(Nil) = connection.close(conn)
+  let assert Ok(Nil) = websocket.close(socket)
 }
 ```
+
+For shorter one-shot flows, `with_socket` opens the socket, runs a callback, then closes the WebSocket and connection.
+
+```gleam
+import gleam/io
+import gluegun/message
+import gluegun/websocket
+
+pub fn echo_once() {
+  let assert Ok(message.Text(reply)) =
+    websocket.with_socket(
+      host: "localhost",
+      port: 8080,
+      path: "/echo",
+      options: websocket.options(),
+      callback: fn(socket) {
+        let assert Ok(Nil) = websocket.send_text(socket, "hello")
+        websocket.receive_app_frame(socket)
+      },
+    )
+
+  io.println(reply)
+}
+```
+
+`Socket` is reusable and lifecycle-explicit. `with_socket` is convenience-only for scoped use. Low-level `upgrade_with_protocol_and_options`, `send`, and `receive` remain available for advanced flows. The root facade also exposes non-conflicting helpers such as `gluegun.websocket_connect` and `gluegun.websocket_send_text`.
 
 See `examples/websocket_echo` for a fuller documentation-only WebSocket example.
 

@@ -10,8 +10,10 @@ import gluegun/connection.{
 }
 import gluegun/error
 import gluegun/internal.{type Connection}
+import gluegun/message
 import gluegun/request as low_request
 import gluegun/response as http_response
+import gluegun/websocket
 
 /// Return the package name.
 pub fn name() -> String {
@@ -109,4 +111,58 @@ pub fn send(
   connection connection: Connection,
 ) -> Result(http_response.Response, error.GluegunError) {
   http_client.send(request, connection: connection)
+}
+
+/// Construct default high-level WebSocket connection options.
+pub fn websocket_options() -> websocket.Options {
+  websocket.options()
+}
+
+/// Open a connection, perform a WebSocket upgrade, and return a reusable socket.
+pub fn websocket_connect(
+  host host: String,
+  port port: Int,
+  path path: String,
+  options options: websocket.Options,
+) -> Result(websocket.Socket, error.GluegunError) {
+  websocket.connect(host: host, port: port, path: path, options: options)
+}
+
+/// Open a WebSocket, run a callback, then close the WebSocket and connection.
+pub fn websocket_with_socket(
+  host host: String,
+  port port: Int,
+  path path: String,
+  options options: websocket.Options,
+  callback callback: fn(websocket.Socket) -> Result(a, error.GluegunError),
+) -> Result(a, error.GluegunError) {
+  websocket.with_socket(
+    host: host,
+    port: port,
+    path: path,
+    options: options,
+    callback: callback,
+  )
+}
+
+/// Send a text WebSocket frame using a reusable socket.
+pub fn websocket_send_text(
+  socket: websocket.Socket,
+  text: String,
+) -> Result(Nil, error.GluegunError) {
+  websocket.send_text(socket, text)
+}
+
+/// Receive the next application WebSocket frame, handling ping/pong frames.
+pub fn websocket_receive_app_frame(
+  socket: websocket.Socket,
+) -> Result(message.Frame, error.GluegunError) {
+  websocket.receive_app_frame(socket)
+}
+
+/// Send a close WebSocket frame using a reusable socket.
+pub fn websocket_close(
+  socket: websocket.Socket,
+) -> Result(Nil, error.GluegunError) {
+  websocket.close(socket)
 }
