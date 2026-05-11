@@ -3,10 +3,13 @@
 -export([
     capture_ws_send_frame_message/1,
     capture_ws_send_message/0,
+    capture_ws_upgrade_options/1,
     current_process/0,
     invalid_ws_send_frame_result/0,
     invalid_ws_send_frame_list_result/0,
     invalid_ws_send_text_utf8_result/0,
+    invalid_ws_upgrade_unknown_option_result/0,
+    invalid_ws_upgrade_options_result/0,
     test_close_plain_message/0,
     test_close_with_reason_message/0,
     test_ws_close_gun_tuple/0,
@@ -39,6 +42,20 @@ capture_ws_send_message() ->
         {error, nil}
     end.
 
+capture_ws_upgrade_options(Options) ->
+    case gluegun_ffi:ws_upgrade(self(), <<"/ws">>, [], Options) of
+        {ok, StreamRef} ->
+            receive
+                {'$gen_cast', {ws_upgrade, _ReplyTo, StreamRef, _Path, _Headers, GunOpts}} ->
+                    {ok, ws_opts_to_assertion_map(GunOpts)}
+            after 0 ->
+                {error, no_ws_upgrade_message}
+            end;
+        Error ->
+            Error
+    end.
+
+
 invalid_ws_send_frame_result() ->
     gluegun_ffi:ws_send(self(), make_ref(), bad_frame).
 
@@ -47,6 +64,12 @@ invalid_ws_send_frame_list_result() ->
 
 invalid_ws_send_text_utf8_result() ->
     gluegun_ffi:ws_send(self(), make_ref(), {text, <<255>>}).
+
+invalid_ws_upgrade_options_result() ->
+    gluegun_ffi:ws_upgrade(self(), <<"/ws">>, [], #{<<"compress">> => <<"not-a-boolean">>}).
+
+invalid_ws_upgrade_unknown_option_result() ->
+    gluegun_ffi:ws_upgrade(self(), <<"/ws">>, [], #{<<"unexpected_ws_option">> => true}).
 
 current_process() ->
     self().
@@ -94,3 +117,17 @@ gun_frame_to_map({close, Code, Reason}) ->
     #{<<"type">> => <<"close_with_reason">>,
       <<"code">> => Code,
       <<"reason">> => Reason}.
+
+
+ws_opts_to_assertion_map(GunOpts) when is_map(GunOpts) ->
+    maps:from_list([{atom_to_binary(Key, utf8), ws_opt_value_to_assertion(Value)} || {Key, Value} <- maps:to_list(GunOpts)]).
+
+ws_opt_value_to_assertion(Protocols) when is_list(Protocols) ->
+    [ws_protocol_to_assertion(Protocol) || Protocol <- Protocols];
+ws_opt_value_to_assertion(Value) ->
+    Value.
+
+ws_protocol_to_assertion({Protocol, Module}) ->
+    {Protocol, Module};
+ws_protocol_to_assertion([Protocol, Module]) ->
+    {Protocol, Module}.

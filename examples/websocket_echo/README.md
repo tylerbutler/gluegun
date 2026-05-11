@@ -1,16 +1,22 @@
 # websocket_echo
 
-A minimal example showing how to use **Gluegun**'s WebSocket API to connect to
-an echo server, send a text frame, and receive the echoed reply.
+A minimal example showing how to use **Gluegun**'s high-level WebSocket `Socket` API to connect to an echo server, send a text frame, and receive the echoed reply.
 
 ## Protocol limitations
 
-- **HTTP/2 WebSocket is not supported** by Gun (RFC 8441). Call
-  `websocket.upgrade_with_protocol` with the protocol returned by
-  `connection.await_up` so HTTP/2 is rejected before calling Gun.
+- **HTTP/2 WebSocket is not supported** by Gun (RFC 8441). `websocket.options()` defaults high-level WebSocket connections to HTTP/1.1, and low-level `websocket.upgrade_with_protocol` rejects HTTP/2 before calling Gun.
 - Once an HTTP/1.1 connection is upgraded to WebSocket the connection is
   **exclusively** used for WebSocket frames. You cannot send concurrent HTTP
   requests on the same connection.
+
+## API style
+
+The source example uses `websocket.connect` to create a reusable `Socket`, then
+`websocket.send_text`, `websocket.receive_app_frame`, and `websocket.close` for
+explicit WebSocket lifecycle steps. For scoped one-shot flows, use
+`websocket.with_socket` to run a callback and close the WebSocket and connection
+afterward. Low-level `upgrade_with_protocol_and_options`, `send`, and `receive`
+remain available for advanced use.
 
 ## Usage
 

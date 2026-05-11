@@ -136,9 +136,14 @@ flush(ConnPid) ->
     end.
 
 ws_upgrade(ConnPid, Path, Headers, WsOpts) ->
-    try gun:ws_upgrade(ConnPid, Path, normalize_headers(Headers), WsOpts) of
+    try gun:ws_upgrade(ConnPid, Path, normalize_headers(Headers), ws_opts_to_gun(WsOpts)) of
+        {error, {options, {ws, Opt}}} -> {error, {invalid_options, {ws, invalid_ws_opt_name(Opt)}}};
+        {error, {options, Reason}} -> {error, {invalid_options, Reason}};
         StreamRef -> {ok, StreamRef}
     catch
+        error:{options, {ws, Opt}}:_Stack -> {error, {invalid_options, {ws, invalid_ws_opt_name(Opt)}}};
+        error:{badmatch, {error, {options, {ws, Opt}}}}:_Stack -> {error, {invalid_options, {ws, invalid_ws_opt_name(Opt)}}};
+        error:{invalid_options, Reason}:_Stack -> {error, {invalid_options, Reason}};
         Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
     end.
 
@@ -213,6 +218,76 @@ options_to_gun(Options) ->
 
 req_opts_to_gun(ReqOpts) when is_map(ReqOpts) -> ReqOpts;
 req_opts_to_gun(_) -> #{}.
+
+ws_opts_to_gun(WsOpts) when is_map(WsOpts) ->
+    maps:fold(
+        fun(Key, Value, Acc) ->
+            GunKey = ws_opt_key_to_atom(Key),
+            Acc#{GunKey => ws_opt_value_to_gun(GunKey, Value)}
+        end,
+        #{},
+        WsOpts
+    );
+ws_opts_to_gun(_) -> #{}.
+
+ws_opt_key_to_atom(closing_timeout) -> closing_timeout;
+ws_opt_key_to_atom(compress) -> compress;
+ws_opt_key_to_atom(default_protocol) -> default_protocol;
+ws_opt_key_to_atom(flow) -> flow;
+ws_opt_key_to_atom(keepalive) -> keepalive;
+ws_opt_key_to_atom(protocols) -> protocols;
+ws_opt_key_to_atom(reply_to) -> reply_to;
+ws_opt_key_to_atom(silence_pings) -> silence_pings;
+ws_opt_key_to_atom(tunnel) -> tunnel;
+ws_opt_key_to_atom(user_opts) -> user_opts;
+ws_opt_key_to_atom(<<"closing_timeout">>) -> closing_timeout;
+ws_opt_key_to_atom(<<"compress">>) -> compress;
+ws_opt_key_to_atom(<<"default_protocol">>) -> default_protocol;
+ws_opt_key_to_atom(<<"flow">>) -> flow;
+ws_opt_key_to_atom(<<"keepalive">>) -> keepalive;
+ws_opt_key_to_atom(<<"protocols">>) -> protocols;
+ws_opt_key_to_atom(<<"reply_to">>) -> reply_to;
+ws_opt_key_to_atom(<<"silence_pings">>) -> silence_pings;
+ws_opt_key_to_atom(<<"tunnel">>) -> tunnel;
+ws_opt_key_to_atom(<<"user_opts">>) -> user_opts;
+ws_opt_key_to_atom("closing_timeout") -> closing_timeout;
+ws_opt_key_to_atom("compress") -> compress;
+ws_opt_key_to_atom("default_protocol") -> default_protocol;
+ws_opt_key_to_atom("flow") -> flow;
+ws_opt_key_to_atom("keepalive") -> keepalive;
+ws_opt_key_to_atom("protocols") -> protocols;
+ws_opt_key_to_atom("reply_to") -> reply_to;
+ws_opt_key_to_atom("silence_pings") -> silence_pings;
+ws_opt_key_to_atom("tunnel") -> tunnel;
+ws_opt_key_to_atom("user_opts") -> user_opts;
+ws_opt_key_to_atom(Key) -> error({invalid_options, {ws, {unsupported_option, Key}}}).
+
+ws_opt_value_to_gun(closing_timeout, Timeout) -> timeout_to_gun(Timeout);
+ws_opt_value_to_gun(keepalive, Timeout) -> timeout_to_gun(Timeout);
+ws_opt_value_to_gun(default_protocol, Module) -> module_name_to_atom(Module);
+ws_opt_value_to_gun(protocols, Protocols) when is_list(Protocols) ->
+    [ws_protocol_to_gun(Protocol) || Protocol <- Protocols];
+ws_opt_value_to_gun(_Key, Value) -> Value.
+
+ws_protocol_to_gun([Protocol, Module]) -> {to_binary(Protocol), module_name_to_atom(Module)};
+ws_protocol_to_gun({Protocol, Module}) -> {to_binary(Protocol), module_name_to_atom(Module)}.
+
+module_name_to_atom(Module) when is_atom(Module) -> Module;
+module_name_to_atom(Module) when is_binary(Module) ->
+    try binary_to_existing_atom(Module, utf8) of
+        Atom -> Atom
+    catch
+        error:badarg:_Stack -> error({invalid_options, {ws, {unknown_module, Module}}})
+    end;
+module_name_to_atom(Module) when is_list(Module) ->
+    try list_to_existing_atom(Module) of
+        Atom -> Atom
+    catch
+        error:badarg:_Stack -> error({invalid_options, {ws, {unknown_module, Module}}})
+    end.
+
+invalid_ws_opt_name({Key, _Value}) -> Key;
+invalid_ws_opt_name(Key) -> Key.
 
 timeout_to_gun(infinity) -> infinity;
 timeout_to_gun(<<"infinity">>) -> infinity;
