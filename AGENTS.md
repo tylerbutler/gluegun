@@ -17,14 +17,14 @@ just ci            # format-check, check, test, build-strict
 just main          # ci plus docs
 ```
 
-Run a single compiled gleeunit test through EUnit after building:
+Run a single Startest test or suite after building:
 
 ```sh
 gleam build
-erl -noshell -pa build/dev/erlang/*/ebin -eval 'case eunit:test({client_test, client_collects_single_final_body_test}, [verbose, no_tty]) of ok -> halt(0); error -> halt(1) end.'
+gleam test -- test/client_test.gleam --test-name-filter="collects a single final body"
 ```
 
-Replace `client_test` and `client_collects_single_final_body_test` with the compiled test module and function name from `test/*.gleam`.
+Replace the file path and `--test-name-filter` value with the Startest suite or test name you want to run.
 
 ## High-level architecture
 
@@ -54,5 +54,5 @@ Examples under `examples/` are source-level documentation, not standalone packag
 - Use `client` helpers only for regular HTTP responses collected in memory. Streaming bodies, HTTP/2 push, upgrades, WebSocket messages, cancellation, and flow-control updates belong in `request`/`message`.
 - WebSocket support is HTTP/1.1 only. Prefer `websocket.upgrade_with_protocol` after `connection.await_up`; it rejects `Http2` before calling Gun. After a successful HTTP/1.1 upgrade, treat that connection as exclusively WebSocket.
 - Erlang FFI helpers should normalize Gun tuples/errors into shapes the Gleam decoders already expect, convert iodata to binaries where needed, and validate WebSocket text frames as UTF-8.
-- Tests use gleeunit with public functions ending in `_test` under `test/`. Raw FFI shape and WebSocket frame tests use Erlang helper modules in `test/*.erl`.
+- Tests use Startest with public describe functions ending in `_tests` under `test/`. Raw FFI shape and WebSocket frame tests use Erlang helper modules in `test/*.erl`.
 - `@internal` Gleam helpers are intentionally exposed for deterministic unit tests; avoid expanding the public API surface unless the README/docs need to expose the behavior.
