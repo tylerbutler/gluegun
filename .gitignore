@@ -2,6 +2,8 @@
 *.beam
 *.ez
 /build
+/examples/*/build
+/examples/*/dist
 erl_crash.dump
 
 # Coverage

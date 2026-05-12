@@ -242,7 +242,9 @@ fn safe_get(conn) {
 
 ## Examples
 
-Examples under `examples/` are source-level documentation, not standalone Gleam packages built by the root `just` tasks. Copy an example into a Gleam project and add `gluegun` as a dependency to run it.
+Most examples under `examples/` are source-level documentation, not packages built by the root `just` tasks. Copy those examples into a Gleam project and add `gluegun` as a dependency to run them.
+
+`examples/webprobe` is a standalone CLI demo package. It uses `clip` and `argv` for command-line parsing, `gleescript` for escript packaging, and Gluegun for HTTP diagnostics.
 
 ## Development
 
