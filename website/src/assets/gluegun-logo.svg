@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">gluegun logo</title>
+  <desc id="desc">A stylized glue gun forming a lowercase g.</desc>
+  <rect width="512" height="512" rx="96" fill="#111827"/>
+  <path d="M130 252c0-58 47-105 105-105h83c20 0 36 16 36 36v23h44c19 0 34 15 34 34v24c0 19-15 34-34 34h-44v31c0 20-16 36-36 36h-83c-58 0-105-47-105-105v-8Z" fill="#38bdf8"/>
+  <path d="M205 256c0-26 21-47 47-47h50v94h-50c-26 0-47-21-47-47Z" fill="#0f172a"/>
+  <path d="M342 241h74v22h-74z" fill="#e0f2fe"/>
+  <path d="M280 366c-9 32-38 55-72 55h-27c-16 0-29-13-29-29s13-29 29-29h27c8 0 15-5 18-13l10-31 55 17-11 30Z" fill="#38bdf8"/>
+</svg>
