@@ -71,8 +71,8 @@ export default defineConfig({
 			description: "Typed Gleam wrapper for the Erlang Gun HTTP client.",
 			lastUpdated: true,
 			logo: {
-				dark: "./src/assets/gluegun-dark.png",
-				light: "./src/assets/gluegun-light.png",
+				dark: "./src/assets/gluegun-dark.webp",
+				light: "./src/assets/gluegun-light.webp",
 				alt: "Gluegun logo",
 				// width: 48,
 				// height: 48,
