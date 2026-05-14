@@ -5,7 +5,7 @@ description: Common gluegun issues and where to look first.
 
 ## Connection never becomes ready
 
-Check the host, port, transport, and timeout passed to `connection.open` and `connection.await_up`. Use TLS for port 443 and plaintext TCP for port 80 unless the server expects something different.
+Check the host, port, transport, and timeout passed to `connection.open` and `connection.await_up`. Use `connection.with_transport(transport: connection.Tls)` for port 443 and `connection.with_transport(transport: connection.Tcp)` for port 80 unless the server expects something different.
 
 ## WebSocket upgrade fails
 

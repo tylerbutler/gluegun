@@ -17,7 +17,7 @@ Use low-level `request` and `message` APIs for streaming or advanced Gun flows. 
 
 ## WebSocket over HTTP/2 is unsupported
 
-Gun supports WebSocket over HTTP/1.1. Gluegun rejects HTTP/2 in `websocket.upgrade_with_protocol` before calling Gun.
+Gun supports WebSocket over HTTP/1.1. Gluegun rejects HTTP/2 in `websocket.upgrade_with_protocol` by checking the protocol returned from `connection.await_up` before calling Gun.
 
 ## TLS option surface is intentionally small
 
