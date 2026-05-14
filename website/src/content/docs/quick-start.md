@@ -45,3 +45,5 @@ Gluegun separates connection setup from requests:
 2. Wait for Gun to report the negotiated protocol.
 3. Send requests using paths such as `/`, `/api/items`, or `/health`.
 4. Close or shut down the connection when you are finished.
+
+For complete module, type, and function details, use the [HexDocs API reference](https://hexdocs.pm/gluegun/).

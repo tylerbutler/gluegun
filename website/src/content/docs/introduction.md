@@ -20,6 +20,8 @@ Because Gun is Erlang-only, Gluegun targets the Erlang runtime.
 
 ## What Gluegun does not do
 
-Gluegun does not parse URLs. Open a connection with `connection.open(host, port, options)`, wait for protocol negotiation with `connection.await_up`, then pass request paths to HTTP or WebSocket helpers.
+Gluegun does not parse URLs. Open a connection with `connection.options() |> connection.open(host: "example.com", port: 443)`, wait for protocol negotiation with `connection.await_up`, then pass request paths such as `/`, `/api/items`, or `/ws` to HTTP or WebSocket helpers.
 
 Gluegun also does not hide Gun's streaming model. The high-level client helpers are convenient for regular responses, but streaming bodies, HTTP/2 push, upgrades, WebSocket messages, cancellation, and flow-control updates belong in `gluegun/request` and `gluegun/message`.
+
+For complete module, type, and function details, use the [HexDocs API reference](https://hexdocs.pm/gluegun/).

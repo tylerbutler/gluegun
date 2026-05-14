@@ -29,7 +29,7 @@ pub fn upload_chunks(conn) {
   let assert Ok(Nil) = request.data(conn, stream, fin.Fin, <<"last":utf8>>)
 
   let assert Ok(message.Response(response_fin, _status, _headers)) =
-    message.await(conn, stream, timeout)
+    await_final_response(conn, stream, timeout)
 
   case response_fin {
     fin.Fin -> <<>>
@@ -39,10 +39,28 @@ pub fn upload_chunks(conn) {
     }
   }
 }
+
+fn await_final_response(conn, stream, timeout) {
+  case message.await(conn, stream, timeout) {
+    Ok(message.Inform(_status, _headers)) ->
+      await_final_response(conn, stream, timeout)
+    other -> other
+  }
+}
 ```
 
 ## Consuming response chunks
 
 If you need response chunks or trailers as they arrive, continue awaiting `message.Data` and `message.Trailers` with `message.await` instead of collecting the full body with `message.await_body`.
 
-Streaming APIs are also the right place for cancellation, flow-control updates, and flushing.
+Servers may send one or more `message.Inform` values before the final `message.Response`. Skip or record those informational responses before collecting the response body. HTTP/2 servers can also send `message.Push` values, and upgrade flows can produce `message.Upgrade` or `message.WebSocket` values that the high-level client helpers intentionally reject.
+
+## Stream control
+
+Streaming APIs are also the right place for request control:
+
+- Use `request.cancel(conn, stream)` to cancel a request stream.
+- Use `request.update_flow(conn, stream, increment)` when your application manages flow-control allowance directly. The increment must be positive.
+- Use `request.flush(conn)` to flush queued Gun messages for a connection.
+
+See the [request module](https://hexdocs.pm/gluegun/gluegun/request.html) and [message module](https://hexdocs.pm/gluegun/gluegun/message.html) on HexDocs for the complete streaming API.

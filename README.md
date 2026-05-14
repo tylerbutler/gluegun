@@ -205,7 +205,7 @@ See `examples/websocket_echo` for a fuller documentation-only WebSocket example.
 
 ## Error handling
 
-All public operations return `Result(_, error.GluegunError)`. Pattern match on variants that matter to your application and keep a fallback for unexpected Erlang or decode errors.
+Effectful operations return `Result(_, error.GluegunError)`. Pattern match on variants that matter to your application and keep a fallback for unexpected Erlang or decode errors. Pure builders and accessors return plain values.
 
 ```gleam
 import gleam/io

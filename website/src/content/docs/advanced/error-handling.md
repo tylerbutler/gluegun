@@ -3,7 +3,7 @@ title: Error Handling
 description: Work with GluegunError values returned from public operations.
 ---
 
-All public operations return `Result(_, error.GluegunError)`.
+Effectful operations that open connections, send requests, await messages, decode response bodies, or send WebSocket frames return `Result(_, error.GluegunError)`. Pure builders and accessors return plain values.
 
 Pattern match on variants that matter to your application and keep a fallback for unexpected Erlang or decode errors.
 
@@ -33,3 +33,18 @@ fn safe_get(conn) {
 ```
 
 Gluegun routes FFI errors through `error.decode_ffi_error` or `gluegun/internal/ffi_result` so Erlang failures become Gleam values at the API boundary.
+
+## Error variants
+
+| Variant | Meaning | Common cause |
+| --- | --- | --- |
+| `Timeout` | An operation timed out. | The server was slow, unreachable, or the timeout was too short. |
+| `ConnectionDown(String)` | The Gun connection went down. | The remote closed the connection or the network failed. |
+| `ConnectionError(String)` | Connection setup or use failed. | Bad host, port, transport, TLS, or Gun connection state. |
+| `StreamError(String)` | A stream-specific failure occurred. | A stream was canceled, reset, or rejected. |
+| `InvalidOptions(String)` | Gluegun rejected invalid typed options. | A non-positive flow-control increment or unsupported option shape. |
+| `InvalidMessage(String)` | A protocol message did not match the API being used. | Using high-level client helpers for upgrades, push, WebSocket messages, or receiving WebSocket frames before upgrade completion. |
+| `ErlangError(String)` | An unclassified Erlang or FFI failure occurred. | An unexpected Gun or BEAM error crossed the FFI boundary. |
+| `DecodeError(String)` | Decoding failed. | Invalid FFI message shape or a non-UTF-8 response body passed to `response.body_text`. |
+
+See the [error module on HexDocs](https://hexdocs.pm/gluegun/gluegun/error.html) for the current error type definition.

@@ -1,15 +1,15 @@
-//// Error types returned by gluegun public APIs.
+//// Error types returned by Gluegun effectful APIs.
 ////
-//// Most functions return `Result(_, GluegunError)`. Match variants such as
-//// `Timeout`, `ConnectionDown`, and `InvalidMessage` for application-specific
-//// recovery, and keep a fallback for Erlang or decode errors.
+//// Match variants such as `Timeout`, `ConnectionDown`, and `InvalidMessage`
+//// for application-specific recovery, and keep a fallback for Erlang or decode
+//// errors.
 
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode as dyn_decode
 import gleam/erlang/atom
 import gleam/string
 
-/// Errors returned by gluegun connection, request, message, and WebSocket APIs.
+/// Errors returned by Gluegun connection, request, message, and WebSocket APIs.
 pub type GluegunError {
   Timeout
   ConnectionDown(String)
@@ -21,7 +21,7 @@ pub type GluegunError {
   DecodeError(String)
 }
 
-/// Decode an FFI error reason into a gluegun error.
+/// Decode an FFI error reason into a Gluegun error.
 pub fn decode_ffi_error(error: Dynamic) -> GluegunError {
   case dyn_decode.run(error, atom.decoder()) {
     Ok(tag) ->

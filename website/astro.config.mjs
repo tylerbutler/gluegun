@@ -13,7 +13,7 @@ export default defineConfig({
 	},
 	integrations: [
 		starlight({
-			title: "gluegun",
+			title: "Gluegun",
 			editLink: {
 				baseUrl: "https://github.com/tylerbutler/gluegun/edit/main/website/",
 			},
@@ -22,7 +22,7 @@ export default defineConfig({
 			logo: {
 				dark: "./src/assets/gluegun-dark.png",
 				light: "./src/assets/gluegun-light.png",
-				alt: "gluegun logo",
+				alt: "Gluegun logo",
 				// width: 48,
 				// height: 48,
 			},
@@ -45,7 +45,7 @@ export default defineConfig({
 				{
 					label: "Start Here",
 					items: [
-						{ label: "What is gluegun?", slug: "introduction" },
+						{ label: "What is Gluegun?", slug: "introduction" },
 						{ label: "Installation", slug: "installation" },
 						{ label: "Quick Start", slug: "quick-start" },
 					],
@@ -66,6 +66,15 @@ export default defineConfig({
 						{ label: "Error Handling", slug: "advanced/error-handling" },
 						{ label: "Limitations", slug: "advanced/limitations" },
 						{ label: "Troubleshooting", slug: "advanced/troubleshooting" },
+					],
+				},
+				{
+					label: "Reference",
+					items: [
+						{
+							label: "API Reference (HexDocs)",
+							link: "https://hexdocs.pm/gluegun/",
+						},
 					],
 				},
 			],

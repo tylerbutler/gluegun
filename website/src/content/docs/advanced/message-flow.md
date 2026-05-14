@@ -15,3 +15,5 @@ The main flow is:
 High-level `gluegun/client` helpers use this flow internally for regular HTTP responses. They are intentionally scoped to one request and collect the complete body in memory.
 
 For advanced Gun behavior, keep using the lower-level `request` and `message` APIs so your application can decide how to handle streaming, flow control, cancellation, trailers, and protocol-specific events.
+
+See the [message module on HexDocs](https://hexdocs.pm/gluegun/gluegun/message.html) for every decoded message variant.

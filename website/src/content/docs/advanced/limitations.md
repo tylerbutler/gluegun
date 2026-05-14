@@ -22,3 +22,5 @@ Gun supports WebSocket over HTTP/1.1. Gluegun rejects HTTP/2 in `websocket.upgra
 ## TLS option surface is intentionally small
 
 Advanced TLS options may require future typed additions.
+
+Use the [HexDocs API reference](https://hexdocs.pm/gluegun/) to check the current public surface before reaching for Gun options directly.

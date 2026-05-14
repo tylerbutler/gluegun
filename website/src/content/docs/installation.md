@@ -16,6 +16,12 @@ gleam add gluegun
 - Gluegun supports Gleam `>= 1.7.0`.
 - Gluegun supports Gun `>= 2.1.0 and < 3.0.0`.
 
+If your application supports multiple targets, keep Gluegun usage in Erlang-only code and set the package target when appropriate:
+
+```toml
+target = "erlang"
+```
+
 ## Package dependencies
 
 Gluegun depends on:
@@ -26,3 +32,5 @@ Gluegun depends on:
 - `gun`
 
 The package manages these through `gleam.toml`; applications usually only need to run `gleam add gluegun`.
+
+See the [HexDocs API reference](https://hexdocs.pm/gluegun/) for the complete public API.

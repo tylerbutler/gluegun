@@ -33,6 +33,8 @@ pub fn echo() {
 }
 ```
 
+`websocket.close(socket)` sends a WebSocket close frame. It does not close the underlying Gun connection. Use `websocket.with_socket` for scoped cleanup, or close the connection yourself when using the reusable `Socket` API.
+
 ## Scoped sockets
 
 For shorter one-shot flows, `with_socket` opens the socket, runs a callback, then closes the WebSocket and connection.
@@ -60,3 +62,34 @@ pub fn echo_once() {
 ```
 
 `Socket` is reusable and lifecycle-explicit. `with_socket` is convenience-only for scoped use.
+
+## Low-level upgrade flow
+
+Use the low-level helpers when you already own the connection lifecycle or need to inspect the negotiated protocol before upgrading.
+
+```gleam
+import gluegun/connection
+import gluegun/message
+import gluegun/websocket
+
+pub fn low_level_echo(conn) {
+  let timeout = connection.Milliseconds(5000)
+  let assert Ok(protocol) = connection.await_up(conn, timeout)
+
+  let assert Ok(stream) =
+    websocket.upgrade_with_protocol(conn, protocol, "/echo", [])
+
+  let assert Ok(Nil) = websocket.await_upgrade(conn, stream, timeout)
+  let assert Ok(Nil) = websocket.send(conn, stream, message.Text("hello"))
+
+  case websocket.receive(conn, stream, timeout) {
+    Ok(message.Text(reply)) -> Ok(reply)
+    Ok(_) -> Error("received a non-text frame")
+    Error(_) -> Error("websocket receive failed")
+  }
+}
+```
+
+Call `websocket.await_upgrade` before `websocket.receive`; otherwise the upgrade acknowledgement may arrive where a WebSocket frame is expected.
+
+See the [WebSocket module on HexDocs](https://hexdocs.pm/gluegun/gluegun/websocket.html) for upgrade options, low-level helpers, and reusable socket helpers.
