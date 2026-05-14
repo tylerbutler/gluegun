@@ -1,0 +1,57 @@
+---
+title: Gluegun
+description: Typed Gleam wrapper for the Erlang Gun HTTP client.
+template: splash
+hero:
+  tagline: HTTP/1.1, HTTP/2, and WebSocket clients for Gleam on the BEAM.
+  image:
+    light: ../../assets/gluegun-light.webp
+    dark: ../../assets/gluegun-dark.webp
+    alt: Gluegun logo
+  actions:
+    - text: Get started
+      link: /quick-start/
+      icon: right-arrow
+      variant: primary
+    - text: What is Gluegun?
+      link: /introduction/
+      variant: secondary
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Features
+
+<style lang="css">{`
+  #_top {
+    background: linear-gradient(90deg, var(--sl-color-gray-2), var(--sl-color-accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+`}
+</style>
+
+<CardGrid>
+	<Card title="Typed Gun Wrapper" icon="rocket">
+		Work with Gun connections, streams, responses, and WebSocket frames through Gleam types instead of raw Erlang messages.
+	</Card>
+	<Card title="HTTP/1.1 and HTTP/2" icon="seti:config">
+		Prefer HTTP/2 when available while keeping HTTP/1.1 fallback behavior explicit in your connection options.
+	</Card>
+	<Card title="Streaming First" icon="document">
+		Use low-level request and message helpers for chunked request bodies, response chunks, trailers, cancellation, and flow control.
+	</Card>
+	<Card title="High-level Requests" icon="approve-check-circle">
+		Send one-shot requests on an existing connection and collect regular responses with the `gluegun/client` helpers.
+	</Card>
+	<Card title="WebSocket Support" icon="puzzle">
+		Open, send, receive, and close WebSocket connections with a lifecycle-explicit API over HTTP/1.1.
+	</Card>
+	<Card title="Result-based Errors" icon="setting">
+		Effectful operations return `Result(_, GluegunError)` so connection failures, timeouts, protocol mismatches, and decode errors stay visible.
+	</Card>
+	<Card title="API Reference" icon="document">
+		Use the [generated API reference](/reference/) for complete module, type, and function documentation, or jump to the canonical [HexDocs reference](https://hexdocs.pm/gluegun/).
+	</Card>
+</CardGrid>
