@@ -1,6 +1,6 @@
 ---
 title: Message Flow
-description: Understand how gluegun maps Gun stream messages into Gleam values.
+description: Understand how Gluegun maps Gun stream messages into Gleam values.
 ---
 
 Gun sends asynchronous messages to the process that owns or awaits a stream. Gluegun keeps that model visible and decodes those messages into typed Gleam values.

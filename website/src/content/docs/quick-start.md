@@ -1,6 +1,6 @@
 ---
 title: Quick Start
-description: Send a basic GET request with gluegun.
+description: Send a basic GET request with Gluegun.
 ---
 
 Open a Gun connection, wait for it to be ready, send a GET request, and collect the full response in memory.

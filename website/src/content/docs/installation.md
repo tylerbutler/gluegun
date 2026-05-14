@@ -1,9 +1,9 @@
 ---
 title: Installation
-description: Add gluegun to a Gleam project and understand runtime compatibility.
+description: Add Gluegun to a Gleam project and understand runtime compatibility.
 ---
 
-Install gluegun with Gleam:
+Install Gluegun with Gleam:
 
 ```sh
 gleam add gluegun

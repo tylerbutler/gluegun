@@ -1,6 +1,6 @@
 ---
 title: Limitations
-description: Know the current boundaries of gluegun.
+description: Know the current boundaries of Gluegun.
 ---
 
 ## Erlang target only

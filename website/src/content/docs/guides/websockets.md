@@ -1,6 +1,6 @@
 ---
 title: WebSockets
-description: Open, use, and close WebSocket connections with gluegun.
+description: Open, use, and close WebSocket connections with Gluegun.
 ---
 
 Gun supports WebSocket over HTTP/1.1 only. Gluegun's high-level WebSocket options default to HTTP/1.1, and low-level upgrade helpers reject HTTP/2 before calling Gun.

@@ -1,6 +1,6 @@
 ---
 title: Troubleshooting
-description: Common gluegun issues and where to look first.
+description: Common Gluegun issues and where to look first.
 ---
 
 ## Connection never becomes ready
