@@ -6,6 +6,9 @@ alias t := test
 alias f := format
 alias c := check
 alias d := docs
+alias sd := site-deps
+alias sb := site-build
+alias sc := site-check
 alias cl := change
 
 default:
@@ -53,6 +56,30 @@ check:
 docs:
     gleam docs build
 
+# Install website dependencies
+site-deps:
+    cd website && pnpm install
+
+# Build website
+site-build:
+    cd website && pnpm build:site
+
+# Type-check and validate website
+site-check:
+    cd website && pnpm check:astro
+
+# Start local website dev server
+site-dev:
+    cd website && pnpm dev
+
+# Preview built website
+site-preview:
+    cd website && pnpm preview
+
+# Remove website build artifacts
+site-clean:
+    cd website && pnpm clean
+
 # === CHANGELOG ===
 
 # Create a new changelog entry
@@ -82,4 +109,4 @@ ci: format-check check test build-strict
 alias pr := ci
 
 # Run extended checks for main branch
-main: ci docs
+main: ci docs site-check site-build
