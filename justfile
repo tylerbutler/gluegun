@@ -66,7 +66,7 @@ site-deps:
 
 # Build website
 site-build: site-reference
-    cd website && pnpm build:site
+    cd website && pnpm build
 
 # Type-check and validate website
 site-check: site-reference

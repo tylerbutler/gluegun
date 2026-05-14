@@ -76,5 +76,5 @@ jobs:
         working-directory: website
 
       - name: Build website
-        run: pnpm build:site
+        run: pnpm build
         working-directory: website

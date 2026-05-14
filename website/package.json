@@ -14,7 +14,7 @@
 	"type": "module",
 	"scripts": {
 		"astro": "astro",
-		"build:site": "astro build",
+		"build": "astro build",
 		"check:astro": "astro check",
 		"clean": "rimraf dist *.tsbuildinfo *.done.build.log .astro",
 		"dev": "astro dev",
