@@ -40,4 +40,4 @@ client.new(request.Get, "/api/items")
 
 Header names are normalized before crossing the Gun boundary. Header values are preserved.
 
-See the [HexDocs API reference](https://hexdocs.pm/gluegun/gluegun/client.html) for all high-level client helpers.
+See the [client reference](/reference/gluegun-client/) for all high-level client helpers.

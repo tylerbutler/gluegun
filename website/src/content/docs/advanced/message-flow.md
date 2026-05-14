@@ -16,4 +16,4 @@ High-level `gluegun/client` helpers use this flow internally for regular HTTP re
 
 For advanced Gun behavior, keep using the lower-level `request` and `message` APIs so your application can decide how to handle streaming, flow control, cancellation, trailers, and protocol-specific events.
 
-See the [message module on HexDocs](https://hexdocs.pm/gluegun/gluegun/message.html) for every decoded message variant.
+See the [message reference](/reference/gluegun-message/) for every decoded message variant.

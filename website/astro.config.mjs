@@ -37,6 +37,16 @@ const sidebar = [
 	{
 		label: "Reference",
 		items: [
+			{ label: "Overview", slug: "reference" },
+			{ label: "gluegun", slug: "reference/gluegun" },
+			{ label: "client", slug: "reference/gluegun-client" },
+			{ label: "connection", slug: "reference/gluegun-connection" },
+			{ label: "error", slug: "reference/gluegun-error" },
+			{ label: "fin", slug: "reference/gluegun-fin" },
+			{ label: "message", slug: "reference/gluegun-message" },
+			{ label: "request", slug: "reference/gluegun-request" },
+			{ label: "response", slug: "reference/gluegun-response" },
+			{ label: "websocket", slug: "reference/gluegun-websocket" },
 			{
 				label: "API Reference (HexDocs)",
 				link: "https://hexdocs.pm/gluegun/",
@@ -95,7 +105,7 @@ export default defineConfig({
 					},
 					{
 						label: "Reference",
-						link: "https://hexdocs.pm/gluegun/",
+						link: "/reference/",
 						items: [sidebar[3]],
 					},
 				]),

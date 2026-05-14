@@ -33,4 +33,4 @@ Gluegun depends on:
 
 The package manages these through `gleam.toml`; applications usually only need to run `gleam add gluegun`.
 
-See the [HexDocs API reference](https://hexdocs.pm/gluegun/) for the complete public API.
+See the [API reference](/reference/) for the complete public API.

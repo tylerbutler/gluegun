@@ -24,4 +24,4 @@ Gluegun does not parse URLs. Open a connection with `connection.options() |> con
 
 Gluegun also does not hide Gun's streaming model. The high-level client helpers are convenient for regular responses, but streaming bodies, HTTP/2 push, upgrades, WebSocket messages, cancellation, and flow-control updates belong in `gluegun/request` and `gluegun/message`.
 
-For complete module, type, and function details, use the [HexDocs API reference](https://hexdocs.pm/gluegun/).
+For complete module, type, and function details, use the [API reference](/reference/).

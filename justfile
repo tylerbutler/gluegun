@@ -56,16 +56,20 @@ check:
 docs:
     gleam docs build
 
+# Generate website reference docs from Gleam docs JSON
+site-reference: docs
+    cd website && pnpm generate:reference
+
 # Install website dependencies
 site-deps:
     cd website && pnpm install
 
 # Build website
-site-build:
+site-build: site-reference
     cd website && pnpm build:site
 
 # Type-check and validate website
-site-check:
+site-check: site-reference
     cd website && pnpm check:astro
 
 # Start local website dev server

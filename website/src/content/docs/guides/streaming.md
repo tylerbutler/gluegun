@@ -63,4 +63,4 @@ Streaming APIs are also the right place for request control:
 - Use `request.update_flow(conn, stream, increment)` when your application manages flow-control allowance directly. The increment must be positive.
 - Use `request.flush(conn)` to flush queued Gun messages for a connection.
 
-See the [request module](https://hexdocs.pm/gluegun/gluegun/request.html) and [message module](https://hexdocs.pm/gluegun/gluegun/message.html) on HexDocs for the complete streaming API.
+See the [request reference](/reference/gluegun-request/) and [message reference](/reference/gluegun-message/) for the complete streaming API.

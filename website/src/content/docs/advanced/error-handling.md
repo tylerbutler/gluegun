@@ -47,4 +47,4 @@ Gluegun routes FFI errors through `error.decode_ffi_error` or `gluegun/internal/
 | `ErlangError(String)` | An unclassified Erlang or FFI failure occurred. | An unexpected Gun or BEAM error crossed the FFI boundary. |
 | `DecodeError(String)` | Decoding failed. | Invalid FFI message shape or a non-UTF-8 response body passed to `response.body_text`. |
 
-See the [error module on HexDocs](https://hexdocs.pm/gluegun/gluegun/error.html) for the current error type definition.
+See the [error reference](/reference/gluegun-error/) for the current error type definition.

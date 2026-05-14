@@ -34,4 +34,4 @@ pub fn get_over_http2() {
 
 WebSocket support is HTTP/1.1 only. Use HTTP/2 for regular HTTP requests and keep WebSocket connections on HTTP/1.1.
 
-See the [connection module on HexDocs](https://hexdocs.pm/gluegun/gluegun/connection.html) for the complete connection option API.
+See the [connection reference](/reference/gluegun-connection/) for the complete connection option API.

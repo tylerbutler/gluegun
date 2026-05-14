@@ -92,4 +92,4 @@ pub fn low_level_echo(conn) {
 
 Call `websocket.await_upgrade` before `websocket.receive`; otherwise the upgrade acknowledgement may arrive where a WebSocket frame is expected.
 
-See the [WebSocket module on HexDocs](https://hexdocs.pm/gluegun/gluegun/websocket.html) for upgrade options, low-level helpers, and reusable socket helpers.
+See the [WebSocket reference](/reference/gluegun-websocket/) for upgrade options, low-level helpers, and reusable socket helpers.

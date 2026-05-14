@@ -39,4 +39,4 @@ Continue awaiting messages for the same stream until you receive a final respons
 
 Gluegun normalizes known Gun and Erlang failures into `GluegunError` values. If you receive an unexpected error, keep the formatted reason in logs and check whether the underlying Gun option or protocol event needs a new typed wrapper.
 
-For complete function-level details, check the [HexDocs API reference](https://hexdocs.pm/gluegun/).
+For complete function-level details, check the [API reference](/reference/).
