@@ -1,0 +1,9 @@
+kind: Added
+body: |-
+  Initial Gluegun package
+
+  Typed Gleam wrapper for the Erlang Gun HTTP client, including connection
+  options, HTTP request streaming, asynchronous message decoding, high-level
+  HTTP response collection, and WebSocket helpers. Ships with documentation,
+  examples, and release-readiness checks for the first Hex package release.
+time: 2026-05-14T17:15:00-07:00

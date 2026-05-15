@@ -7,6 +7,9 @@ on:
     branches: [main]
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -14,24 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
 
-      - name: Setup Erlang and Gleam
-        uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # ratchet:erlef/setup-beam@v1
-        with:
-          otp-version: '27.2.1'
-          rebar3-version: '3.26.0'
-          gleam-version: '1.14.0'
+      - name: Setup environment
+        uses: ./.github/actions/setup
 
-      - name: Check formatting
-        run: gleam format --check src test
-
-      - name: Type check
-        run: gleam check
-
-      - name: Run tests
-        run: gleam test
-
-      - name: Build with warnings as errors
-        run: gleam build --warnings-as-errors
+      - name: Run CI checks
+        run: just ci
 
   docs:
     runs-on: ubuntu-latest
@@ -39,21 +29,20 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
 
-      - name: Setup Erlang and Gleam
-        uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # ratchet:erlef/setup-beam@v1
-        with:
-          otp-version: '27.2.1'
-          rebar3-version: '3.26.0'
-          gleam-version: '1.14.0'
+      - name: Setup environment
+        uses: ./.github/actions/setup
 
       - name: Build documentation
-        run: gleam docs build
+        run: just docs
 
   website:
     runs-on: ubuntu-latest
     name: Website
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+
+      - name: Setup environment
+        uses: ./.github/actions/setup
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # ratchet:pnpm/action-setup@v6
@@ -72,9 +61,7 @@ jobs:
         working-directory: website
 
       - name: Check website
-        run: pnpm check:astro
-        working-directory: website
+        run: just site-check
 
       - name: Build website
-        run: pnpm build
-        working-directory: website
+        run: just site-build
