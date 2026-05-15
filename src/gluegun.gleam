@@ -1,4 +1,4 @@
-//// Root facade for the gluegun HTTP client wrapper.
+//// Root facade for the Gluegun HTTP client wrapper.
 ////
 //// This module exposes a small common-path facade. Submodules expose grouped
 //// APIs for connection, low-level request, response, message, and WebSocket

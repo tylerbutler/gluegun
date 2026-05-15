@@ -1,0 +1,37 @@
+---
+title: gluegun/error
+description: Error types returned by Gluegun effectful APIs.
+---
+
+# `gluegun/error`
+
+Error types returned by Gluegun effectful APIs.
+
+ Match variants such as `Timeout`, `ConnectionDown`, and `InvalidMessage`
+ for application-specific recovery, and keep a fallback for Erlang or decode
+ errors.
+
+## Types
+
+### `GluegunError`
+
+Errors returned by Gluegun connection, request, message, and WebSocket APIs.
+
+- `Timeout()`
+- `ConnectionDown(String)`
+- `ConnectionError(String)`
+- `StreamError(String)`
+- `InvalidOptions(String)`
+- `InvalidMessage(String)`
+- `ErlangError(String)`
+- `DecodeError(String)`
+
+## Functions
+
+### `decode_ffi_error`
+
+Decode an FFI error reason into a Gluegun error.
+
+```gleam
+pub fn decode_ffi_error(gleam/dynamic.Dynamic) -> gluegun/error.GluegunError
+```

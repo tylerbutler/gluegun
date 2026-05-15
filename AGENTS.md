@@ -13,8 +13,14 @@ just test          # gleam test
 just format        # gleam format src test
 just format-check  # gleam format --check src test
 just docs          # gleam docs build
+just site-deps     # install website dependencies
+just site-build    # build website
+just site-check    # validate website
+just site-dev      # start local website dev server
+just site-preview  # preview built website
+just site-clean    # remove website build artifacts
 just ci            # format-check, check, test, build-strict
-just main          # ci plus docs
+just main          # ci, docs, site-check, site-build
 ```
 
 Run a single Startest test or suite after building:
@@ -28,7 +34,7 @@ Replace the file path and `--test-name-filter` value with the Startest suite or 
 
 ## High-level architecture
 
-`gluegun` is a typed Gleam wrapper around the Erlang Gun HTTP client. The package does not parse URLs: callers open a Gun connection with `connection.open(host, port, options)`, wait for protocol negotiation with `connection.await_up`, then pass request paths to HTTP or WebSocket helpers.
+Gluegun is a typed Gleam wrapper around the Erlang Gun HTTP client. The package does not parse URLs: callers open a Gun connection with `connection.options() |> connection.open(host: "example.com", port: 443)`, wait for protocol negotiation with `connection.await_up`, then pass request paths to HTTP or WebSocket helpers.
 
 The public API is split by concern:
 
