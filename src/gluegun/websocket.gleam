@@ -221,7 +221,7 @@ pub fn with_socket(
   ))
 
   let callback_result = callback(socket)
-  let close_frame_result = close(socket)
+  let close_frame_result = send_close_frame(socket)
   let close_connection_result = connection.close(socket.connection)
 
   with_socket_result(
@@ -480,7 +480,10 @@ pub fn pong(socket: Socket, data: BitArray) -> Result(Nil, error.GluegunError) {
 }
 
 /// Send a close WebSocket frame using a reusable socket.
-pub fn close(socket: Socket) -> Result(Nil, error.GluegunError) {
+///
+/// This only sends the close frame; it does not close the underlying Gun
+/// connection.
+pub fn send_close_frame(socket: Socket) -> Result(Nil, error.GluegunError) {
   send_frame(socket, message.Close)
 }
 

@@ -17,7 +17,7 @@ pub fn gluegun_tests() {
       |> expect.to_equal("gluegun")
     }),
     it("builds a root request with default fields", fn() {
-      gluegun.request(request.Get, "/")
+      gluegun.new_request(request.Get, "/")
       |> client.inspect_request
       |> expect.to_equal(client.RequestFields(
         method: request.Get,
@@ -53,7 +53,7 @@ fn compile_websocket_facade_helpers(should_run: Bool) -> Nil {
         )
       let assert Ok(Nil) = gluegun.websocket_send_text(socket, "hello")
       let assert Ok(_) = gluegun.websocket_receive_app_frame(socket)
-      let assert Ok(Nil) = gluegun.websocket_close(socket)
+      let assert Ok(Nil) = gluegun.websocket_send_close_frame(socket)
       let assert Ok(Nil) =
         gluegun.websocket_with_socket(
           host: "localhost",

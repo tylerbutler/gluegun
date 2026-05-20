@@ -44,7 +44,7 @@ pub fn options() -> RequestOptions {
 }
 
 /// Add option-level headers that are appended to per-call headers.
-pub fn with_headers(
+pub fn add_headers(
   options: RequestOptions,
   headers headers: List(Header),
 ) -> RequestOptions {
@@ -52,7 +52,7 @@ pub fn with_headers(
 }
 
 /// Replace option-level headers.
-pub fn set_headers(
+pub fn with_headers(
   options: RequestOptions,
   headers headers: List(Header),
 ) -> RequestOptions {
@@ -117,7 +117,7 @@ pub fn request(
 /// The caller must send request body chunks with `data(..., fin.NoFin, ...)` and
 /// complete the request with `data(..., fin.Fin, ...)`. Gun response messages go to
 /// the calling process by default unless Gun request options redirect replies.
-pub fn headers(
+pub fn start_stream(
   connection: Connection,
   method: Method,
   path: String,

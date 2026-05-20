@@ -45,6 +45,14 @@ Return the package name.
 pub fn name() -> String
 ```
 
+### `new_request`
+
+Construct a collected HTTP request command.
+
+```gleam
+pub fn new_request(gluegun/request.Method, String) -> gluegun/client.Request
+```
+
 ### `normalize_headers`
 
 Normalize header names for Gun.
@@ -61,14 +69,6 @@ Open a Gun connection.
 pub fn open(gluegun/connection.ConnectOptions, host: String, port: Int) -> Result(gluegun/internal.Connection, gluegun/error.GluegunError)
 ```
 
-### `request`
-
-Send one request and collect the full response.
-
-```gleam
-pub fn request(gluegun/request.Method, String) -> gluegun/client.Request
-```
-
 ### `response`
 
 Construct a collected HTTP response.
@@ -83,14 +83,6 @@ Send a collected HTTP request command.
 
 ```gleam
 pub fn send(gluegun/client.Request, connection: gluegun/internal.Connection) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
-```
-
-### `websocket_close`
-
-Send a close WebSocket frame using a reusable socket.
-
-```gleam
-pub fn websocket_close(gluegun/websocket.Socket) -> Result(Nil, gluegun/error.GluegunError)
 ```
 
 ### `websocket_connect`
@@ -115,6 +107,14 @@ Receive the next application WebSocket frame, handling ping/pong frames.
 
 ```gleam
 pub fn websocket_receive_app_frame(gluegun/websocket.Socket) -> Result(gluegun/message.Frame, gluegun/error.GluegunError)
+```
+
+### `websocket_send_close_frame`
+
+Send a close WebSocket frame using a reusable socket.
+
+```gleam
+pub fn websocket_send_close_frame(gluegun/websocket.Socket) -> Result(Nil, gluegun/error.GluegunError)
 ```
 
 ### `websocket_send_text`

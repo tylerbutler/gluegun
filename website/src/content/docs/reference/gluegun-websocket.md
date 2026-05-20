@@ -73,14 +73,6 @@ Wait for the WebSocket upgrade confirmation (`101 Switching Protocols`).
 pub fn await_upgrade(gluegun/internal.Connection, gluegun/internal.Stream, gluegun/connection.Timeout) -> Result(Nil, gluegun/error.GluegunError)
 ```
 
-### `close`
-
-Send a close WebSocket frame using a reusable socket.
-
-```gleam
-pub fn close(gluegun/websocket.Socket) -> Result(Nil, gluegun/error.GluegunError)
-```
-
 ### `connect`
 
 Open a connection, perform a WebSocket upgrade, and return a reusable socket.
@@ -166,6 +158,17 @@ Send a binary WebSocket frame using a reusable socket.
 
 ```gleam
 pub fn send_binary(gluegun/websocket.Socket, BitArray) -> Result(Nil, gluegun/error.GluegunError)
+```
+
+### `send_close_frame`
+
+Send a close WebSocket frame using a reusable socket.
+
+ This only sends the close frame; it does not close the underlying Gun
+ connection.
+
+```gleam
+pub fn send_close_frame(gluegun/websocket.Socket) -> Result(Nil, gluegun/error.GluegunError)
 ```
 
 ### `send_frame`

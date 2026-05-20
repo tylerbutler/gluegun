@@ -49,6 +49,14 @@ pub type Header = Unknown
 
 ## Functions
 
+### `add_headers`
+
+Add option-level headers that are appended to per-call headers.
+
+```gleam
+pub fn add_headers(gluegun/request.RequestOptions, headers: List(#(String, String))) -> gluegun/request.RequestOptions
+```
+
 ### `cancel`
 
 Cancel a request stream.
@@ -71,18 +79,6 @@ Flush Gun messages for a connection.
 
 ```gleam
 pub fn flush(gluegun/internal.Connection) -> Result(Nil, gluegun/error.GluegunError)
-```
-
-### `headers`
-
-Start a low-level HTTP request whose body will be streamed later.
-
- The caller must send request body chunks with `data(..., fin.NoFin, ...)` and
- complete the request with `data(..., fin.Fin, ...)`. Gun response messages go to
- the calling process by default unless Gun request options redirect replies.
-
-```gleam
-pub fn headers(gluegun/internal.Connection, gluegun/request.Method, String, List(#(String, String)), gluegun/request.RequestOptions) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)
 ```
 
 ### `method_to_string`
@@ -120,12 +116,16 @@ Send a low-level HTTP request on an open Gun connection.
 pub fn request(gluegun/internal.Connection, gluegun/request.Method, String, List(#(String, String)), BitArray, gluegun/request.RequestOptions) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)
 ```
 
-### `set_headers`
+### `start_stream`
 
-Replace option-level headers.
+Start a low-level HTTP request whose body will be streamed later.
+
+ The caller must send request body chunks with `data(..., fin.NoFin, ...)` and
+ complete the request with `data(..., fin.Fin, ...)`. Gun response messages go to
+ the calling process by default unless Gun request options redirect replies.
 
 ```gleam
-pub fn set_headers(gluegun/request.RequestOptions, headers: List(#(String, String))) -> gluegun/request.RequestOptions
+pub fn start_stream(gluegun/internal.Connection, gluegun/request.Method, String, List(#(String, String)), gluegun/request.RequestOptions) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)
 ```
 
 ### `update_flow`
@@ -142,7 +142,7 @@ pub fn update_flow(gluegun/internal.Connection, gluegun/internal.Stream, Int) ->
 
 ### `with_headers`
 
-Add option-level headers that are appended to per-call headers.
+Replace option-level headers.
 
 ```gleam
 pub fn with_headers(gluegun/request.RequestOptions, headers: List(#(String, String))) -> gluegun/request.RequestOptions
