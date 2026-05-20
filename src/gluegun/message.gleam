@@ -41,6 +41,9 @@ pub type Frame {
 }
 
 /// Gun HTTP stream messages delivered by the Erlang Gun client.
+///
+/// This type is closed; new variants are a breaking change. Pin to a major
+/// version.
 pub type Message {
   Inform(status: Int, headers: List(Header))
   Response(fin: Fin, status: Int, headers: List(Header))

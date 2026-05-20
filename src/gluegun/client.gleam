@@ -377,7 +377,11 @@ fn step(
         AwaitingResponse(informational) ->
           Ok(
             Continue(
-              AwaitingResponse(list.append(informational, [#(status, headers)])),
+              AwaitingResponse(
+                list.append(informational, [
+                  response.Informational(status: status, headers: headers),
+                ]),
+              ),
             ),
           )
         Collecting(_, _, _, _, _) ->

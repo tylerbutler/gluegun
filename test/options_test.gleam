@@ -106,6 +106,9 @@ pub fn options_tests() {
             body: <<"hello":utf8>>,
             trailers: [#("expires", "soon")],
           )
+          |> response.with_informational(informational: [
+            response.Informational(status: 103, headers: [#("server", "gun")]),
+          ])
 
         res
         |> response.status
@@ -122,6 +125,12 @@ pub fn options_tests() {
         res
         |> response.trailers
         |> expect.to_equal([#("expires", "soon")])
+
+        res
+        |> response.informational
+        |> expect.to_equal([
+          response.Informational(status: 103, headers: [#("server", "gun")]),
+        ])
       }),
       it("constructs messages", fn() {
         message.Response(fin.NoFin, 204, [#("server", "gun")])
@@ -179,6 +188,13 @@ pub fn options_tests() {
 
         message.decode(value)
         |> expect.to_equal(Ok(message.Inform(102, [#("server", "gun")])))
+      }),
+      it("matches unsupported feature errors", fn() {
+        let unsupported =
+          error.UnsupportedFeature("WebSocket upgrade requires HTTP/1.1")
+        let error.UnsupportedFeature(reason) = unsupported
+
+        reason |> expect.to_equal("WebSocket upgrade requires HTTP/1.1")
       }),
       it("decodes trailer messages", fn() {
         let value =
