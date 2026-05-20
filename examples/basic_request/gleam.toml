@@ -1,4 +1,4 @@
-name = "gluegun_example_basic_request"
+name = "basic_request"
 version = "0.1.0"
 description = "Buildable basic request example for Gluegun"
 licences = ["MIT"]
