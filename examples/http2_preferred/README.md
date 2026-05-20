@@ -1,6 +1,6 @@
 # http2_preferred
 
-A buildable Gluegun example that opens `https://nghttp2.org/`, prefers HTTP/2 over TLS with HTTP/1.1 fallback, prints the negotiated protocol, makes a GET request, and prints the response status and UTF-8 body when available.
+A buildable Gluegun example that opens `https://nghttp2.org/`, prefers HTTP/2 over TLS with HTTP/1.1 fallback, prints the negotiated protocol, makes a GET request to `/httpbin/get`, and prints the response status and UTF-8 body when available.
 
 ## Running
 

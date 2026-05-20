@@ -12,7 +12,7 @@ const host = "nghttp2.org"
 
 const port = 443
 
-const path = "/"
+const path = "/httpbin/get"
 
 pub fn main() {
   let timeout = connection.Milliseconds(15_000)
