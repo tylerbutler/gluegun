@@ -41,8 +41,10 @@ pub fn main() {
         Error(err) -> io.println("connection failed: " <> error_to_string(err))
       }
 
-      let assert Ok(Nil) = connection.close(conn)
-      Nil
+      case connection.close(conn) {
+        Ok(Nil) -> Nil
+        Error(err) -> io.println("close failed: " <> error_to_string(err))
+      }
     }
 
     Error(err) -> io.println("connection failed: " <> error_to_string(err))
