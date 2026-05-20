@@ -34,6 +34,9 @@ WebSocket frames delivered inside Gun stream messages.
 
 Gun HTTP stream messages delivered by the Erlang Gun client.
 
+ This type is closed; new variants are a breaking change. Pin to a major
+ version.
+
 - `Inform(Int, List(#(String, String)))`
 - `Response(gluegun/fin.Fin, Int, List(#(String, String)))`
 - `Data(gluegun/fin.Fin, BitArray)`

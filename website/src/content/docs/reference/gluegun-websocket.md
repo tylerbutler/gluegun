@@ -233,9 +233,9 @@ Initiate a WebSocket upgrade when the negotiated protocol is known.
  Sends the WebSocket upgrade request to the server and returns the stream
  reference. Call `await_upgrade` next to confirm the handshake completed.
 
- Returns `InvalidMessage` for HTTP/2 because Gun does not support WebSocket
- over HTTP/2. Use this after `connection.await_up` when protocol negotiation
- may choose HTTP/2.
+ Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
+ WebSocket over HTTP/2. Use this after `connection.await_up` when protocol
+ negotiation may choose HTTP/2.
 
 ```gleam
 pub fn upgrade_with_protocol(gluegun/internal.Connection, gluegun/connection.Protocol, String, List(#(String, String))) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)
@@ -245,8 +245,8 @@ pub fn upgrade_with_protocol(gluegun/internal.Connection, gluegun/connection.Pro
 
 Initiate a WebSocket upgrade with options when the negotiated protocol is known.
 
- Returns `InvalidMessage` for HTTP/2 because Gun does not support WebSocket
- over HTTP/2.
+ Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
+ WebSocket over HTTP/2.
 
 ```gleam
 pub fn upgrade_with_protocol_and_options(gluegun/internal.Connection, gluegun/connection.Protocol, String, List(#(String, String)), gluegun/websocket.UpgradeOptions) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)

@@ -23,6 +23,7 @@ Errors returned by Gluegun connection, request, message, and WebSocket APIs.
 - `StreamError(String)`
 - `InvalidOptions(String)`
 - `InvalidMessage(String)`
+- `UnsupportedFeature(String)`
 - `ErlangError(String)`
 - `DecodeError(String)`
 
