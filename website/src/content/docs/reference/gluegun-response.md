@@ -12,21 +12,17 @@ HTTP response values collected by `gluegun/client`.
 
 ## Types
 
+### `Informational`
+
+Informational `1xx` response represented by status and headers.
+
+- `Informational(Int, List(#(String, String)))`
+
 ### `Response`
 
 Full HTTP response collected from a Gun stream.
 
 
-
-## Type aliases
-
-### `Informational`
-
-Informational `1xx` response represented by status and headers.
-
-```gleam
-pub type Informational = Unknown
-```
 
 ## Functions
 
@@ -59,15 +55,7 @@ pub fn headers(gluegun/response.Response) -> List(#(String, String))
 Return informational `1xx` responses received before the final response.
 
 ```gleam
-pub fn informational(gluegun/response.Response) -> List(#(Int, List(#(String, String))))
-```
-
-### `new`
-
-Construct a response without informational responses.
-
-```gleam
-pub fn new(status: Int, headers: List(#(String, String)), body: BitArray, trailers: List(#(String, String))) -> gluegun/response.Response
+pub fn informational(gluegun/response.Response) -> List(gluegun/response.Informational)
 ```
 
 ### `status`
@@ -84,28 +72,4 @@ Return response trailers.
 
 ```gleam
 pub fn trailers(gluegun/response.Response) -> List(#(String, String))
-```
-
-### `with_body`
-
-Return a response with a replaced body.
-
-```gleam
-pub fn with_body(gluegun/response.Response, body: BitArray) -> gluegun/response.Response
-```
-
-### `with_informational`
-
-Return a response with replaced informational responses.
-
-```gleam
-pub fn with_informational(gluegun/response.Response, informational: List(#(Int, List(#(String, String))))) -> gluegun/response.Response
-```
-
-### `with_trailers`
-
-Return a response with replaced trailers.
-
-```gleam
-pub fn with_trailers(gluegun/response.Response, trailers: List(#(String, String))) -> gluegun/response.Response
 ```

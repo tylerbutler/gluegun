@@ -16,6 +16,7 @@ import gluegun/fin
 import gluegun/internal
 import gluegun/message
 import gluegun/websocket
+import gluegun/websocket/raw
 import startest.{describe, it}
 import startest/expect
 
@@ -714,9 +715,9 @@ pub fn websocket_tests() {
 
         let ffi =
           websocket.upgrade_options()
-          |> websocket.with_reply_to_dynamic(reply_to)
-          |> websocket.with_tunnel_dynamic(tunnel)
-          |> websocket.with_user_opts_dynamic(user_opts)
+          |> raw.with_reply_to_dynamic(reply_to)
+          |> raw.with_tunnel_dynamic(tunnel)
+          |> raw.with_user_opts_dynamic(user_opts)
           |> websocket.upgrade_options_to_ffi
 
         ffi

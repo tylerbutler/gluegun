@@ -13,7 +13,7 @@ For the canonical HexDocs rendering, see [hexdocs.pm/gluegun](https://hexdocs.pm
 
 | Module | Description |
 |---|---|
-| [`gluegun`](/reference/gluegun/) | Root facade for the Gluegun HTTP client wrapper. |
+| [`gluegun`](/reference/gluegun/) | Minimal common-path facade for the Gluegun HTTP client wrapper. |
 | [`gluegun/client`](/reference/gluegun-client/) | High-level HTTP helpers for existing Gun connections. |
 | [`gluegun/connection`](/reference/gluegun-connection/) | Connection management for Erlang Gun. |
 | [`gluegun/error`](/reference/gluegun-error/) | Error types returned by Gluegun effectful APIs. |

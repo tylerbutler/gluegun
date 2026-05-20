@@ -23,6 +23,9 @@ Pure representation of connection options before FFI conversion.
 
 HTTP protocol preference for a Gun connection.
 
+ This type is closed; new variants are a breaking change. Pin to a major
+ version.
+
  `Http2` is encoded as Gun's `http2` protocol atom, so it can be placed
  before `Http1` when TLS + ALPN should prefer HTTP/2 and fall back to
  HTTP/1.1.
@@ -41,9 +44,22 @@ Timeout or retry duration in milliseconds, or no limit.
 
 Transport selection for a Gun connection.
 
+ This type is closed; new variants are a breaking change. Pin to a major
+ version.
+
 - `Auto()`
 - `Tcp()`
 - `Tls()`
+
+## Type aliases
+
+### `Connection`
+
+Opaque handle for an open Gun connection.
+
+```gleam
+pub type Connection = Unknown
+```
 
 ## Functions
 
@@ -87,14 +103,6 @@ Construct default connection options.
 pub fn options() -> gluegun/connection.ConnectOptions
 ```
 
-### `options_to_ffi`
-
-Convert connection options to the Erlang FFI map shape.
-
-```gleam
-pub fn options_to_ffi(gluegun/connection.ConnectOptions) -> gleam/dynamic.Dynamic
-```
-
 ### `protocols`
 
 Inspect explicitly configured protocol ordering, if any.
@@ -117,14 +125,6 @@ Shut down a Gun connection.
 
 ```gleam
 pub fn shutdown(gluegun/internal.Connection) -> Result(Nil, gluegun/error.GluegunError)
-```
-
-### `timeout_to_ffi`
-
-Convert a timeout to the Erlang FFI shape.
-
-```gleam
-pub fn timeout_to_ffi(gluegun/connection.Timeout) -> gleam/dynamic.Dynamic
 ```
 
 ### `transport`
