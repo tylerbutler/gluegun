@@ -1,7 +1,7 @@
-/// Basic HTTP GET example using gluegun.
+/// Basic HTTP GET example using Gluegun.
 ///
 /// This source file is documentation-only in this repository. Copy it into a
-/// Gleam project that depends on gluegun to run it.
+/// Gleam project that depends on Gluegun to run it.
 import gleam/int
 import gleam/io
 import gluegun/client

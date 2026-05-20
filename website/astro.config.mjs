@@ -29,6 +29,7 @@ const sidebar = [
 		label: "Advanced",
 		items: [
 			{ label: "Message Flow", slug: "advanced/message-flow" },
+			{ label: "Stability", slug: "advanced/stability" },
 			{ label: "Error Handling", slug: "advanced/error-handling" },
 			{ label: "Limitations", slug: "advanced/limitations" },
 			{ label: "Troubleshooting", slug: "advanced/troubleshooting" },

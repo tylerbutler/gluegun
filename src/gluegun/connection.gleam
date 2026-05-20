@@ -21,7 +21,9 @@ import gluegun/internal/ffi_result
 pub type Transport {
   /// Let Gun choose TLS for TLS ports and TCP otherwise.
   Auto
+  /// Force a plain TCP connection without TLS.
   Tcp
+  /// Force a TLS connection and allow ALPN protocol negotiation.
   Tls
 }
 
@@ -40,7 +42,9 @@ pub type Protocol {
 
 /// Timeout or retry duration in milliseconds, or no limit.
 pub type Timeout {
+  /// Wait or retry for a fixed number of milliseconds.
   Milliseconds(Int)
+  /// Wait or retry without a time limit.
   Infinity
 }
 

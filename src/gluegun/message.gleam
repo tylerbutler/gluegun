@@ -35,9 +35,12 @@ pub type Header =
 pub type Frame {
   Text(String)
   Binary(BitArray)
+  /// Ping control frame with an optional payload.
   Ping(BitArray)
+  /// Pong control frame with an optional payload.
   Pong(BitArray)
   Close
+  /// Close control frame with a status code and raw reason bytes.
   CloseWithReason(code: Int, reason: BitArray)
 }
 
@@ -46,12 +49,16 @@ pub type Frame {
 /// This type is closed; new variants are a breaking change. Pin to a major
 /// version.
 pub type Message {
+  /// Informational `1xx` response received before the final response.
   Inform(status: Int, headers: List(Header))
   Response(fin: Fin, status: Int, headers: List(Header))
   Data(fin: Fin, data: BitArray)
   Trailers(headers: List(Header))
+  /// HTTP/2 server push promise carrying the promised stream and request metadata.
   Push(stream: Stream, method: Method, uri: String, headers: List(Header))
+  /// Successful upgrade acknowledgement with negotiated protocol names and headers.
   Upgrade(protocols: List(String), headers: List(Header))
+  /// WebSocket frame delivered through the stream message channel.
   WebSocket(frame: Frame)
 }
 

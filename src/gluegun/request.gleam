@@ -26,7 +26,9 @@ pub type Method {
   Delete
   Options
   Trace
+  /// CONNECT tunnel request method.
   Connect
+  /// Extension method not covered by the built-in constructors.
   Custom(String)
 }
 

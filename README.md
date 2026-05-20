@@ -96,9 +96,9 @@ pub fn upload_chunks(conn) {
   let assert Ok(Nil) = request.data(conn, stream, fin.NoFin, <<"first ":utf8>>)
   let assert Ok(Nil) = request.data(conn, stream, fin.Fin, <<"last":utf8>>)
 
-  // Await response headers, then consume the response body.
+  // Await the final response headers, then consume the response body.
   let assert Ok(message.Response(response_fin, _status, _headers)) =
-    message.await(conn, stream, timeout)
+    await_final_response(conn, stream, timeout)
 
   case response_fin {
     fin.Fin -> <<>>
@@ -106,6 +106,14 @@ pub fn upload_chunks(conn) {
       let assert Ok(body) = message.await_body(conn, stream, timeout)
       body
     }
+  }
+}
+
+fn await_final_response(conn, stream, timeout) {
+  case message.await(conn, stream, timeout) {
+    Ok(message.Inform(_status, _headers)) ->
+      await_final_response(conn, stream, timeout)
+    other -> other
   }
 }
 ```
