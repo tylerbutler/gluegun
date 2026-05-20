@@ -11,16 +11,20 @@ import gluegun/fin
 import gluegun/message
 import gluegun/request
 
-const host = "httpbingo.org"
+const host = "httpbin.org"
 
-const port = 80
+const port = 443
 
 const path = "/post"
 
 pub fn main() {
   let timeout = connection.Milliseconds(15_000)
 
-  case connection.options() |> connection.open(host: host, port: port) {
+  case
+    connection.options()
+    |> connection.with_transport(transport: connection.Tls)
+    |> connection.open(host: host, port: port)
+  {
     Ok(conn) -> {
       case connection.await_up(conn, timeout) {
         Ok(protocol) -> {
