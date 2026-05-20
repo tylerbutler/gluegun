@@ -633,9 +633,7 @@ pub fn websocket_tests() {
         let fake_conn = internal.connection(dynamic.string("not-a-pid"))
         websocket.upgrade_with_protocol(fake_conn, connection.Http2, "/ws", [])
         |> expect.to_equal(
-          Error(error.InvalidMessage(
-            "websocket.upgrade: WebSocket over HTTP/2 is not supported by Gun",
-          )),
+          Error(error.UnsupportedFeature("WebSocket upgrade requires HTTP/1.1")),
         )
       }),
       it("surfaces FFI errors from upgrade", fn() {

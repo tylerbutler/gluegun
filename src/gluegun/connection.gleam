@@ -13,6 +13,9 @@ import gluegun/error
 import gluegun/internal.{type Connection}
 
 /// Transport selection for a Gun connection.
+///
+/// This type is closed; new variants are a breaking change. Pin to a major
+/// version.
 pub type Transport {
   /// Let Gun choose TLS for TLS ports and TCP otherwise.
   Auto
@@ -21,6 +24,9 @@ pub type Transport {
 }
 
 /// HTTP protocol preference for a Gun connection.
+///
+/// This type is closed; new variants are a breaking change. Pin to a major
+/// version.
 ///
 /// `Http2` is encoded as Gun's `http2` protocol atom, so it can be placed
 /// before `Http1` when TLS + ALPN should prefer HTTP/2 and fall back to

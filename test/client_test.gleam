@@ -84,7 +84,11 @@ pub fn client_tests() {
 
         res
         |> response.informational
-        |> expect.to_equal([#(103, [#("link", "</style.css>; rel=preload")])])
+        |> expect.to_equal([
+          response.Informational(status: 103, headers: [
+            #("link", "</style.css>; rel=preload"),
+          ]),
+        ])
       }),
     ]),
     describe("invalid message handling", [
