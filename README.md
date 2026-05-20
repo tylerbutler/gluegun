@@ -201,7 +201,7 @@ pub fn echo_once() {
 
 `Socket` is reusable and lifecycle-explicit. `with_socket` is convenience-only for scoped use. Low-level `upgrade_with_protocol_and_options`, `send`, and `receive` remain available for advanced flows. The root facade also exposes non-conflicting helpers such as `gluegun.websocket_connect` and `gluegun.websocket_send_text`.
 
-See `examples/websocket_echo` for a fuller documentation-only WebSocket example.
+See `examples/websocket_echo` for a fuller WebSocket example.
 
 ## Error handling
 
