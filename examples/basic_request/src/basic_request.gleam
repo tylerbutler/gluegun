@@ -51,6 +51,7 @@ fn error_to_string(err: error.GluegunError) -> String {
     error.StreamError(reason) -> "stream error: " <> reason
     error.InvalidOptions(reason) -> "invalid options: " <> reason
     error.InvalidMessage(reason) -> "invalid message: " <> reason
+    error.UnsupportedFeature(reason) -> "unsupported feature: " <> reason
     error.ErlangError(reason) -> "erlang error: " <> reason
     error.DecodeError(reason) -> "decode error: " <> reason
   }

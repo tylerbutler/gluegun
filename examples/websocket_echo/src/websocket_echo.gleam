@@ -42,7 +42,7 @@ pub fn main() {
     Error(err) -> io.println("Error: " <> error_to_string(err))
   }
 
-  let assert Ok(Nil) = websocket.close(socket)
+  let assert Ok(Nil) = websocket.send_close_frame(socket)
 }
 
 fn frame_to_string(frame: message.Frame) -> String {

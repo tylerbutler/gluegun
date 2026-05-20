@@ -9,8 +9,9 @@ import gluegun/error
 import gluegun/request.{type Header}
 
 /// Informational `1xx` response represented by status and headers.
-pub type Informational =
-  #(Int, List(Header))
+pub type Informational {
+  Informational(status: Int, headers: List(Header))
+}
 
 /// Full HTTP response collected from a Gun stream.
 pub opaque type Response {

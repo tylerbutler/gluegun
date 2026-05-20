@@ -28,6 +28,41 @@ pub fn client_tests() {
           timeout: connection.Milliseconds(1000),
         ))
       }),
+      it("exposes request_options helper name", fn() {
+        compile_request_options_helper(False)
+        |> expect.to_equal(Nil)
+      }),
+      it("add_headers appends request headers", fn() {
+        client.new(request.Get, "/")
+        |> client.add_headers([#("accept", "application/json")])
+        |> client.add_headers([#("x-request-id", "abc")])
+        |> client.inspect_request
+        |> expect.to_equal(client.RequestFields(
+          method: request.Get,
+          path: "/",
+          headers: [
+            #("accept", "application/json"),
+            #("x-request-id", "abc"),
+          ],
+          body: <<>>,
+          options: request.options(),
+          timeout: connection.Milliseconds(5000),
+        ))
+      }),
+      it("with_headers replaces request headers", fn() {
+        client.new(request.Get, "/")
+        |> client.add_headers([#("accept", "application/json")])
+        |> client.with_headers([#("x-request-id", "abc")])
+        |> client.inspect_request
+        |> expect.to_equal(client.RequestFields(
+          method: request.Get,
+          path: "/",
+          headers: [#("x-request-id", "abc")],
+          body: <<>>,
+          options: request.options(),
+          timeout: connection.Milliseconds(5000),
+        ))
+      }),
     ]),
     describe("response collection", [
       it("collects a single final body", fn() {
@@ -84,7 +119,11 @@ pub fn client_tests() {
 
         res
         |> response.informational
-        |> expect.to_equal([#(103, [#("link", "</style.css>; rel=preload")])])
+        |> expect.to_equal([
+          response.Informational(status: 103, headers: [
+            #("link", "</style.css>; rel=preload"),
+          ]),
+        ])
       }),
     ]),
     describe("invalid message handling", [
@@ -172,4 +211,20 @@ pub fn client_tests() {
       }),
     ]),
   ])
+}
+
+fn compile_request_options_helper(should_run: Bool) -> Nil {
+  case should_run {
+    True -> {
+      let _ =
+        client.request_options(
+          internal.connection(dynamic.string("conn")),
+          "/",
+          [],
+          connection.Milliseconds(1000),
+        )
+      Nil
+    }
+    False -> Nil
+  }
 }

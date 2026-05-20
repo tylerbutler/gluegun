@@ -100,8 +100,11 @@ pub fn body_text(
   http_response.body_text(response)
 }
 
-/// Send one request and collect the full response.
-pub fn request(method: low_request.Method, path: String) -> http_client.Request {
+/// Construct a collected HTTP request command.
+pub fn new_request(
+  method: low_request.Method,
+  path: String,
+) -> http_client.Request {
   http_client.new(method, path)
 }
 
@@ -161,8 +164,8 @@ pub fn websocket_receive_app_frame(
 }
 
 /// Send a close WebSocket frame using a reusable socket.
-pub fn websocket_close(
+pub fn websocket_send_close_frame(
   socket: websocket.Socket,
 ) -> Result(Nil, error.GluegunError) {
-  websocket.close(socket)
+  websocket.send_close_frame(socket)
 }

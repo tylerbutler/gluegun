@@ -221,7 +221,7 @@ pub fn with_socket(
   ))
 
   let callback_result = callback(socket)
-  let close_frame_result = close(socket)
+  let close_frame_result = send_close_frame(socket)
   let close_connection_result = connection.close(socket.connection)
 
   with_socket_result(
@@ -352,9 +352,9 @@ pub fn upgrade_options_to_ffi(options: UpgradeOptions) -> dynamic.Dynamic {
 /// Sends the WebSocket upgrade request to the server and returns the stream
 /// reference. Call `await_upgrade` next to confirm the handshake completed.
 ///
-/// Returns `InvalidMessage` for HTTP/2 because Gun does not support WebSocket
-/// over HTTP/2. Use this after `connection.await_up` when protocol negotiation
-/// may choose HTTP/2.
+/// Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
+/// WebSocket over HTTP/2. Use this after `connection.await_up` when protocol
+/// negotiation may choose HTTP/2.
 pub fn upgrade_with_protocol(
   connection: Connection,
   protocol: Protocol,
@@ -372,8 +372,8 @@ pub fn upgrade_with_protocol(
 
 /// Initiate a WebSocket upgrade with options when the negotiated protocol is known.
 ///
-/// Returns `InvalidMessage` for HTTP/2 because Gun does not support WebSocket
-/// over HTTP/2.
+/// Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
+/// WebSocket over HTTP/2.
 pub fn upgrade_with_protocol_and_options(
   connection: Connection,
   protocol: Protocol,
@@ -384,9 +384,7 @@ pub fn upgrade_with_protocol_and_options(
   case protocol {
     connection.Http1 -> upgrade_with_options(connection, path, headers, options)
     connection.Http2 ->
-      Error(error.InvalidMessage(
-        "websocket.upgrade: WebSocket over HTTP/2 is not supported by Gun",
-      ))
+      Error(error.UnsupportedFeature("WebSocket upgrade requires HTTP/1.1"))
   }
 }
 
@@ -480,7 +478,10 @@ pub fn pong(socket: Socket, data: BitArray) -> Result(Nil, error.GluegunError) {
 }
 
 /// Send a close WebSocket frame using a reusable socket.
-pub fn close(socket: Socket) -> Result(Nil, error.GluegunError) {
+///
+/// This only sends the close frame; it does not close the underlying Gun
+/// connection.
+pub fn send_close_frame(socket: Socket) -> Result(Nil, error.GluegunError) {
   send_frame(socket, message.Close)
 }
 

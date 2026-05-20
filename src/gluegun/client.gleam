@@ -83,11 +83,19 @@ pub fn with_header(
 }
 
 /// Append request headers.
-pub fn with_headers(
+pub fn add_headers(
   request: Request,
   headers headers: List(low_request.Header),
 ) -> Request {
   Request(..request, headers: list.append(request.headers, headers))
+}
+
+/// Replace request headers.
+pub fn with_headers(
+  request: Request,
+  headers headers: List(low_request.Header),
+) -> Request {
+  Request(..request, headers: headers)
 }
 
 /// Replace the request body.
@@ -168,7 +176,7 @@ pub fn get(
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
   new(low_request.Get, path)
-  |> with_headers(headers: headers)
+  |> add_headers(headers: headers)
   |> with_timeout(timeout: timeout)
   |> send(connection: connection)
 }
@@ -182,7 +190,7 @@ pub fn post(
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
   new(low_request.Post, path)
-  |> with_headers(headers: headers)
+  |> add_headers(headers: headers)
   |> with_body(body: body)
   |> with_timeout(timeout: timeout)
   |> send(connection: connection)
@@ -197,7 +205,7 @@ pub fn put(
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
   new(low_request.Put, path)
-  |> with_headers(headers: headers)
+  |> add_headers(headers: headers)
   |> with_body(body: body)
   |> with_timeout(timeout: timeout)
   |> send(connection: connection)
@@ -212,7 +220,7 @@ pub fn patch(
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
   new(low_request.Patch, path)
-  |> with_headers(headers: headers)
+  |> add_headers(headers: headers)
   |> with_body(body: body)
   |> with_timeout(timeout: timeout)
   |> send(connection: connection)
@@ -226,7 +234,7 @@ pub fn delete(
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
   new(low_request.Delete, path)
-  |> with_headers(headers: headers)
+  |> add_headers(headers: headers)
   |> with_timeout(timeout: timeout)
   |> send(connection: connection)
 }
@@ -239,20 +247,20 @@ pub fn head(
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
   new(low_request.Head, path)
-  |> with_headers(headers: headers)
+  |> add_headers(headers: headers)
   |> with_timeout(timeout: timeout)
   |> send(connection: connection)
 }
 
 /// Send OPTIONS on an open connection and collect the full response.
-pub fn options(
+pub fn request_options(
   connection: Connection,
   path: String,
   headers: List(low_request.Header),
   timeout: Timeout,
 ) -> Result(Response, error.GluegunError) {
   new(low_request.Options, path)
-  |> with_headers(headers: headers)
+  |> add_headers(headers: headers)
   |> with_timeout(timeout: timeout)
   |> send(connection: connection)
 }
@@ -377,7 +385,11 @@ fn step(
         AwaitingResponse(informational) ->
           Ok(
             Continue(
-              AwaitingResponse(list.append(informational, [#(status, headers)])),
+              AwaitingResponse(
+                list.append(informational, [
+                  response.Informational(status: status, headers: headers),
+                ]),
+              ),
             ),
           )
         Collecting(_, _, _, _, _) ->

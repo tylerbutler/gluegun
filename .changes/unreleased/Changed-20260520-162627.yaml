@@ -1,0 +1,13 @@
+kind: Changed
+body: |-
+    Renamed public API helpers for naming consistency
+
+    Breaking changes:
+    - websocket.close/1 -> websocket.send_close_frame/1
+    - gluegun.request/2 -> gluegun.new_request/2
+    - client.with_headers/2 -> client.add_headers/2, with new client.with_headers/2 replace semantics
+    - request.with_headers/2 -> request.add_headers/2
+    - request.set_headers/2 -> request.with_headers/2
+    - request.headers/5 -> request.start_stream/5
+    - client.options/4 -> client.request_options/4
+time: 2026-05-20T16:26:27.678891-07:00

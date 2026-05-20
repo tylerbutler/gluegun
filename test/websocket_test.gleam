@@ -327,20 +327,23 @@ pub fn websocket_tests() {
         capture_ws_send_message()
         |> expect.to_equal(Ok([#("pong", <<"pong":utf8>>)]))
       }),
-      it("close sends Close through the wrapped connection and stream", fn() {
-        let socket =
-          websocket.socket(
-            internal.connection(gluegun_ws_test_current_process()),
-            internal.stream(dynamic.string("socket-stream")),
-            connection.Milliseconds(500),
-          )
+      it(
+        "send_close_frame sends Close through the wrapped connection and stream",
+        fn() {
+          let socket =
+            websocket.socket(
+              internal.connection(gluegun_ws_test_current_process()),
+              internal.stream(dynamic.string("socket-stream")),
+              connection.Milliseconds(500),
+            )
 
-        websocket.close(socket)
-        |> expect.to_equal(Ok(Nil))
+          websocket.send_close_frame(socket)
+          |> expect.to_equal(Ok(Nil))
 
-        capture_ws_send_message()
-        |> expect.to_equal(Ok([#("close", <<>>)]))
-      }),
+          capture_ws_send_message()
+          |> expect.to_equal(Ok([#("close", <<>>)]))
+        },
+      ),
       it("receive_app_frame returns text frames", fn() {
         websocket.receive_app_frame_from([Ok(message.Text("hello"))], fn(_) {
           Ok(Nil)
@@ -633,9 +636,7 @@ pub fn websocket_tests() {
         let fake_conn = internal.connection(dynamic.string("not-a-pid"))
         websocket.upgrade_with_protocol(fake_conn, connection.Http2, "/ws", [])
         |> expect.to_equal(
-          Error(error.InvalidMessage(
-            "websocket.upgrade: WebSocket over HTTP/2 is not supported by Gun",
-          )),
+          Error(error.UnsupportedFeature("WebSocket upgrade requires HTTP/1.1")),
         )
       }),
       it("surfaces FFI errors from upgrade", fn() {

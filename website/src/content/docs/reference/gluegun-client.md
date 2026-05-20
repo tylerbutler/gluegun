@@ -26,6 +26,14 @@ A collected HTTP request command.
 
 ## Functions
 
+### `add_headers`
+
+Append request headers.
+
+```gleam
+pub fn add_headers(gluegun/client.Request, headers: List(#(String, String))) -> gluegun/client.Request
+```
+
 ### `delete`
 
 Send DELETE on an open connection and collect the full response.
@@ -58,14 +66,6 @@ Construct a collected HTTP request command.
 pub fn new(gluegun/request.Method, String) -> gluegun/client.Request
 ```
 
-### `options`
-
-Send OPTIONS on an open connection and collect the full response.
-
-```gleam
-pub fn options(gluegun/internal.Connection, String, List(#(String, String)), gluegun/connection.Timeout) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
-```
-
 ### `patch`
 
 Send PATCH on an open connection and collect the full response.
@@ -88,6 +88,14 @@ Send PUT on an open connection and collect the full response.
 
 ```gleam
 pub fn put(gluegun/internal.Connection, String, List(#(String, String)), BitArray, gluegun/connection.Timeout) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
+```
+
+### `request_options`
+
+Send OPTIONS on an open connection and collect the full response.
+
+```gleam
+pub fn request_options(gluegun/internal.Connection, String, List(#(String, String)), gluegun/connection.Timeout) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
 ```
 
 ### `send`
@@ -124,7 +132,7 @@ pub fn with_header(gluegun/client.Request, name: String, value: String) -> glueg
 
 ### `with_headers`
 
-Append request headers.
+Replace request headers.
 
 ```gleam
 pub fn with_headers(gluegun/client.Request, headers: List(#(String, String))) -> gluegun/client.Request
