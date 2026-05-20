@@ -20,7 +20,7 @@ just site-dev      # start local website dev server
 just site-preview  # preview built website
 just site-clean    # remove website build artifacts
 just ci            # format-check, check, test, build-strict
-just main          # ci, docs, site-check, site-build
+just main          # ci, examples-format-check, examples-build, docs, site-check, site-build
 ```
 
 Run a single Startest test or suite after building:
