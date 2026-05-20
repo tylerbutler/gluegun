@@ -49,7 +49,7 @@ The Erlang FFI boundary is centralized in `src/gluegun_ffi.erl` and the `@extern
 
 `Connection` and `Stream` are opaque wrappers over raw Erlang dynamic values in `gluegun/internal.gleam`; use the internal constructors/accessors only for FFI plumbing or deterministic tests.
 
-Examples under `examples/` are source-level documentation, not standalone packages and not built by the root `just` tasks.
+Examples under `examples/` are standalone Erlang-target Gleam packages; each can be built with `gleam build` and run with `gleam run` from its directory. Root `just` recipes `examples-deps`, `examples-format-check`, and `examples-build` operate on examples; `just main` includes example validation.
 
 ## Key conventions
 
