@@ -13,6 +13,7 @@ import gluegun/internal.{type Connection}
 import gluegun/message
 import gluegun/request as low_request
 import gluegun/response as http_response
+import gluegun/tls
 import gluegun/websocket
 
 /// Return the package name.
@@ -32,6 +33,11 @@ pub fn open(
   port port: Int,
 ) -> Result(Connection, error.GluegunError) {
   connection.open(options, host: host, port: port)
+}
+
+/// Construct default TLS options.
+pub fn tls_options() -> tls.TlsOptions {
+  tls.options()
 }
 
 /// Set the transport on connection options.
@@ -64,6 +70,14 @@ pub fn with_connect_timeout(
   timeout timeout: Timeout,
 ) -> ConnectOptions {
   connection.with_connect_timeout(options, timeout: timeout)
+}
+
+/// Set TLS options on connection options.
+pub fn with_tls_opts(
+  options: ConnectOptions,
+  tls_opts tls_opts: tls.TlsOptions,
+) -> ConnectOptions {
+  connection.with_tls_opts(options, tls_opts: tls_opts)
 }
 
 /// Convert a request method to an HTTP method string.

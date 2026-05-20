@@ -11,6 +11,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gluegun/error
 import gluegun/internal.{type Connection}
+import gluegun/tls
 
 /// Transport selection for a Gun connection.
 ///
@@ -49,6 +50,7 @@ pub opaque type ConnectOptions {
     protocols: Option(List(Protocol)),
     retry: Timeout,
     connect_timeout: Timeout,
+    tls_opts: Option(tls.TlsOptions),
   )
 }
 
@@ -59,6 +61,7 @@ pub fn options() -> ConnectOptions {
     protocols: None,
     retry: Milliseconds(5000),
     connect_timeout: Milliseconds(5000),
+    tls_opts: None,
   )
 }
 
@@ -96,6 +99,14 @@ pub fn with_connect_timeout(
   ConnectOptions(..options, connect_timeout: timeout)
 }
 
+/// Set TLS options for TLS or auto-transport connections.
+pub fn with_tls_opts(
+  options: ConnectOptions,
+  tls_opts tls_opts: tls.TlsOptions,
+) -> ConnectOptions {
+  ConnectOptions(..options, tls_opts: Some(tls_opts))
+}
+
 /// Inspect configured transport. Intended for tests and later FFI conversion.
 pub fn transport(options: ConnectOptions) -> Transport {
   options.transport
@@ -114,6 +125,11 @@ pub fn retry(options: ConnectOptions) -> Timeout {
 /// Inspect connect timeout duration.
 pub fn connect_timeout(options: ConnectOptions) -> Timeout {
   options.connect_timeout
+}
+
+/// Inspect explicitly configured TLS options, if any.
+pub fn tls_opts(options: ConnectOptions) -> Option(tls.TlsOptions) {
+  options.tls_opts
 }
 
 /// Open a Gun connection.
@@ -176,15 +192,34 @@ pub fn options_to_ffi(options: ConnectOptions) -> dynamic.Dynamic {
     None -> []
   }
 
-  dynamic.properties([
-    #(dynamic.string("transport"), transport_to_ffi(options.transport)),
-    #(dynamic.string("retry"), timeout_to_ffi(options.retry)),
-    #(
-      dynamic.string("connect_timeout"),
-      timeout_to_ffi(options.connect_timeout),
-    ),
-    ..protocol_entries
-  ])
+  let transport_entries = case options.transport, options.tls_opts {
+    Tcp, _ -> []
+    _, Some(tls_opts) -> [
+      #(
+        dynamic.string("transport_opts"),
+        dynamic.properties([
+          #(dynamic.string("tls_opts"), tls.to_ffi(tls_opts)),
+        ]),
+      ),
+    ]
+    _, _ -> []
+  }
+
+  let fields =
+    list.append(
+      [
+        #(dynamic.string("transport"), transport_to_ffi(options.transport)),
+        #(dynamic.string("retry"), timeout_to_ffi(options.retry)),
+        #(
+          dynamic.string("connect_timeout"),
+          timeout_to_ffi(options.connect_timeout),
+        ),
+        ..protocol_entries
+      ],
+      transport_entries,
+    )
+
+  dynamic.properties(fields)
 }
 
 /// Convert a timeout to the Erlang FFI shape.

@@ -21,4 +21,5 @@ For the canonical HexDocs rendering, see [hexdocs.pm/gluegun](https://hexdocs.pm
 | [`gluegun/message`](/reference/gluegun-message/) | Decoding and awaiting asynchronous Gun stream messages. |
 | [`gluegun/request`](/reference/gluegun-request/) | Low-level HTTP request and stream operations. |
 | [`gluegun/response`](/reference/gluegun-response/) | HTTP response values collected by `gluegun/client`. |
+| [`gluegun/tls`](/reference/gluegun-tls/) | Typed TLS client options for Gun and Erlang SSL. |
 | [`gluegun/websocket`](/reference/gluegun-websocket/) | WebSocket helpers for Gun connections. |

@@ -127,6 +127,14 @@ Convert a timeout to the Erlang FFI shape.
 pub fn timeout_to_ffi(gluegun/connection.Timeout) -> gleam/dynamic.Dynamic
 ```
 
+### `tls_opts`
+
+Inspect explicitly configured TLS options, if any.
+
+```gleam
+pub fn tls_opts(gluegun/connection.ConnectOptions) -> gleam/option.Option(gluegun/tls.TlsOptions)
+```
+
 ### `transport`
 
 Inspect configured transport. Intended for tests and later FFI conversion.
@@ -159,6 +167,14 @@ Set Gun's retry timeout option.
 
 ```gleam
 pub fn with_retry(gluegun/connection.ConnectOptions, retry: gluegun/connection.Timeout) -> gluegun/connection.ConnectOptions
+```
+
+### `with_tls_opts`
+
+Set TLS options for TLS or auto-transport connections.
+
+```gleam
+pub fn with_tls_opts(gluegun/connection.ConnectOptions, tls_opts: gluegun/tls.TlsOptions) -> gluegun/connection.ConnectOptions
 ```
 
 ### `with_transport`

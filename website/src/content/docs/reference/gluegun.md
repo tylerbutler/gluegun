@@ -85,6 +85,14 @@ Send a collected HTTP request command.
 pub fn send(gluegun/client.Request, connection: gluegun/internal.Connection) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
 ```
 
+### `tls_options`
+
+Construct default TLS options.
+
+```gleam
+pub fn tls_options() -> gluegun/tls.TlsOptions
+```
+
 ### `websocket_connect`
 
 Open a connection, perform a WebSocket upgrade, and return a reusable socket.
@@ -155,6 +163,14 @@ Set Gun retry timeout on connection options.
 
 ```gleam
 pub fn with_retry(gluegun/connection.ConnectOptions, retry: gluegun/connection.Timeout) -> gluegun/connection.ConnectOptions
+```
+
+### `with_tls_opts`
+
+Set TLS options on connection options.
+
+```gleam
+pub fn with_tls_opts(gluegun/connection.ConnectOptions, tls_opts: gluegun/tls.TlsOptions) -> gluegun/connection.ConnectOptions
 ```
 
 ### `with_transport`
