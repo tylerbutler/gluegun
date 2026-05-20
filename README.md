@@ -73,7 +73,7 @@ fn fetch_json(conn, path, timeout) {
 
 ## Streaming a request body
 
-Use `gluegun/request` when the request body is produced in chunks. Start with `request.headers`, send zero or more chunks with `fin.NoFin`, and complete the body with `fin.Fin`. Response headers and body are separate asynchronous Gun stream messages; use `gluegun/message` helpers or your own receive loop for advanced flows.
+Use `gluegun/request` when the request body is produced in chunks. Start with `request.start_stream`, send zero or more chunks with `fin.NoFin`, and complete the body with `fin.Fin`. Response headers and body are separate asynchronous Gun stream messages; use `gluegun/message` helpers or your own receive loop for advanced flows.
 
 ```gleam
 import gluegun/connection
@@ -85,7 +85,7 @@ pub fn upload_chunks(conn) {
   let timeout = connection.Milliseconds(5000)
 
   let assert Ok(stream) =
-    request.headers(
+    request.start_stream(
       conn,
       request.Post,
       "/upload",
@@ -171,7 +171,7 @@ pub fn echo() {
     Error(_) -> io.println("websocket receive failed")
   }
 
-  let assert Ok(Nil) = websocket.close(socket)
+  let assert Ok(Nil) = websocket.send_close_frame(socket)
 }
 ```
 

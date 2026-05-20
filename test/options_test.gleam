@@ -38,16 +38,17 @@ pub fn options_tests() {
       }),
     ]),
     describe("request options and methods", [
-      it("sets request headers", fn() {
+      it("with_headers replaces request headers", fn() {
         request.options()
-        |> request.with_headers([#("accept", "application/json")])
-        |> request.headers_option
-        |> expect.to_equal([#("accept", "application/json")])
-      }),
-      it("appends request headers", fn() {
-        request.options()
-        |> request.with_headers([#("accept", "application/json")])
+        |> request.add_headers([#("accept", "application/json")])
         |> request.with_headers([#("x-request-id", "abc")])
+        |> request.headers_option
+        |> expect.to_equal([#("x-request-id", "abc")])
+      }),
+      it("add_headers appends request headers", fn() {
+        request.options()
+        |> request.add_headers([#("accept", "application/json")])
+        |> request.add_headers([#("x-request-id", "abc")])
         |> request.headers_option
         |> expect.to_equal([
           #("accept", "application/json"),

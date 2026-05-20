@@ -5,7 +5,7 @@ description: Send chunked request bodies and consume asynchronous response messa
 
 Use `gluegun/request` when the request body is produced in chunks.
 
-Start with `request.headers`, send zero or more chunks with `fin.NoFin`, and complete the body with `fin.Fin`.
+Start with `request.start_stream`, send zero or more chunks with `fin.NoFin`, and complete the body with `fin.Fin`.
 
 ```gleam
 import gluegun/connection
@@ -17,7 +17,7 @@ pub fn upload_chunks(conn) {
   let timeout = connection.Milliseconds(5000)
 
   let assert Ok(stream) =
-    request.headers(
+    request.start_stream(
       conn,
       request.Post,
       "/upload",
