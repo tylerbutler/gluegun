@@ -5,12 +5,14 @@
 //// are Erlang process resources and are available on the Erlang target only.
 
 import gleam/dynamic
+import gleam/dynamic/decode as dyn_decode
 import gleam/erlang/atom
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gluegun/error
 import gluegun/internal.{type Connection}
+import gluegun/internal/ffi_result
 
 /// Transport selection for a Gun connection.
 ///
@@ -153,15 +155,13 @@ pub fn decode_await_up_result(
 /// Close a Gun connection.
 pub fn close(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_close(internal.connection_raw(connection))
-  |> result.map(fn(_) { Nil })
-  |> result.map_error(error.decode_ffi_error)
+  |> ffi_result.decode_nil_result
 }
 
 /// Shut down a Gun connection.
 pub fn shutdown(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_shutdown(internal.connection_raw(connection))
-  |> result.map(fn(_) { Nil })
-  |> result.map_error(error.decode_ffi_error)
+  |> ffi_result.decode_nil_result
 }
 
 /// Convert connection options to the Erlang FFI map shape.
@@ -211,16 +211,14 @@ fn protocol_to_ffi(protocol: Protocol) -> dynamic.Dynamic {
 }
 
 fn decode_protocol(protocol: dynamic.Dynamic) -> Result(Protocol, String) {
-  case dynamic.classify(protocol) {
-    "Atom" -> {
-      let name = atom.to_string(atom.cast_from_dynamic(protocol))
-      case name {
+  case dyn_decode.run(protocol, atom.decoder()) {
+    Ok(protocol) ->
+      case atom.to_string(protocol) {
         "http" -> Ok(Http1)
         "http2" -> Ok(Http2)
         _ -> Error("Invalid protocol")
       }
-    }
-    _ -> Error("Invalid protocol")
+    Error(_) -> Error("Invalid protocol")
   }
 }
 
