@@ -10,6 +10,9 @@ alias sd := site-deps
 alias sb := site-build
 alias sc := site-check
 alias cl := change
+alias eb := examples-build
+alias ef := examples-format
+alias efc := examples-format-check
 
 default:
     @just --list
@@ -49,6 +52,24 @@ format-check:
 # Type check without building
 check:
     gleam check
+
+# === EXAMPLES ===
+
+# Download dependencies for every standalone example package
+examples-deps:
+    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && gleam deps download); fi; done
+
+# Format every standalone example package
+examples-format:
+    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && gleam format src); fi; done
+
+# Check formatting for every standalone example package
+examples-format-check:
+    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && gleam format --check src); fi; done
+
+# Build every standalone example package
+examples-build:
+    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && gleam build); fi; done
 
 # === DOCUMENTATION ===
 
@@ -113,4 +134,4 @@ ci: format-check check test build-strict
 alias pr := ci
 
 # Run extended checks for main branch
-main: ci docs site-check site-build
+main: ci examples-format-check examples-build docs site-check site-build
