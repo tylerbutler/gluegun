@@ -37,11 +37,11 @@ User-supplied fields on `tls.TlsOptions` always win over the defaults. Any
 field you leave unset is filled in by the baseline.
 
 `public_key:cacerts_get/0` is available on OTP 25 and newer. Gluegun
-currently pins OTP 27 in CI. If no system trust store is available (e.g.
-in a minimal container), Gluegun returns
-`InvalidOptions("#(\"tls\", \"no_system_cacerts\")")` from
-`connection.open`; supply your own CA bundle with `tls.with_cacertfile` or
-`tls.with_cacerts` in that case.
+currently pins OTP 27 in CI. If no system trust store is available (for
+example, in a minimal container), `connection.open` returns an
+`InvalidOptions` TLS error whose reason includes `no_system_cacerts`.
+Supply your own CA bundle with `tls.with_cacertfile` or `tls.with_cacerts`
+in that case.
 
 ## Overriding the baseline
 

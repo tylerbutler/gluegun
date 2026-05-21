@@ -21,19 +21,16 @@ gleam add gluegun
 
 ## Security
 
-Gluegun is **secure by default** for TLS. Whenever a connection uses TLS (`connection.Tls`, or `connection.Auto` resolving to TLS), Gluegun fills in any TLS fields you did not set with:
-
-- `verify_peer` (certificate chain + hostname verification)
-- The OS trust store via `public_key:cacerts_get/0` (OTP 25+; Gluegun pins OTP 27 in CI)
-- TLS 1.2 and 1.3 only
-- SNI derived from the host passed to `connection.open` (skipped for IP literals)
-- A `customize_hostname_check` match function for HTTPS
+Gluegun is **secure by default** for TLS. Whenever a connection uses TLS
+(`connection.Tls`, or `connection.Auto` resolving to TLS), Gluegun applies a
+secure baseline at connection time: peer and hostname verification, system CA
+certificates, TLS 1.2/1.3, SNI for DNS hosts, and HTTPS hostname matching.
 
 The minimal HTTPS setup is just `connection.options() |> connection.with_transport(transport: connection.Tls)`. Override individual fields with the `tls.with_*` builders; user-supplied values always win.
 
-For development against self-signed endpoints, use `tls.insecure()`, which disables verification (and therefore the rest of the secure baseline). Do not ship it.
+For development against self-signed endpoints, use `tls.insecure()`, which disables verification and SNI. Do not ship it.
 
-See the [TLS guide](https://gluegun.tylerbutler.com/guides/tls/) for full details and overrides.
+See the [TLS guide](https://gluegun.tylerbutler.com/guides/tls/) for the canonical default list, full details, and overrides.
 
 ## Basic GET
 
