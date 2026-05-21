@@ -14,6 +14,7 @@
 /// WebSocket frames; you cannot send concurrent HTTP requests on it.
 import gleam/int
 import gleam/io
+import gluegun/error
 import gluegun/message
 import gluegun/websocket
 
@@ -57,8 +58,16 @@ fn frame_to_string(frame: message.Frame) -> String {
   }
 }
 
-fn error_to_string(err) -> String {
-  // In a real application use pattern matching on gluegun/error.GluegunError.
-  let _ = err
-  "(error)"
+fn error_to_string(err: error.GluegunError) -> String {
+  case err {
+    error.Timeout -> "timeout"
+    error.ConnectionDown(reason) -> "connection down: " <> reason
+    error.ConnectionError(reason) -> "connection error: " <> reason
+    error.StreamError(reason) -> "stream error: " <> reason
+    error.InvalidOptions(reason) -> "invalid options: " <> reason
+    error.InvalidMessage(reason) -> "invalid message: " <> reason
+    error.ErlangError(reason) -> "erlang error: " <> reason
+    error.DecodeError(reason) -> "decode error: " <> reason
+    error.UnsupportedFeature(reason) -> "unsupported feature: " <> reason
+  }
 }

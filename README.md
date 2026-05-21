@@ -209,7 +209,7 @@ pub fn echo_once() {
 
 `Socket` is reusable and lifecycle-explicit. `with_socket` is convenience-only for scoped use. Low-level `upgrade_with_protocol_and_options`, `send`, and `receive` remain available for advanced flows. The root facade stays intentionally minimal; import `gluegun/websocket` directly for `send_text`, `receive_app_frame`, `send_close_frame`, and `with_socket`.
 
-See `examples/websocket_echo` for a fuller documentation-only WebSocket example.
+See `examples/websocket_echo` for a fuller WebSocket example.
 
 ## Error handling
 
@@ -250,7 +250,35 @@ fn safe_get(conn) {
 
 ## Examples
 
-Examples under `examples/` are source-level documentation, not standalone Gleam packages built by the root `just` tasks. Copy an example into a Gleam project and add `gluegun` as a dependency to run it.
+Examples under `examples/` are standalone Erlang-target Gleam packages. To run one:
+
+```sh
+cd examples/basic_request
+gleam deps download
+gleam build
+gleam run
+```
+
+Available examples:
+
+- `basic_request`: open a connection, send a GET, print negotiated protocol, collect text response.
+- `json_post`: send JSON request body with headers using high-level client builder.
+- `http2_preferred`: prefer HTTP/2 over TLS while allowing HTTP/1.1 fallback.
+- `chunked_upload`: stream request body with `request.headers`, `request.data`, `fin.NoFin`, `fin.Fin`.
+- `streaming_download`: process response chunks and trailers as low-level message values arrive.
+- `websocket_echo`: connect to local WebSocket echo server and exchange one text frame.
+- `websocket_chat`: use scoped WebSocket lifecycle helpers for text and binary frame conversation.
+- `webprobe`: standalone CLI demo using `clip` and `argv` for argument parsing, `gleescript` for escript packaging, and Gluegun for HTTP diagnostics.
+
+Root maintenance commands cover all standalone example packages:
+
+```sh
+just examples-deps
+just examples-format-check
+just examples-build
+```
+
+Networked examples and WebSocket examples are intended for manual `gleam run` because they depend on public endpoints or local servers.
 
 ## Development
 
