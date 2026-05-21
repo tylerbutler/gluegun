@@ -388,11 +388,18 @@ sni_for_host(Host) ->
     case HostStr of
         [] -> skip;
         _ ->
-            case inet:parse_address(HostStr) of
+            case inet:parse_address(strip_ipv6_brackets(HostStr)) of
                 {ok, _IP} -> skip;
                 {error, _} -> {ok, HostStr}
             end
     end.
+
+strip_ipv6_brackets([$[ | Rest]) ->
+    case lists:reverse(Rest) of
+        [$] | RevInner] -> lists:reverse(RevInner);
+        _ -> [$[ | Rest]
+    end;
+strip_ipv6_brackets(Host) -> Host.
 
 host_to_charlist(Host) when is_binary(Host) -> unicode:characters_to_list(Host);
 host_to_charlist(Host) when is_list(Host) -> Host;
