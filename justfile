@@ -67,9 +67,16 @@ examples-format:
 examples-format-check:
     for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && gleam format --check src); fi; done
 
-# Build every standalone example package
+# Build every standalone example package; package escripts for examples that depend on gleescript
 examples-build:
-    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && gleam build); fi; done
+    for dir in examples/*; do \
+        if [ -f "$dir/gleam.toml" ]; then \
+            (cd "$dir" && gleam build) || exit 1; \
+            if grep -q '^gleescript ' "$dir/gleam.toml" || grep -q '^gleescript ' "$dir/manifest.toml" 2>/dev/null; then \
+                (cd "$dir" && gleam run -m gleescript -- --out=dist) || exit 1; \
+            fi; \
+        fi; \
+    done
 
 # === DOCUMENTATION ===
 
