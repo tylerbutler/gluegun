@@ -23,12 +23,12 @@ pub type Fin {
 }
 ```
 
-**Constructors**
+#### Constructors
 
-#### `Fin`
+##### `Fin`
 
 This chunk is the last one in the body. Gun will not deliver more data.
 
-#### `NoFin`
+##### `NoFin`
 
 More data will follow. Continue to send or receive chunks.

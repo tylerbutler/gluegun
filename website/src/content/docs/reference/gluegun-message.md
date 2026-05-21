@@ -34,29 +34,29 @@ pub type Frame {
 }
 ```
 
-**Constructors**
+#### Constructors
 
-#### `Text(String)`
+##### `Text(String)`
 
 A UTF-8 text frame. Gun validates the payload as UTF-8 before delivery.
 
-#### `Binary(BitArray)`
+##### `Binary(BitArray)`
 
 A binary frame. The payload is an opaque byte string.
 
-#### `Ping(BitArray)`
+##### `Ping(BitArray)`
 
 A ping control frame. Reply with `Pong` to keep the connection alive.
 
-#### `Pong(BitArray)`
+##### `Pong(BitArray)`
 
 A pong control frame. Usually delivered in response to a `Ping`.
 
-#### `Close`
+##### `Close`
 
 A close control frame with no status code or reason.
 
-#### `CloseWithReason(
+##### `CloseWithReason(
   code: Int,
   reason: BitArray
 )`
@@ -107,9 +107,9 @@ pub type Message {
 }
 ```
 
-**Constructors**
+#### Constructors
 
-#### `Inform(
+##### `Inform(
   status: Int,
   headers: List(#(String, String))
 )`
@@ -117,7 +117,7 @@ pub type Message {
 A 1xx informational response. May appear multiple times before the
  final `Response`.
 
-#### `Response(
+##### `Response(
   fin: fin.Fin,
   status: Int,
   headers: List(#(String, String))
@@ -125,19 +125,19 @@ A 1xx informational response. May appear multiple times before the
 
 The final HTTP response headers. `fin` is `Fin` when there is no body.
 
-#### `Data(
+##### `Data(
   fin: fin.Fin,
   data: BitArray
 )`
 
 A response body chunk. `fin` is `Fin` on the last chunk.
 
-#### `Trailers(headers: List(#(String, String)))`
+##### `Trailers(headers: List(#(String, String)))`
 
 Trailing headers delivered after the body (HTTP/1.1 trailers or HTTP/2
  trailer frames).
 
-#### `Push(
+##### `Push(
   stream: internal.Stream,
   method: request.Method,
   uri: String,
@@ -147,7 +147,7 @@ Trailing headers delivered after the body (HTTP/1.1 trailers or HTTP/2
 An HTTP/2 server push. The `stream` is a new stream the caller may
  await or cancel.
 
-#### `Upgrade(
+##### `Upgrade(
   protocols: List(String),
   headers: List(#(String, String))
 )`
@@ -155,7 +155,7 @@ An HTTP/2 server push. The `stream` is a new stream the caller may
 A successful protocol upgrade. Subsequent messages on this stream use
  the new protocol (e.g. WebSocket).
 
-#### `WebSocket(frame: Frame)`
+##### `WebSocket(frame: Frame)`
 
 A decoded WebSocket frame. Only delivered after an upgrade.
 

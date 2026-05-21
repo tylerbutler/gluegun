@@ -281,10 +281,10 @@ test("renders per-constructor documentation under a Constructors heading", async
 		const page = await read("gluegun-connection.md");
 		assert.match(
 			page,
-			/\*\*Constructors\*\*\n\n#### `Auto`\n\nLet Gun choose TLS for TLS ports and TCP otherwise\./,
+			/#### Constructors\n\n##### `Auto`\n\nLet Gun choose TLS for TLS ports and TCP otherwise\./,
 		);
-		assert.match(page, /#### `Tcp`\n\nForce plain TCP \(no TLS\)\./);
-		assert.match(page, /#### `Tls`\n\nForce TLS\./);
+		assert.match(page, /##### `Tcp`\n\nForce plain TCP \(no TLS\)\./);
+		assert.match(page, /##### `Tls`\n\nForce TLS\./);
 	} finally {
 		await cleanup();
 	}
@@ -316,7 +316,7 @@ test("omits Constructors block when no constructor has documentation", async () 
 
 	try {
 		const page = await read("gluegun-empty.md");
-		assert.ok(!page.includes("**Constructors**"));
+		assert.ok(!page.includes("#### Constructors"));
 		assert.match(page, /pub type Flag \{\n {2}On\n {2}Off\n\}/);
 	} finally {
 		await cleanup();

@@ -305,10 +305,10 @@ function renderConstructorsSection(typeInterface, moduleName) {
 		.map((c) => {
 			const signature = renderConstructor(c, moduleName);
 			const docs = normalizeDoc(c.documentation);
-			return `#### ${code(signature)}\n\n${docs}`;
+			return `##### ${code(signature)}\n\n${docs}`;
 		})
 		.join("\n\n");
-	return `**Constructors**\n\n${items}`;
+	return `#### Constructors\n\n${items}`;
 }
 
 function renderTypes(types, moduleName) {

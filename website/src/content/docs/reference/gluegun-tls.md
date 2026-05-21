@@ -52,13 +52,13 @@ pub type ServerNameIndication {
 }
 ```
 
-**Constructors**
+#### Constructors
 
-#### `Disable`
+##### `Disable`
 
 Disable SNI for this connection.
 
-#### `ServerName(String)`
+##### `ServerName(String)`
 
 Send the provided hostname as the SNI value.
 
@@ -87,13 +87,13 @@ pub type TlsVersion {
 }
 ```
 
-**Constructors**
+#### Constructors
 
-#### `TlsV12`
+##### `TlsV12`
 
 Allow TLS 1.2.
 
-#### `TlsV13`
+##### `TlsV13`
 
 Allow TLS 1.3.
 
@@ -108,13 +108,13 @@ pub type VerifyMode {
 }
 ```
 
-**Constructors**
+#### Constructors
 
-#### `VerifyPeer`
+##### `VerifyPeer`
 
 Verify the peer certificate chain and hostname.
 
-#### `VerifyNone`
+##### `VerifyNone`
 
 Disable peer certificate verification.
 

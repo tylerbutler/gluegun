@@ -43,13 +43,13 @@ pub type Protocol {
 }
 ```
 
-**Constructors**
+#### Constructors
 
-#### `Http1`
+##### `Http1`
 
 HTTP/1.1. Required for WebSocket upgrades.
 
-#### `Http2`
+##### `Http2`
 
 HTTP/2. Negotiated via ALPN when paired with TLS.
 
@@ -64,13 +64,13 @@ pub type Timeout {
 }
 ```
 
-**Constructors**
+#### Constructors
 
-#### `Milliseconds(Int)`
+##### `Milliseconds(Int)`
 
 A finite duration in milliseconds. Must be non-negative.
 
-#### `Infinity`
+##### `Infinity`
 
 No upper bound. Wait indefinitely.
 
@@ -89,17 +89,17 @@ pub type Transport {
 }
 ```
 
-**Constructors**
+#### Constructors
 
-#### `Auto`
+##### `Auto`
 
 Let Gun choose TLS for TLS ports and TCP otherwise.
 
-#### `Tcp`
+##### `Tcp`
 
 Force plain TCP (no TLS). Use for `http://` endpoints.
 
-#### `Tls`
+##### `Tls`
 
 Force TLS. Combine with `tls.with_*` builders for verification settings.
 
