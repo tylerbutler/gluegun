@@ -20,9 +20,11 @@
 ]).
 
 open(Host, Port, Options) ->
-    try gun:open(normalize_host(Host), Port, options_to_gun(Options)) of
-        {ok, Pid} -> {ok, Pid};
-        {error, Reason} -> {error, normalize_connection_error(Reason)}
+    try
+        GunOptions = options_to_gun(Options),
+        with_normalize(connection, fun() ->
+            gun:open(normalize_host(Host), Port, GunOptions)
+        end)
     catch
         error:{options, Reason}:_Stack -> {error, {invalid_options, Reason}};
         error:{invalid_options, Reason}:_Stack -> {error, {invalid_options, Reason}};
@@ -30,119 +32,94 @@ open(Host, Port, Options) ->
     end.
 
 await_up(ConnPid, Timeout) ->
-    try gun:await_up(ConnPid, timeout_to_gun(Timeout)) of
-        {ok, Protocol} -> {ok, Protocol};
-        {error, timeout} -> {error, timeout};
-        {error, Reason} -> {error, normalize_connection_error(Reason)}
-    catch
-        Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
-    end.
+    with_normalize(connection, fun() ->
+        gun:await_up(ConnPid, timeout_to_gun(Timeout))
+    end).
 
 close(ConnPid) ->
-    try gun:close(ConnPid) of
-        ok -> {ok, nil};
-        Other -> {error, normalize_connection_error(Other)}
-    catch
-        Class:Reason:_Stack -> {error, {connection_error, {Class, Reason}}}
-    end.
+    with_normalize(connection_error, fun() ->
+        case gun:close(ConnPid) of
+            {error, Reason} -> {error, {error, Reason}};
+            Other -> Other
+        end
+    end).
 
-shutdown(ConnPid) ->
-    try gun:shutdown(ConnPid) of
-        ok -> {ok, nil};
-        Other -> {error, normalize_connection_error(Other)}
-    catch
-        Class:Reason:_Stack -> {error, {connection_error, {Class, Reason}}}
-    end.
+shutdown(ConnPid) -> with_normalize(connection_error, fun() -> gun:shutdown(ConnPid) end).
 
 request(ConnPid, Method, Path, Headers, Body, ReqOpts) ->
-    try gun:request(
-        ConnPid,
-        to_binary(Method),
-        to_binary(Path),
-        normalize_headers(Headers),
-        Body,
-        req_opts_to_gun(ReqOpts)
-    ) of
-        StreamRef -> {ok, StreamRef}
-    catch
-        Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
-    end.
+    with_normalize(stream_erlang, fun() ->
+        {ok, gun:request(
+            ConnPid,
+            to_binary(Method),
+            to_binary(Path),
+            normalize_headers(Headers),
+            Body,
+            req_opts_to_gun(ReqOpts)
+        )}
+    end).
 
 headers(ConnPid, Method, Path, Headers, ReqOpts) ->
-    try gun:headers(
-        ConnPid,
-        to_binary(Method),
-        to_binary(Path),
-        normalize_headers(Headers),
-        req_opts_to_gun(ReqOpts)
-    ) of
-        StreamRef -> {ok, StreamRef}
-    catch
-        Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
-    end.
+    with_normalize(stream_erlang, fun() ->
+        {ok, gun:headers(
+            ConnPid,
+            to_binary(Method),
+            to_binary(Path),
+            normalize_headers(Headers),
+            req_opts_to_gun(ReqOpts)
+        )}
+    end).
 
 data(ConnPid, StreamRef, Fin, Data) ->
-    try gun:data(ConnPid, StreamRef, fin_to_gun(Fin), Data) of
-        ok -> {ok, nil};
-        {error, Reason} -> {error, normalize_stream_error(Reason)};
-        Other -> {error, normalize_stream_error(Other)}
-    catch
-        Class:Reason:_Stack -> {error, {stream_error, {Class, Reason}}}
-    end.
+    with_normalize(stream, fun() ->
+        gun:data(ConnPid, StreamRef, fin_to_gun(Fin), Data)
+    end).
 
 await(ConnPid, StreamRef, Timeout) ->
-    try gun:await(ConnPid, StreamRef, timeout_to_gun(Timeout)) of
-        {error, timeout} -> {error, timeout};
-        {error, Reason} -> {error, normalize_stream_error(Reason)};
-        Message -> safe_message_to_map(Message)
-    catch
-        Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
-    end.
+    with_normalize(stream_erlang, fun() ->
+        safe_message_to_map(gun:await(ConnPid, StreamRef, timeout_to_gun(Timeout)))
+    end).
 
 await_body(ConnPid, StreamRef, Timeout) ->
-    try gun:await_body(ConnPid, StreamRef, timeout_to_gun(Timeout)) of
-        {ok, Body} -> {ok, iolist_to_binary(Body)};
-        {error, timeout} -> {error, timeout};
-        {error, Reason} -> {error, normalize_stream_error(Reason)}
-    catch
-        Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
-    end.
+    with_normalize(stream_erlang, fun() ->
+        case gun:await_body(ConnPid, StreamRef, timeout_to_gun(Timeout)) of
+            {ok, Body} -> {ok, iolist_to_binary(Body)};
+            Other -> Other
+        end
+    end).
 
 cancel(ConnPid, StreamRef) ->
-    try gun:cancel(ConnPid, StreamRef) of
-        ok -> {ok, nil};
-        {error, Reason} -> {error, normalize_stream_error(Reason)};
-        Other -> {error, normalize_stream_error(Other)}
-    catch
-        Class:Reason:_Stack -> {error, {stream_error, {Class, Reason}}}
-    end.
+    with_normalize(stream, fun() ->
+        gun:cancel(ConnPid, StreamRef)
+    end).
 
 update_flow(ConnPid, StreamRef, Increment) ->
-    try gun:update_flow(ConnPid, StreamRef, Increment) of
-        ok -> {ok, nil};
-        {error, Reason} -> {error, normalize_stream_error(Reason)};
-        Other -> {error, normalize_stream_error(Other)}
-    catch
-        Class:Reason:_Stack -> {error, {stream_error, {Class, Reason}}}
-    end.
+    with_normalize(stream, fun() ->
+        gun:update_flow(ConnPid, StreamRef, Increment)
+    end).
 
-flush(ConnPid) ->
-    try gun:flush(ConnPid) of
-        ok -> {ok, nil};
-        {error, Reason} -> {error, normalize_connection_error(Reason)};
-        Other -> {error, normalize_connection_error(Other)}
-    catch
-        Class:Reason:_Stack -> {error, {connection_error, {Class, Reason}}}
-    end.
+flush(ConnPid) -> with_normalize(connection_error, fun() -> gun:flush(ConnPid) end).
 
 ws_upgrade(ConnPid, Path, Headers, WsOpts) ->
-    try gun:ws_upgrade(ConnPid, Path, normalize_headers(Headers), ws_opts_to_gun(WsOpts)) of
-        {error, {options, {ws, Opt}}} -> {error, {invalid_options, {ws, invalid_ws_opt_name(Opt)}}};
-        {error, {options, Reason}} -> {error, {invalid_options, Reason}};
-        StreamRef -> {ok, StreamRef}
+    try
+        GunOpts = ws_opts_to_gun(WsOpts),
+        with_normalize(stream_erlang, fun() ->
+            try
+                case gun:ws_upgrade(ConnPid, Path, normalize_headers(Headers), GunOpts) of
+                    {error, {options, {ws, Opt}}} ->
+                        {error, {invalid_options, {ws, invalid_ws_opt_name(Opt)}}};
+                    {error, {options, Reason}} ->
+                        {error, {invalid_options, Reason}};
+                    StreamRef ->
+                        {ok, StreamRef}
+                end
+            catch
+                error:{options, {ws, Opt1}}:_Stack ->
+                    {error, {invalid_options, {ws, invalid_ws_opt_name(Opt1)}}};
+                error:{badmatch, {error, {options, {ws, Opt2}}}}:_Stack ->
+                    {error, {invalid_options, {ws, invalid_ws_opt_name(Opt2)}}}
+            end
+        end)
     catch
-        error:{options, {ws, Opt}}:_Stack -> {error, {invalid_options, {ws, invalid_ws_opt_name(Opt)}}};
-        error:{badmatch, {error, {options, {ws, Opt}}}}:_Stack -> {error, {invalid_options, {ws, invalid_ws_opt_name(Opt)}}};
         error:{invalid_options, Reason}:_Stack -> {error, {invalid_options, Reason}};
         Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
     end.
@@ -150,15 +127,40 @@ ws_upgrade(ConnPid, Path, Headers, WsOpts) ->
 ws_send(ConnPid, StreamRef, Frames) ->
     try
         GunFrames = gleam_frame_or_frames_to_gun(Frames),
-        gun:ws_send(ConnPid, StreamRef, GunFrames)
-    of
-        ok -> {ok, nil};
-        {error, Reason} -> {error, normalize_stream_error(Reason)};
-        Other -> {error, normalize_stream_error(Other)}
+        with_normalize(stream_erlang, fun() ->
+            gun:ws_send(ConnPid, StreamRef, GunFrames)
+        end)
     catch
         error:{invalid_frame, Reason}:_Stack -> {error, {invalid_message, {invalid_frame, Reason}}};
         Class:Reason:_Stack -> {error, {erlang_error, {Class, Reason}}}
     end.
+
+with_normalize(Tag, Fun) ->
+    try Fun() of
+        ok -> {ok, nil};
+        {ok, _} = Result -> Result;
+        {error, timeout} -> {error, timeout};
+        {error, Reason} -> {error, normalize_error(Tag, Reason)};
+        Other -> {error, normalize_error(Tag, Other)}
+    catch
+        Class:Reason:_Stack -> {error, caught_error(Tag, Class, Reason)}
+    end.
+
+caught_error(connection, Class, Reason) -> {erlang_error, {Class, Reason}};
+caught_error(connection_error, Class, Reason) -> {connection_error, {Class, Reason}};
+caught_error(stream, Class, Reason) -> {stream_error, {Class, Reason}};
+caught_error(stream_erlang, Class, Reason) -> {erlang_error, {Class, Reason}}.
+
+normalize_error(_Tag, {invalid_options, _} = Error) -> Error;
+normalize_error(_Tag, {connection_down, _} = Error) -> Error;
+normalize_error(_Tag, {connection_error, _} = Error) -> Error;
+normalize_error(_Tag, {stream_error, _} = Error) -> Error;
+normalize_error(_Tag, {invalid_message, _} = Error) -> Error;
+normalize_error(_Tag, {erlang_error, _} = Error) -> Error;
+normalize_error(connection, Reason) -> normalize_connection_error(Reason);
+normalize_error(connection_error, Reason) -> normalize_connection_error(Reason);
+normalize_error(stream, Reason) -> normalize_stream_error(Reason);
+normalize_error(stream_erlang, Reason) -> normalize_stream_error(Reason).
 
 %% Convert a Gleam Frame (compiled Erlang tagged tuple) to a Gun frame term.
 %% Gleam compiles:
@@ -182,11 +184,16 @@ gleam_frame_to_gun({pong, Data}) -> {pong, Data};
 gleam_frame_to_gun(Other) -> error({invalid_frame, Other}).
 
 validate_text_frame_data(Data) ->
-    DataBin = iolist_to_binary(Data),
-    case unicode:characters_to_binary(DataBin, utf8, utf8) of
-        ValidText when is_binary(ValidText) -> ValidText;
-        {error, _Encoded, _Rest} -> error({invalid_frame, {text, invalid_utf8}});
-        {incomplete, _Encoded, _Rest} -> error({invalid_frame, {text, invalid_utf8}})
+    case validate_utf8(Data) of
+        {ok, ValidText} -> ValidText;
+        {error, invalid_utf8} -> error({invalid_frame, {text, invalid_utf8}})
+    end.
+
+validate_utf8(IoData) ->
+    case unicode:characters_to_binary(IoData, utf8, utf8) of
+        ValidText when is_binary(ValidText) -> {ok, ValidText};
+        {error, _Encoded, _Rest} -> {error, invalid_utf8};
+        {incomplete, _Encoded, _Rest} -> {error, invalid_utf8}
     end.
 
 normalize_host(Host) when is_binary(Host) -> unicode:characters_to_list(Host);
@@ -350,13 +357,10 @@ message_to_map(Other) ->
     error({invalid_message, Other}).
 
 frame_to_map({text, Data}) ->
-    DataBin = iolist_to_binary(Data),
-    case unicode:characters_to_binary(DataBin, utf8, utf8) of
-        ValidText when is_binary(ValidText) ->
+    case validate_utf8(Data) of
+        {ok, ValidText} ->
             #{<<"type">> => <<"text">>, <<"data">> => ValidText};
-        {error, _Encoded, _Rest} ->
-            error({invalid_message, {ws, {text, invalid_utf8}}});
-        {incomplete, _Encoded, _Rest} ->
+        {error, invalid_utf8} ->
             error({invalid_message, {ws, {text, invalid_utf8}}})
     end;
 frame_to_map({binary, Data}) -> #{<<"type">> => <<"binary">>, <<"data">> => iolist_to_binary(Data)};
