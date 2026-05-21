@@ -19,6 +19,14 @@ gleam add gluegun
 - Erlang target only; Gluegun wraps the Erlang Gun client and does not support the JavaScript target.
 - Supports Gleam `>= 1.7.0` and Gun `>= 2.1.0 and < 3.0.0`.
 
+## Security
+
+Gluegun inherits Gun and Erlang SSL's historical TLS default: peer verification is **not** enabled unless you configure it.
+
+For production HTTPS, set `tls.with_verify(verify: tls.VerifyPeer)`, configure `tls.with_server_name_indication` for the expected hostname, and provide trusted CA certificates with `tls.with_cacerts` or `tls.with_cacertfile`.
+
+See the [TLS guide](https://gluegun.tylerbutler.com/guides/tls/) for recommended TLS 1.2+/1.3 settings, system CA usage, and client certificate examples.
+
 ## Basic GET
 
 Open a Gun connection, wait for it to be ready, send a GET, and collect the full response in memory.

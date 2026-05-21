@@ -16,7 +16,8 @@
     fin_to_ffi/1,
     ws_upgrade/4,
     ws_send/3,
-    safe_message_to_map/1
+    safe_message_to_map/1,
+    options_to_gun/1
 ]).
 
 open(Host, Port, Options) ->
@@ -212,9 +213,13 @@ options_to_gun(Options) when is_map(Options) ->
         undefined -> WithTransport;
         Protocols -> WithTransport#{protocols => [protocol_to_gun(P) || P <- Protocols]}
     end,
-    WithRetry = case maps:get(<<"retry">>, Options, undefined) of
+    WithTls = case tls_opts_from_options(Options) of
         undefined -> WithProtocols;
-        Retry -> WithProtocols#{retry => timeout_to_gun(Retry)}
+        TlsOpts -> WithProtocols#{tls_opts => tls_opts_to_gun(TlsOpts)}
+    end,
+    WithRetry = case maps:get(<<"retry">>, Options, undefined) of
+        undefined -> WithTls;
+        Retry -> WithTls#{retry => timeout_to_gun(Retry)}
     end,
     case maps:get(<<"connect_timeout">>, Options, undefined) of
         undefined -> WithRetry;
@@ -222,6 +227,82 @@ options_to_gun(Options) when is_map(Options) ->
     end;
 options_to_gun(Options) ->
     error({invalid_options, Options}).
+
+tls_opts_from_options(Options) when is_map(Options) ->
+    case maps:get(<<"tls_opts">>, Options, undefined) of
+        undefined ->
+            case maps:get(<<"transport_opts">>, Options, undefined) of
+                TransportOpts when is_map(TransportOpts) -> maps:get(<<"tls_opts">>, TransportOpts, undefined);
+                _ -> undefined
+            end;
+        TlsOpts -> TlsOpts
+    end.
+
+tls_opts_to_gun(TlsOpts) when is_list(TlsOpts) ->
+    [tls_opt_to_gun(Opt) || Opt <- TlsOpts];
+tls_opts_to_gun(TlsOpts) ->
+    error({invalid_options, {tls_opts, TlsOpts}}).
+
+tls_opt_to_gun([Key, Value]) ->
+    GunKey = tls_opt_key_to_atom(Key),
+    {GunKey, tls_opt_value_to_gun(GunKey, Value)};
+tls_opt_to_gun({Key, Value}) ->
+    GunKey = tls_opt_key_to_atom(Key),
+    {GunKey, tls_opt_value_to_gun(GunKey, Value)};
+tls_opt_to_gun(Other) ->
+    error({invalid_options, {tls_opts, Other}}).
+
+tls_opt_key_to_atom(Key) when is_atom(Key) -> Key;
+tls_opt_key_to_atom(Key) when is_binary(Key) ->
+    try binary_to_existing_atom(Key, utf8) of
+        Atom -> Atom
+    catch
+        error:badarg:_Stack -> error({invalid_options, {tls, {unsupported_option, Key}}})
+    end;
+tls_opt_key_to_atom(Key) when is_list(Key) ->
+    try list_to_existing_atom(Key) of
+        Atom -> Atom
+    catch
+        error:badarg:_Stack -> error({invalid_options, {tls, {unsupported_option, Key}}})
+    end.
+
+tls_opt_value_to_gun(verify, Verify) -> verify_mode_to_gun(Verify);
+tls_opt_value_to_gun(versions, Versions) when is_list(Versions) ->
+    [tls_version_to_gun(Version) || Version <- Versions];
+tls_opt_value_to_gun(ciphers, Ciphers) when is_list(Ciphers) ->
+    [unicode_value_to_list(Cipher) || Cipher <- Ciphers];
+tls_opt_value_to_gun(cacerts, CACerts) when is_list(CACerts) ->
+    [iolist_to_binary(CACert) || CACert <- CACerts];
+tls_opt_value_to_gun(cacertfile, Path) -> file_name_to_gun(Path);
+tls_opt_value_to_gun(certfile, Path) -> file_name_to_gun(Path);
+tls_opt_value_to_gun(keyfile, Path) -> file_name_to_gun(Path);
+tls_opt_value_to_gun(server_name_indication, Value) -> server_name_indication_to_gun(Value);
+tls_opt_value_to_gun(_Key, Value) -> Value.
+
+verify_mode_to_gun(verify_peer) -> verify_peer;
+verify_mode_to_gun(<<"verify_peer">>) -> verify_peer;
+verify_mode_to_gun("verify_peer") -> verify_peer;
+verify_mode_to_gun(verify_none) -> verify_none;
+verify_mode_to_gun(<<"verify_none">>) -> verify_none;
+verify_mode_to_gun("verify_none") -> verify_none;
+verify_mode_to_gun(Verify) -> Verify.
+
+tls_version_to_gun('tlsv1.2') -> 'tlsv1.2';
+tls_version_to_gun(<<"tlsv1.2">>) -> 'tlsv1.2';
+tls_version_to_gun("tlsv1.2") -> 'tlsv1.2';
+tls_version_to_gun('tlsv1.3') -> 'tlsv1.3';
+tls_version_to_gun(<<"tlsv1.3">>) -> 'tlsv1.3';
+tls_version_to_gun("tlsv1.3") -> 'tlsv1.3';
+tls_version_to_gun(Version) -> Version.
+
+server_name_indication_to_gun(disable) -> disable;
+server_name_indication_to_gun(Value) -> unicode_value_to_list(Value).
+
+file_name_to_gun(Value) -> unicode_value_to_list(Value).
+
+unicode_value_to_list(Value) when is_binary(Value) -> unicode:characters_to_list(Value);
+unicode_value_to_list(Value) when is_list(Value) -> Value;
+unicode_value_to_list(Value) -> Value.
 
 req_opts_to_gun(ReqOpts) when is_map(ReqOpts) -> ReqOpts;
 req_opts_to_gun(_) -> #{}.

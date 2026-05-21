@@ -23,6 +23,7 @@ const sidebar = [
 			{ label: "Streaming", slug: "guides/streaming" },
 			{ label: "WebSockets", slug: "guides/websockets" },
 			{ label: "HTTP/2", slug: "guides/http2" },
+			{ label: "TLS", slug: "guides/tls" },
 		],
 	},
 	{
@@ -46,6 +47,7 @@ const sidebar = [
 			{ label: "message", slug: "reference/gluegun-message" },
 			{ label: "request", slug: "reference/gluegun-request" },
 			{ label: "response", slug: "reference/gluegun-response" },
+			{ label: "tls", slug: "reference/gluegun-tls" },
 			{ label: "websocket", slug: "reference/gluegun-websocket" },
 			{
 				label: "API Reference (HexDocs)",
