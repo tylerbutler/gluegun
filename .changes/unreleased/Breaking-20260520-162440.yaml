@@ -1,4 +1,4 @@
-kind: Changed
+kind: Breaking
 body: |-
     Refine Gluegun error and informational response types
 

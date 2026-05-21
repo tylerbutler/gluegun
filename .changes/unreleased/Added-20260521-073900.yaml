@@ -1,0 +1,6 @@
+kind: Added
+body: |-
+    Documented 1.0 release narrative
+
+    Added stability/semver policy page, expanded message-flow with connection lifecycle (await_up, close vs shutdown), fin/half-close semantics, cancellation post-conditions, flow control, frame model, and process ownership. Fixed README streaming sample to handle informational responses. Added per-variant docstrings across connection, message, request, response, and websocket modules.
+time: 2026-05-21T07:39:00-07:00
