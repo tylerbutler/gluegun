@@ -21,11 +21,19 @@ gleam add gluegun
 
 ## Security
 
-Gluegun inherits Gun and Erlang SSL's historical TLS default: peer verification is **not** enabled unless you configure it.
+Gluegun is **secure by default** for TLS. Whenever a connection uses TLS (`connection.Tls`, or `connection.Auto` resolving to TLS), Gluegun fills in any TLS fields you did not set with:
 
-For production HTTPS, set `tls.with_verify(verify: tls.VerifyPeer)`, configure `tls.with_server_name_indication` for the expected hostname, and provide trusted CA certificates with `tls.with_cacerts` or `tls.with_cacertfile`.
+- `verify_peer` (certificate chain + hostname verification)
+- The OS trust store via `public_key:cacerts_get/0` (OTP 25+; Gluegun pins OTP 27 in CI)
+- TLS 1.2 and 1.3 only
+- SNI derived from the host passed to `connection.open` (skipped for IP literals)
+- A `customize_hostname_check` match function for HTTPS
 
-See the [TLS guide](https://gluegun.tylerbutler.com/guides/tls/) for recommended TLS 1.2+/1.3 settings, system CA usage, and client certificate examples.
+The minimal HTTPS setup is just `connection.options() |> connection.with_transport(transport: connection.Tls)`. Override individual fields with the `tls.with_*` builders; user-supplied values always win.
+
+For development against self-signed endpoints, use `tls.insecure()`, which disables verification (and therefore the rest of the secure baseline). Do not ship it.
+
+See the [TLS guide](https://gluegun.tylerbutler.com/guides/tls/) for full details and overrides.
 
 ## Basic GET
 
