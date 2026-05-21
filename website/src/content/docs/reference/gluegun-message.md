@@ -20,12 +20,49 @@ WebSocket frames delivered inside Gun stream messages.
  On the wire Gun delivers `close` (atom) as `Close` and
  `{close, Code, Reason}` as `CloseWithReason`.
 
-- `Text(String)`
-- `Binary(BitArray)`
-- `Ping(BitArray)`
-- `Pong(BitArray)`
-- `Close()`
-- `CloseWithReason(Int, BitArray)`
+```gleam
+pub type Frame {
+  Text(String)
+  Binary(BitArray)
+  Ping(BitArray)
+  Pong(BitArray)
+  Close
+  CloseWithReason(
+    code: Int,
+    reason: BitArray
+  )
+}
+```
+
+#### Constructors
+
+##### `Text(String)`
+
+A UTF-8 text frame. Gun validates the payload as UTF-8 before delivery.
+
+##### `Binary(BitArray)`
+
+A binary frame. The payload is an opaque byte string.
+
+##### `Ping(BitArray)`
+
+A ping control frame. Reply with `Pong` to keep the connection alive.
+
+##### `Pong(BitArray)`
+
+A pong control frame. Usually delivered in response to a `Ping`.
+
+##### `Close`
+
+A close control frame with no status code or reason.
+
+##### `CloseWithReason(
+  code: Int,
+  reason: BitArray
+)`
+
+A close control frame carrying a numeric close code and opaque reason
+ payload (RFC 6455 §5.5.1).
 
 ### `Message`
 
@@ -40,13 +77,87 @@ Gun HTTP stream messages delivered by the Erlang Gun client.
  This type is closed; new variants are a breaking change. Pin to a major
  version.
 
-- `Inform(Int, List(#(String, String)))`
-- `Response(gluegun/fin.Fin, Int, List(#(String, String)))`
-- `Data(gluegun/fin.Fin, BitArray)`
-- `Trailers(List(#(String, String)))`
-- `Push(gluegun/internal.Stream, gluegun/request.Method, String, List(#(String, String)))`
-- `Upgrade(List(String), List(#(String, String)))`
-- `WebSocket(gluegun/message.Frame)`
+```gleam
+pub type Message {
+  Inform(
+    status: Int,
+    headers: List(#(String, String))
+  )
+  Response(
+    fin: fin.Fin,
+    status: Int,
+    headers: List(#(String, String))
+  )
+  Data(
+    fin: fin.Fin,
+    data: BitArray
+  )
+  Trailers(headers: List(#(String, String)))
+  Push(
+    stream: internal.Stream,
+    method: request.Method,
+    uri: String,
+    headers: List(#(String, String))
+  )
+  Upgrade(
+    protocols: List(String),
+    headers: List(#(String, String))
+  )
+  WebSocket(frame: Frame)
+}
+```
+
+#### Constructors
+
+##### `Inform(
+  status: Int,
+  headers: List(#(String, String))
+)`
+
+A 1xx informational response. May appear multiple times before the
+ final `Response`.
+
+##### `Response(
+  fin: fin.Fin,
+  status: Int,
+  headers: List(#(String, String))
+)`
+
+The final HTTP response headers. `fin` is `Fin` when there is no body.
+
+##### `Data(
+  fin: fin.Fin,
+  data: BitArray
+)`
+
+A response body chunk. `fin` is `Fin` on the last chunk.
+
+##### `Trailers(headers: List(#(String, String)))`
+
+Trailing headers delivered after the body (HTTP/1.1 trailers or HTTP/2
+ trailer frames).
+
+##### `Push(
+  stream: internal.Stream,
+  method: request.Method,
+  uri: String,
+  headers: List(#(String, String))
+)`
+
+An HTTP/2 server push. The `stream` is a new stream the caller may
+ await or cancel.
+
+##### `Upgrade(
+  protocols: List(String),
+  headers: List(#(String, String))
+)`
+
+A successful protocol upgrade. Subsequent messages on this stream use
+ the new protocol (e.g. WebSocket).
+
+##### `WebSocket(frame: Frame)`
+
+A decoded WebSocket frame. Only delivered after an upgrade.
 
 ## Type aliases
 
@@ -55,7 +166,7 @@ Gun HTTP stream messages delivered by the Erlang Gun client.
 Alias for `gluegun/error.GluegunError`.
 
 ```gleam
-pub type GluegunError = gluegun/error.GluegunError
+pub type GluegunError = error.GluegunError
 ```
 
 ### `Header`
@@ -71,7 +182,7 @@ pub type Header = #(String, String)
 Alias for `gluegun/request.Method` used in decoded messages.
 
 ```gleam
-pub type Method = gluegun/request.Method
+pub type Method = request.Method
 ```
 
 ## Functions
@@ -89,7 +200,11 @@ Await the next Gun message for a stream.
  Errors: `Timeout`, `ConnectionDown`, `StreamError`, `DecodeError`.
 
 ```gleam
-pub fn await(gluegun/internal.Connection, gluegun/internal.Stream, gluegun/connection.Timeout) -> Result(gluegun/message.Message, gluegun/error.GluegunError)
+pub fn await(
+  internal.Connection,
+  internal.Stream,
+  connection.Timeout
+) -> Result(Message, error.GluegunError)
 ```
 
 ### `await_body`
@@ -105,7 +220,11 @@ Await and collect the full response body for a stream.
  Errors: `Timeout`, `ConnectionDown`, `StreamError`.
 
 ```gleam
-pub fn await_body(gluegun/internal.Connection, gluegun/internal.Stream, gluegun/connection.Timeout) -> Result(BitArray, gluegun/error.GluegunError)
+pub fn await_body(
+  internal.Connection,
+  internal.Stream,
+  connection.Timeout
+) -> Result(BitArray, error.GluegunError)
 ```
 
 ### `decode`
@@ -117,5 +236,5 @@ Decode a raw Erlang Gun message into a typed Gleam message.
  not a recognized Gun message shape.
 
 ```gleam
-pub fn decode(gleam/dynamic.Dynamic) -> Result(gluegun/message.Message, gluegun/error.GluegunError)
+pub fn decode(dynamic.Dynamic) -> Result(Message, error.GluegunError)
 ```

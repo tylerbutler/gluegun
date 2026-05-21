@@ -21,7 +21,9 @@ Pure representation of connection options before FFI conversion.
  `with_retry`, `with_connect_timeout`, and `with_tls_opts`. Pass the
  result to `open(host:, port:)`.
 
-
+```gleam
+pub type ConnectOptions
+```
 
 ### `Protocol`
 
@@ -34,15 +36,43 @@ HTTP protocol preference for a Gun connection.
  before `Http1` when TLS + ALPN should prefer HTTP/2 and fall back to
  HTTP/1.1.
 
-- `Http1()`
-- `Http2()`
+```gleam
+pub type Protocol {
+  Http1
+  Http2
+}
+```
+
+#### Constructors
+
+##### `Http1`
+
+HTTP/1.1. Required for WebSocket upgrades.
+
+##### `Http2`
+
+HTTP/2. Negotiated via ALPN when paired with TLS.
 
 ### `Timeout`
 
 Timeout or retry duration in milliseconds, or no limit.
 
-- `Milliseconds(Int)`
-- `Infinity()`
+```gleam
+pub type Timeout {
+  Milliseconds(Int)
+  Infinity
+}
+```
+
+#### Constructors
+
+##### `Milliseconds(Int)`
+
+A finite duration in milliseconds. Must be non-negative.
+
+##### `Infinity`
+
+No upper bound. Wait indefinitely.
 
 ### `Transport`
 
@@ -51,9 +81,27 @@ Transport selection for a Gun connection.
  This type is closed; new variants are a breaking change. Pin to a major
  version.
 
-- `Auto()`
-- `Tcp()`
-- `Tls()`
+```gleam
+pub type Transport {
+  Auto
+  Tcp
+  Tls
+}
+```
+
+#### Constructors
+
+##### `Auto`
+
+Let Gun choose TLS for TLS ports and TCP otherwise.
+
+##### `Tcp`
+
+Force plain TCP (no TLS). Use for `http://` endpoints.
+
+##### `Tls`
+
+Force TLS. Combine with `tls.with_*` builders for verification settings.
 
 ## Type aliases
 
@@ -62,7 +110,7 @@ Transport selection for a Gun connection.
 Opaque handle for an open Gun connection.
 
 ```gleam
-pub type Connection = gluegun/internal.Connection
+pub type Connection = internal.Connection
 ```
 
 ## Functions
@@ -80,7 +128,10 @@ Wait until a Gun connection is up and return the negotiated protocol.
  - `DecodeError` — Gun returned an unrecognized protocol atom.
 
 ```gleam
-pub fn await_up(gluegun/internal.Connection, gluegun/connection.Timeout) -> Result(gluegun/connection.Protocol, gluegun/error.GluegunError)
+pub fn await_up(
+  internal.Connection,
+  Timeout
+) -> Result(Protocol, error.GluegunError)
 ```
 
 ### `close`
@@ -91,7 +142,7 @@ Close a Gun connection cleanly.
  call once per connection. Outstanding streams are cancelled.
 
 ```gleam
-pub fn close(gluegun/internal.Connection) -> Result(Nil, gluegun/error.GluegunError)
+pub fn close(internal.Connection) -> Result(Nil, error.GluegunError)
 ```
 
 ### `connect_timeout`
@@ -99,7 +150,7 @@ pub fn close(gluegun/internal.Connection) -> Result(Nil, gluegun/error.GluegunEr
 Inspect connect timeout duration.
 
 ```gleam
-pub fn connect_timeout(gluegun/connection.ConnectOptions) -> gluegun/connection.Timeout
+pub fn connect_timeout(ConnectOptions) -> Timeout
 ```
 
 ### `open`
@@ -115,7 +166,11 @@ Open a Gun connection to `host:port`.
  - `ErlangError` — Gun could not spawn the connection process.
 
 ```gleam
-pub fn open(gluegun/connection.ConnectOptions, host: String, port: Int) -> Result(gluegun/internal.Connection, gluegun/error.GluegunError)
+pub fn open(
+  ConnectOptions,
+  host: String,
+  port: Int
+) -> Result(internal.Connection, error.GluegunError)
 ```
 
 ### `options`
@@ -123,7 +178,7 @@ pub fn open(gluegun/connection.ConnectOptions, host: String, port: Int) -> Resul
 Construct default connection options.
 
 ```gleam
-pub fn options() -> gluegun/connection.ConnectOptions
+pub fn options() -> ConnectOptions
 ```
 
 ### `protocols`
@@ -131,7 +186,7 @@ pub fn options() -> gluegun/connection.ConnectOptions
 Inspect explicitly configured protocol ordering, if any.
 
 ```gleam
-pub fn protocols(gluegun/connection.ConnectOptions) -> gleam/option.Option(List(gluegun/connection.Protocol))
+pub fn protocols(ConnectOptions) -> option.Option(List(Protocol))
 ```
 
 ### `retry`
@@ -139,7 +194,7 @@ pub fn protocols(gluegun/connection.ConnectOptions) -> gleam/option.Option(List(
 Inspect retry duration.
 
 ```gleam
-pub fn retry(gluegun/connection.ConnectOptions) -> gluegun/connection.Timeout
+pub fn retry(ConnectOptions) -> Timeout
 ```
 
 ### `shutdown`
@@ -151,7 +206,7 @@ Shut down a Gun connection immediately.
  suspected stuck.
 
 ```gleam
-pub fn shutdown(gluegun/internal.Connection) -> Result(Nil, gluegun/error.GluegunError)
+pub fn shutdown(internal.Connection) -> Result(Nil, error.GluegunError)
 ```
 
 ### `tls_opts`
@@ -159,7 +214,7 @@ pub fn shutdown(gluegun/internal.Connection) -> Result(Nil, gluegun/error.Gluegu
 Inspect explicitly configured TLS options, if any.
 
 ```gleam
-pub fn tls_opts(gluegun/connection.ConnectOptions) -> gleam/option.Option(gluegun/tls.TlsOptions)
+pub fn tls_opts(ConnectOptions) -> option.Option(tls.TlsOptions)
 ```
 
 ### `transport`
@@ -167,7 +222,7 @@ pub fn tls_opts(gluegun/connection.ConnectOptions) -> gleam/option.Option(gluegu
 Inspect configured transport. Intended for tests and later FFI conversion.
 
 ```gleam
-pub fn transport(gluegun/connection.ConnectOptions) -> gluegun/connection.Transport
+pub fn transport(ConnectOptions) -> Transport
 ```
 
 ### `with_connect_timeout`
@@ -175,7 +230,10 @@ pub fn transport(gluegun/connection.ConnectOptions) -> gluegun/connection.Transp
 Set Gun's connect timeout option.
 
 ```gleam
-pub fn with_connect_timeout(gluegun/connection.ConnectOptions, timeout: gluegun/connection.Timeout) -> gluegun/connection.ConnectOptions
+pub fn with_connect_timeout(
+  ConnectOptions,
+  timeout: Timeout
+) -> ConnectOptions
 ```
 
 ### `with_protocols`
@@ -185,7 +243,10 @@ Set HTTP protocol preference ordering for a connection.
  The list order is preserved when options are passed to Gun.
 
 ```gleam
-pub fn with_protocols(gluegun/connection.ConnectOptions, protocols: List(gluegun/connection.Protocol)) -> gluegun/connection.ConnectOptions
+pub fn with_protocols(
+  ConnectOptions,
+  protocols: List(Protocol)
+) -> ConnectOptions
 ```
 
 ### `with_retry`
@@ -193,7 +254,10 @@ pub fn with_protocols(gluegun/connection.ConnectOptions, protocols: List(gluegun
 Set Gun's retry timeout option.
 
 ```gleam
-pub fn with_retry(gluegun/connection.ConnectOptions, retry: gluegun/connection.Timeout) -> gluegun/connection.ConnectOptions
+pub fn with_retry(
+  ConnectOptions,
+  retry: Timeout
+) -> ConnectOptions
 ```
 
 ### `with_tls_opts`
@@ -201,7 +265,10 @@ pub fn with_retry(gluegun/connection.ConnectOptions, retry: gluegun/connection.T
 Set TLS options for TLS or auto-transport connections.
 
 ```gleam
-pub fn with_tls_opts(gluegun/connection.ConnectOptions, tls_opts: gluegun/tls.TlsOptions) -> gluegun/connection.ConnectOptions
+pub fn with_tls_opts(
+  ConnectOptions,
+  tls_opts: tls.TlsOptions
+) -> ConnectOptions
 ```
 
 ### `with_transport`
@@ -209,5 +276,8 @@ pub fn with_tls_opts(gluegun/connection.ConnectOptions, tls_opts: gluegun/tls.Tl
 Set the transport Gun should use for a connection.
 
 ```gleam
-pub fn with_transport(gluegun/connection.ConnectOptions, transport: gluegun/connection.Transport) -> gluegun/connection.ConnectOptions
+pub fn with_transport(
+  ConnectOptions,
+  transport: Transport
+) -> ConnectOptions
 ```

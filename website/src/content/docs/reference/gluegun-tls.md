@@ -45,8 +45,22 @@ Typed TLS client options for Gun and Erlang SSL.
 
 SNI configuration for a TLS connection.
 
-- `Disable()`
-- `ServerName(String)`
+```gleam
+pub type ServerNameIndication {
+  Disable
+  ServerName(String)
+}
+```
+
+#### Constructors
+
+##### `Disable`
+
+Disable SNI for this connection.
+
+##### `ServerName(String)`
+
+Send the provided hostname as the SNI value.
 
 ### `TlsOptions`
 
@@ -58,21 +72,51 @@ Pure representation of TLS client options before FFI conversion.
  [the TLS guide](https://gluegun.tylerbutler.com/guides/tls/) for a
  production HTTPS baseline.
 
-
+```gleam
+pub type TlsOptions
+```
 
 ### `TlsVersion`
 
 Supported TLS protocol versions.
 
-- `TlsV12()`
-- `TlsV13()`
+```gleam
+pub type TlsVersion {
+  TlsV12
+  TlsV13
+}
+```
+
+#### Constructors
+
+##### `TlsV12`
+
+Allow TLS 1.2.
+
+##### `TlsV13`
+
+Allow TLS 1.3.
 
 ### `VerifyMode`
 
 TLS peer verification mode.
 
-- `VerifyPeer()`
-- `VerifyNone()`
+```gleam
+pub type VerifyMode {
+  VerifyPeer
+  VerifyNone
+}
+```
+
+#### Constructors
+
+##### `VerifyPeer`
+
+Verify the peer certificate chain and hostname.
+
+##### `VerifyNone`
+
+Disable peer certificate verification.
 
 ## Functions
 
@@ -81,7 +125,7 @@ TLS peer verification mode.
 Construct empty TLS options.
 
 ```gleam
-pub fn options() -> gluegun/tls.TlsOptions
+pub fn options() -> TlsOptions
 ```
 
 ### `with_cacertfile`
@@ -89,7 +133,10 @@ pub fn options() -> gluegun/tls.TlsOptions
 Set the path to a PEM CA bundle file.
 
 ```gleam
-pub fn with_cacertfile(gluegun/tls.TlsOptions, cacertfile: String) -> gluegun/tls.TlsOptions
+pub fn with_cacertfile(
+  TlsOptions,
+  cacertfile: String
+) -> TlsOptions
 ```
 
 ### `with_cacerts`
@@ -97,7 +144,10 @@ pub fn with_cacertfile(gluegun/tls.TlsOptions, cacertfile: String) -> gluegun/tl
 Set DER-encoded trusted CA certificates.
 
 ```gleam
-pub fn with_cacerts(gluegun/tls.TlsOptions, cacerts: List(BitArray)) -> gluegun/tls.TlsOptions
+pub fn with_cacerts(
+  TlsOptions,
+  cacerts: List(BitArray)
+) -> TlsOptions
 ```
 
 ### `with_certfile`
@@ -105,7 +155,10 @@ pub fn with_cacerts(gluegun/tls.TlsOptions, cacerts: List(BitArray)) -> gluegun/
 Set the path to the client certificate file.
 
 ```gleam
-pub fn with_certfile(gluegun/tls.TlsOptions, certfile: String) -> gluegun/tls.TlsOptions
+pub fn with_certfile(
+  TlsOptions,
+  certfile: String
+) -> TlsOptions
 ```
 
 ### `with_ciphers`
@@ -113,7 +166,10 @@ pub fn with_certfile(gluegun/tls.TlsOptions, certfile: String) -> gluegun/tls.Tl
 Set TLS cipher suite names.
 
 ```gleam
-pub fn with_ciphers(gluegun/tls.TlsOptions, ciphers: List(String)) -> gluegun/tls.TlsOptions
+pub fn with_ciphers(
+  TlsOptions,
+  ciphers: List(String)
+) -> TlsOptions
 ```
 
 ### `with_depth`
@@ -121,7 +177,10 @@ pub fn with_ciphers(gluegun/tls.TlsOptions, ciphers: List(String)) -> gluegun/tl
 Set the maximum certificate chain depth.
 
 ```gleam
-pub fn with_depth(gluegun/tls.TlsOptions, depth: Int) -> gluegun/tls.TlsOptions
+pub fn with_depth(
+  TlsOptions,
+  depth: Int
+) -> TlsOptions
 ```
 
 ### `with_keyfile`
@@ -129,7 +188,10 @@ pub fn with_depth(gluegun/tls.TlsOptions, depth: Int) -> gluegun/tls.TlsOptions
 Set the path to the client private key file.
 
 ```gleam
-pub fn with_keyfile(gluegun/tls.TlsOptions, keyfile: String) -> gluegun/tls.TlsOptions
+pub fn with_keyfile(
+  TlsOptions,
+  keyfile: String
+) -> TlsOptions
 ```
 
 ### `with_server_name_indication`
@@ -137,7 +199,10 @@ pub fn with_keyfile(gluegun/tls.TlsOptions, keyfile: String) -> gluegun/tls.TlsO
 Set the TLS SNI value, or disable it explicitly.
 
 ```gleam
-pub fn with_server_name_indication(gluegun/tls.TlsOptions, server_name_indication: gluegun/tls.ServerNameIndication) -> gluegun/tls.TlsOptions
+pub fn with_server_name_indication(
+  TlsOptions,
+  server_name_indication: ServerNameIndication
+) -> TlsOptions
 ```
 
 ### `with_verify`
@@ -145,7 +210,10 @@ pub fn with_server_name_indication(gluegun/tls.TlsOptions, server_name_indicatio
 Set the TLS peer verification mode.
 
 ```gleam
-pub fn with_verify(gluegun/tls.TlsOptions, verify: gluegun/tls.VerifyMode) -> gluegun/tls.TlsOptions
+pub fn with_verify(
+  TlsOptions,
+  verify: VerifyMode
+) -> TlsOptions
 ```
 
 ### `with_versions`
@@ -153,5 +221,8 @@ pub fn with_verify(gluegun/tls.TlsOptions, verify: gluegun/tls.VerifyMode) -> gl
 Set TLS protocol versions in preference order.
 
 ```gleam
-pub fn with_versions(gluegun/tls.TlsOptions, versions: List(gluegun/tls.TlsVersion)) -> gluegun/tls.TlsOptions
+pub fn with_versions(
+  TlsOptions,
+  versions: List(TlsVersion)
+) -> TlsOptions
 ```

@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Reference docs generator: port gleamoire''s rendering for nicer Gleam-formatted code blocks (typed variables as a/b/c, current-module qualifier elision, multi-line constructors and function params, sum-type blocks, deprecation admonitions).'
+time: 2026-05-21T15:14:58.35408-07:00
