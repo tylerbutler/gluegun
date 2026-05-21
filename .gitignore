@@ -3,6 +3,7 @@
 *.ez
 /build
 **/build
+/examples/*/dist
 erl_crash.dump
 
 # Coverage

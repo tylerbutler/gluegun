@@ -268,6 +268,7 @@ Available examples:
 - `streaming_download`: process response chunks and trailers as low-level message values arrive.
 - `websocket_echo`: connect to local WebSocket echo server and exchange one text frame.
 - `websocket_chat`: use scoped WebSocket lifecycle helpers for text and binary frame conversation.
+- `webprobe`: standalone CLI demo using `clip` and `argv` for argument parsing, `gleescript` for escript packaging, and Gluegun for HTTP diagnostics.
 
 Root maintenance commands cover all standalone example packages:
 
