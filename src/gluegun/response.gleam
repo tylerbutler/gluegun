@@ -14,6 +14,9 @@ pub type Informational {
 }
 
 /// Full HTTP response collected from a Gun stream.
+///
+/// Accessors: `status`, `headers`, `body`, `body_text`, `trailers`,
+/// `informational`. The body is held fully in memory.
 pub opaque type Response {
   Response(
     status: Int,
@@ -90,7 +93,10 @@ pub fn with_informational(
   Response(..response, informational: informational)
 }
 
-/// Decode a response body as UTF-8 text.
+/// Decode the collected response body as UTF-8 text.
+///
+/// Returns `DecodeError("Response body is not valid UTF-8")` if the bytes
+/// are not valid UTF-8. For binary responses use `body` directly.
 pub fn body_text(response: Response) -> Result(String, error.GluegunError) {
   response.body
   |> bit_array.to_string

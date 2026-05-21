@@ -49,6 +49,10 @@ pub opaque type Socket {
 }
 
 /// High-level options for opening and upgrading a WebSocket connection.
+///
+/// Build with `options()` then chain `with_headers`, `with_connect_options`,
+/// `with_upgrade_options`, and `with_timeout`. Defaults to HTTP/1.1; Gun's
+/// HTTP/2 protocol is rejected before upgrade.
 pub opaque type Options {
   Options(
     connect_options: connection.ConnectOptions,
@@ -59,6 +63,10 @@ pub opaque type Options {
 }
 
 /// Typed options for Gun WebSocket upgrades.
+///
+/// Build with `upgrade_options()` then chain `with_closing_timeout`,
+/// `with_compress`, `with_default_protocol`, `with_flow`, `with_keepalive`,
+/// `with_protocols`, `with_silence_pings`, etc.
 pub opaque type UpgradeOptions {
   UpgradeOptions(
     closing_timeout: Option(Timeout),
@@ -161,7 +169,17 @@ pub fn upgrade_options() -> UpgradeOptions {
   )
 }
 
-/// Open a connection, perform a WebSocket upgrade, and return a reusable socket.
+/// Open a Gun connection, perform a WebSocket upgrade, and return a reusable
+/// socket.
+///
+/// The connection is opened with the configured connect options, awaited up
+/// to readiness, then upgraded. If any step fails the underlying Gun
+/// connection is closed automatically. On success the caller owns the
+/// returned `Socket` and must eventually `send_close_frame` + `connection.close`
+/// (or use `with_socket` for scoped cleanup).
+///
+/// Defaults to HTTP/1.1; HTTP/2 is rejected with `UnsupportedFeature`
+/// because Gun does not support WebSocket over HTTP/2.
 pub fn connect(
   host host: String,
   port port: Int,
@@ -201,7 +219,13 @@ fn close_on_error(
   }
 }
 
-/// Open a WebSocket, run a callback, then close the WebSocket and connection.
+/// Open a WebSocket, run a callback, then send the close frame and close
+/// the underlying connection.
+///
+/// Scoped lifecycle helper. Use this when the WebSocket session is
+/// self-contained. The callback receives a reusable `Socket`. Errors from
+/// the callback take precedence over cleanup errors; cleanup is attempted
+/// even when the callback fails.
 pub fn with_socket(
   host host: String,
   port port: Int,
@@ -480,7 +504,8 @@ pub fn pong(socket: Socket, data: BitArray) -> Result(Nil, error.GluegunError) {
 /// Send a close WebSocket frame using a reusable socket.
 ///
 /// This only sends the close frame; it does not close the underlying Gun
-/// connection.
+/// connection. Follow with `connection.close(socket.connection)` or use
+/// `with_socket` for automatic teardown.
 pub fn send_close_frame(socket: Socket) -> Result(Nil, error.GluegunError) {
   send_frame(socket, message.Close)
 }

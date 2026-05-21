@@ -5,6 +5,10 @@ description: Open, use, and close WebSocket connections with Gluegun.
 
 Gun supports WebSocket over HTTP/1.1 only. Gluegun's high-level WebSocket options default to HTTP/1.1, and low-level upgrade helpers reject HTTP/2 before calling Gun.
 
+:::caution[HTTP/2 not supported]
+WebSocket over HTTP/2 (RFC 8441) is not supported by Gun. `websocket.connect`, `websocket.with_socket`, and `websocket.upgrade_with_protocol` all return `UnsupportedFeature` when the negotiated protocol is `Http2`. Constrain `connection.with_protocols` to `[Http1]` (the default for `websocket.options()`) or check the protocol returned by `connection.await_up` before upgrading.
+:::
+
 Use the reusable `Socket` API when you want explicit lifecycle control.
 
 ```gleam

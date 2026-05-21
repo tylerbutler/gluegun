@@ -3,6 +3,34 @@
 //// Gluegun keeps TLS configuration explicit instead of relying on Erlang's
 //// historical defaults. Use this module to opt into peer verification, pin
 //// TLS versions, configure CA bundles, or supply client certificate files.
+////
+//// ## Production HTTPS baseline
+////
+//// ```gleam
+//// import gluegun/connection
+//// import gluegun/tls
+////
+//// pub fn https_options(host: String) {
+////   let tls_opts =
+////     tls.options()
+////     |> tls.with_verify(verify: tls.VerifyPeer)
+////     |> tls.with_versions(versions: [tls.TlsV13, tls.TlsV12])
+////     |> tls.with_cacertfile(cacertfile: "/etc/ssl/cert.pem")
+////     |> tls.with_server_name_indication(
+////       server_name_indication: tls.ServerName(host),
+////     )
+////     |> tls.with_depth(depth: 10)
+////
+////   connection.options()
+////   |> connection.with_transport(transport: connection.Tls)
+////   |> connection.with_tls_opts(tls_opts: tls_opts)
+//// }
+//// ```
+////
+//// `VerifyPeer` enables certificate chain *and* hostname verification.
+//// `with_server_name_indication` sets the SNI value sent in the TLS
+//// ClientHello; hostname verification itself requires `VerifyPeer` plus
+//// trusted CA material (`with_cacerts` or `with_cacertfile`).
 
 import gleam/dynamic
 import gleam/erlang/atom
@@ -37,6 +65,12 @@ pub type ServerNameIndication {
 }
 
 /// Pure representation of TLS client options before FFI conversion.
+///
+/// Build with `options()` then chain `with_verify`, `with_versions`,
+/// `with_ciphers`, `with_cacerts`, `with_cacertfile`, `with_certfile`,
+/// `with_keyfile`, `with_server_name_indication`, and `with_depth`. See
+/// [the TLS guide](https://gluegun.tylerbutler.com/guides/tls/) for a
+/// production HTTPS baseline.
 pub opaque type TlsOptions {
   TlsOptions(
     verify: Option(dynamic.Dynamic),

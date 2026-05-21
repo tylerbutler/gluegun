@@ -22,7 +22,9 @@ import gluegun/tls
 pub type Transport {
   /// Let Gun choose TLS for TLS ports and TCP otherwise.
   Auto
+  /// Force plain TCP (no TLS). Use for `http://` endpoints.
   Tcp
+  /// Force TLS. Combine with `tls.with_*` builders for verification settings.
   Tls
 }
 
@@ -35,13 +37,17 @@ pub type Transport {
 /// before `Http1` when TLS + ALPN should prefer HTTP/2 and fall back to
 /// HTTP/1.1.
 pub type Protocol {
+  /// HTTP/1.1. Required for WebSocket upgrades.
   Http1
+  /// HTTP/2. Negotiated via ALPN when paired with TLS.
   Http2
 }
 
 /// Timeout or retry duration in milliseconds, or no limit.
 pub type Timeout {
+  /// A finite duration in milliseconds. Must be non-negative.
   Milliseconds(Int)
+  /// No upper bound. Wait indefinitely.
   Infinity
 }
 
@@ -50,6 +56,10 @@ pub type Connection =
   internal.Connection
 
 /// Pure representation of connection options before FFI conversion.
+///
+/// Build with `options()` then chain `with_transport`, `with_protocols`,
+/// `with_retry`, `with_connect_timeout`, and `with_tls_opts`. Pass the
+/// result to `open(host:, port:)`.
 pub opaque type ConnectOptions {
   ConnectOptions(
     transport: Transport,
@@ -138,7 +148,15 @@ pub fn tls_opts(options: ConnectOptions) -> Option(tls.TlsOptions) {
   options.tls_opts
 }
 
-/// Open a Gun connection.
+/// Open a Gun connection to `host:port`.
+///
+/// Returns immediately with a `Connection` handle; the underlying TCP/TLS
+/// handshake completes asynchronously. Call `await_up` before sending any
+/// request or WebSocket upgrade.
+///
+/// Errors:
+/// - `InvalidOptions` — Gun rejected the converted options.
+/// - `ErlangError` — Gun could not spawn the connection process.
 pub fn open(
   options: ConnectOptions,
   host host: String,
@@ -149,7 +167,15 @@ pub fn open(
   |> result.map_error(error.decode_ffi_error)
 }
 
-/// Wait until a Gun connection is up.
+/// Wait until a Gun connection is up and return the negotiated protocol.
+///
+/// Call after `open` and before any request, WebSocket upgrade, or close.
+/// Blocks the caller process until Gun reports readiness or `timeout` elapses.
+///
+/// Errors:
+/// - `Timeout` — Gun did not report ready within `timeout`.
+/// - `ConnectionDown` / `ConnectionError` — handshake failed.
+/// - `DecodeError` — Gun returned an unrecognized protocol atom.
 pub fn await_up(
   connection: Connection,
   timeout: Timeout,
@@ -172,13 +198,20 @@ pub fn decode_await_up_result(
   })
 }
 
-/// Close a Gun connection.
+/// Close a Gun connection cleanly.
+///
+/// Sends Gun's shutdown signal and waits for the process to exit. Safe to
+/// call once per connection. Outstanding streams are cancelled.
 pub fn close(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_close(internal.connection_raw(connection))
   |> ffi_result.decode_nil_result
 }
 
-/// Shut down a Gun connection.
+/// Shut down a Gun connection immediately.
+///
+/// Terminates the Gun process without waiting for graceful close. Prefer
+/// `close` for normal teardown; use `shutdown` when the connection is
+/// suspected stuck.
 pub fn shutdown(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_shutdown(internal.connection_raw(connection))
   |> ffi_result.decode_nil_result

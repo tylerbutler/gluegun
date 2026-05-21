@@ -22,6 +22,9 @@ Informational `1xx` response represented by status and headers.
 
 Full HTTP response collected from a Gun stream.
 
+ Accessors: `status`, `headers`, `body`, `body_text`, `trailers`,
+ `informational`. The body is held fully in memory.
+
 
 
 ## Functions
@@ -36,7 +39,10 @@ pub fn body(gluegun/response.Response) -> BitArray
 
 ### `body_text`
 
-Decode a response body as UTF-8 text.
+Decode the collected response body as UTF-8 text.
+
+ Returns `DecodeError("Response body is not valid UTF-8")` if the bytes
+ are not valid UTF-8. For binary responses use `body` directly.
 
 ```gleam
 pub fn body_text(gluegun/response.Response) -> Result(String, gluegun/error.GluegunError)
@@ -58,14 +64,6 @@ Return informational `1xx` responses received before the final response.
 pub fn informational(gluegun/response.Response) -> List(gluegun/response.Informational)
 ```
 
-### `new`
-
-Construct a response without informational responses.
-
-```gleam
-pub fn new(status: Int, headers: List(#(String, String)), body: BitArray, trailers: List(#(String, String))) -> gluegun/response.Response
-```
-
 ### `status`
 
 Return the final response status.
@@ -80,28 +78,4 @@ Return response trailers.
 
 ```gleam
 pub fn trailers(gluegun/response.Response) -> List(#(String, String))
-```
-
-### `with_body`
-
-Return a response with a replaced body.
-
-```gleam
-pub fn with_body(gluegun/response.Response, body: BitArray) -> gluegun/response.Response
-```
-
-### `with_informational`
-
-Return a response with replaced informational responses.
-
-```gleam
-pub fn with_informational(gluegun/response.Response, informational: List(gluegun/response.Informational)) -> gluegun/response.Response
-```
-
-### `with_trailers`
-
-Return a response with replaced trailers.
-
-```gleam
-pub fn with_trailers(gluegun/response.Response, trailers: List(#(String, String))) -> gluegun/response.Response
 ```

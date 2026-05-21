@@ -122,7 +122,7 @@ pub fn await_up(
   connection.await_up(conn, timeout)
 }
 
-/// Construct a collected HTTP request command.
+/// Construct a `Request` builder.
 pub fn new_request(
   method: low_request.Method,
   path: String,
@@ -130,7 +130,7 @@ pub fn new_request(
   http_client.new(method, path)
 }
 
-/// Send a collected HTTP request command.
+/// Send a `Request` on an open connection.
 pub fn send(
   request: http_client.Request,
   connection connection: Connection,

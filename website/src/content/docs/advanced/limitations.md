@@ -9,7 +9,11 @@ Gluegun wraps Erlang Gun and is not available on the JavaScript target.
 
 ## Connection ownership matters
 
-Gun process ownership matters. Requests and WebSocket frames are asynchronous messages sent to the process that owns or awaits the Gun stream unless request options redirect replies.
+Gun process ownership matters. Requests and WebSocket frames are asynchronous messages sent to the process that owns or awaits the Gun stream unless request options redirect replies. The high-level `client` helpers consume those messages on the calling process for the duration of `send` and then return; they do not spawn a separate consumer.
+
+## `close` versus `shutdown`
+
+Use `connection.close` for normal teardown — Gun sends its shutdown signal and waits for the process to exit. Use `connection.shutdown` only when a connection is suspected stuck; it terminates the Gun process immediately without graceful close. Outstanding streams are cancelled in either case.
 
 ## High-level client helpers collect bodies in memory
 

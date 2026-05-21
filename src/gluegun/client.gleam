@@ -1,13 +1,14 @@
 //// High-level HTTP helpers for existing Gun connections.
 ////
-//// These helpers collect regular HTTP/1.1 and HTTP/2 responses into
-//// `response.Response`.
-//// Informational `1xx` responses are preserved and can be inspected with
-//// `response.informational`.
-//// Protocol messages for server push, upgrades, and WebSockets are rejected with
-//// `InvalidMessage`; use the lower-level `gluegun/message` API for those flows.
-//// Full response bodies are collected in memory; use the lower-level APIs for
-//// streaming or very large responses.
+//// These helpers collect a full HTTP/1.1 or HTTP/2 response — status,
+//// headers, body, trailers, and any informational `1xx` responses — into a
+//// `response.Response`. The body is held fully in memory; use the lower-level
+//// `gluegun/request` and `gluegun/message` APIs for streaming or very large
+//// responses.
+////
+//// Protocol messages for server push, upgrades, and WebSockets are rejected
+//// with `InvalidMessage`. Use the lower-level `gluegun/message` API for
+//// those flows.
 
 import gleam/bit_array
 import gleam/list
@@ -19,7 +20,7 @@ import gluegun/message.{type Message}
 import gluegun/request as low_request
 import gluegun/response.{type Informational, type Response}
 
-/// A collected HTTP request command.
+/// A buildable HTTP request: method, path, headers, body, options, and timeout.
 pub opaque type Request {
   Request(
     method: low_request.Method,
@@ -60,7 +61,7 @@ type Step {
   Done(Response)
 }
 
-/// Construct a collected HTTP request command.
+/// Start a new `Request` builder with the given method and path.
 pub fn new(method: low_request.Method, path: String) -> Request {
   Request(
     method: method,
@@ -115,7 +116,7 @@ pub fn with_timeout(request: Request, timeout timeout: Timeout) -> Request {
   Request(..request, timeout: timeout)
 }
 
-/// Inspect a request command.
+/// Inspect a built `Request`. Intended for deterministic tests.
 @internal
 pub fn inspect_request(request: Request) -> RequestFields {
   RequestFields(
@@ -128,7 +129,7 @@ pub fn inspect_request(request: Request) -> RequestFields {
   )
 }
 
-/// Send a collected HTTP request command on an open connection.
+/// Send a built `Request` on an open connection and collect the response.
 pub fn send(
   request: Request,
   connection connection: Connection,

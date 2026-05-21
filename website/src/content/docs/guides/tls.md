@@ -9,7 +9,23 @@ Gluegun exposes Erlang SSL client options through `gluegun/tls`.
 
 Gluegun does **not** enable peer verification by default. This follows Gun and Erlang SSL's historical default of `verify_none` for backward compatibility.
 
-For production TLS connections, set `tls.with_verify(verify: tls.VerifyPeer)`, provide trusted CA certificates, and set `tls.with_server_name_indication` to the hostname you expect. `VerifyPeer` validates the certificate chain; SNI is what enables hostname verification too.
+For production TLS connections, set `tls.with_verify(verify: tls.VerifyPeer)`, provide trusted CA certificates, and set `tls.with_server_name_indication` to the hostname you expect. `VerifyPeer` enables both certificate chain *and* hostname verification — but only when paired with trusted CA material (`with_cacerts` or `with_cacertfile`). `with_server_name_indication` sets the SNI value sent in the TLS ClientHello; it does not enable verification by itself.
+
+## Full typed option surface
+
+`gluegun/tls` exposes the following typed builders. Combine as needed; all default to off until set:
+
+| Builder | Effect |
+|---|---|
+| `with_verify(VerifyPeer\|VerifyNone)` | Peer chain + hostname verification |
+| `with_versions([TlsV12, TlsV13])` | Pin allowed TLS versions |
+| `with_ciphers([...])` | Set allowed cipher suite names |
+| `with_cacerts([DER...])` | DER-encoded trusted CAs |
+| `with_cacertfile("/path/ca.pem")` | PEM CA bundle path |
+| `with_certfile("/path/client.pem")` | Client cert (mTLS) |
+| `with_keyfile("/path/client.key")` | Client private key (mTLS) |
+| `with_server_name_indication(ServerName\|Disable)` | SNI value |
+| `with_depth(N)` | Maximum certificate chain depth |
 
 ## Recommended production baseline
 

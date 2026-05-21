@@ -23,7 +23,18 @@ test("generates reference index and module pages from Gleam docs JSON", async ()
 						"",
 						" Open a Gun process.",
 					],
-					"type-aliases": {},
+					"type-aliases": {
+						Header: {
+							documentation: " HTTP header tuple.\n",
+							alias: {
+								kind: "tuple",
+								elements: [
+									{ kind: "named", name: "String", package: "", module: "gleam", parameters: [] },
+									{ kind: "named", name: "String", package: "", module: "gleam", parameters: [] },
+								],
+							},
+						},
+					},
 					types: {
 						Protocol: {
 							documentation: " Negotiated protocol.\n",
@@ -85,6 +96,8 @@ test("generates reference index and module pages from Gleam docs JSON", async ()
 		assert.match(modulePage, /title: gluegun\/connection/);
 		assert.match(modulePage, /## Types/);
 		assert.match(modulePage, /`Http\(\)`/);
+		assert.match(modulePage, /## Type aliases/);
+		assert.match(modulePage, /pub type Header = #\(String, String\)/);
 		assert.match(modulePage, /## Functions/);
 		assert.match(
 			modulePage,
