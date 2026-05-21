@@ -214,6 +214,43 @@ pub fn tls_tests() {
       )
     }),
 
+    it("skips SNI when host is a bracketed IPv6 literal", fn() {
+      let opts =
+        connection.options()
+        |> connection.with_transport(transport: connection.Tls)
+        |> connection.options_to_ffi
+
+      gluegun_ffi_test_secure_tls_opts("[::1]", opts)
+      |> expect.to_equal(
+        dict.from_list([
+          #("verify", dynamic.string("verify_peer")),
+          #(
+            "versions",
+            dynamic.list([dynamic.string("tlsv1.3"), dynamic.string("tlsv1.2")]),
+          ),
+          #("depth", dynamic.int(10)),
+          #("sni", atom.to_dynamic(atom.create("undefined"))),
+          #("has_cacerts", dynamic.bool(True)),
+          #("has_hostname_check", dynamic.bool(True)),
+        ]),
+      )
+
+      gluegun_ffi_test_secure_tls_opts("[2001:db8::1]", opts)
+      |> expect.to_equal(
+        dict.from_list([
+          #("verify", dynamic.string("verify_peer")),
+          #(
+            "versions",
+            dynamic.list([dynamic.string("tlsv1.3"), dynamic.string("tlsv1.2")]),
+          ),
+          #("depth", dynamic.int(10)),
+          #("sni", atom.to_dynamic(atom.create("undefined"))),
+          #("has_cacerts", dynamic.bool(True)),
+          #("has_hostname_check", dynamic.bool(True)),
+        ]),
+      )
+    }),
+
     it("applies the secure baseline for Auto transport too", fn() {
       let opts =
         connection.options()
