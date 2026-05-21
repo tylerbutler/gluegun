@@ -44,7 +44,7 @@ pub fn main() {
 
 fn upload_chunks(conn, timeout) {
   case
-    request.headers(
+    request.start_stream(
       conn,
       request.Post,
       path,
@@ -137,5 +137,6 @@ fn error_to_string(err: error.GluegunError) -> String {
     error.InvalidMessage(reason) -> "invalid message: " <> reason
     error.ErlangError(reason) -> "erlang error: " <> reason
     error.DecodeError(reason) -> "decode error: " <> reason
+    error.UnsupportedFeature(reason) -> "unsupported feature: " <> reason
   }
 }
