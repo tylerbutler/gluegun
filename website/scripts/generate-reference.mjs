@@ -101,49 +101,127 @@ function code(value) {
 	return `\`${String(value).replaceAll("`", "\\`")}\``;
 }
 
-function renderType(type) {
+const VARIABLE_ANCHOR_CODE = "a".charCodeAt(0);
+
+// Port of gleamoire's render.gleam type-variable naming: 0 -> "a", 1 -> "b", ...
+function variableSymbol(id) {
+	const code = VARIABLE_ANCHOR_CODE + (Number.isInteger(id) ? id : 0);
+	return String.fromCharCode(code);
+}
+
+function renderTypeParameters(count) {
+	if (!Number.isInteger(count) || count <= 0) {
+		return "";
+	}
+	const vars = [];
+	for (let i = 0; i < count; i++) {
+		vars.push(variableSymbol(i));
+	}
+	return `(${vars.join(", ")})`;
+}
+
+// Mirrors gleamoire's render_type: omits the qualifier for prelude types
+// (module "gleam") and for types declared in the current module, and uses
+// only the last segment of the module path otherwise.
+function renderType(type, currentModule) {
 	if (!type || typeof type !== "object") {
 		return "Unknown";
 	}
 
 	switch (type.kind) {
 		case "named": {
-			const base =
-				type.module && type.module !== "gleam"
-					? `${type.module}.${type.name}`
-					: type.name;
+			let qualifier = "";
+			if (type.module && type.module !== "gleam" && type.module !== currentModule) {
+				const segments = type.module.split("/");
+				qualifier = `${segments[segments.length - 1]}.`;
+			}
 			const parameters =
 				Array.isArray(type.parameters) && type.parameters.length > 0
-					? `(${type.parameters.map(renderType).join(", ")})`
+					? `(${type.parameters.map((t) => renderType(t, currentModule)).join(", ")})`
 					: "";
-			return `${base}${parameters}`;
+			return `${qualifier}${type.name}${parameters}`;
 		}
 		case "fn": {
 			const parameters = Array.isArray(type.parameters)
-				? type.parameters.map(renderType).join(", ")
+				? type.parameters.map((t) => renderType(t, currentModule)).join(", ")
 				: "";
-			return `fn(${parameters}) -> ${renderType(type.return)}`;
+			return `fn(${parameters}) -> ${renderType(type.return, currentModule)}`;
 		}
 		case "tuple":
-			return `#(${(type.elements || []).map(renderType).join(", ")})`;
+			return `#(${(type.elements || []).map((t) => renderType(t, currentModule)).join(", ")})`;
 		case "variable":
-			return type.name || "a";
+			return variableSymbol(type.id ?? 0);
 		default:
 			return type.name || type.kind || "Unknown";
 	}
 }
 
-function renderParameters(parameters) {
+function renderParameter(parameter, currentModule) {
+	const label = parameter.label ? `${parameter.label}: ` : "";
+	return `${label}${renderType(parameter.type, currentModule)}`;
+}
+
+// Constructors and functions render inline for 0–1 parameters and break onto
+// multiple lines for 2+ parameters, matching gleamoire.
+function renderConstructor(constructor, currentModule) {
+	const parameters = constructor.parameters || constructor.arguments || [];
+	if (parameters.length === 0) {
+		return constructor.name;
+	}
+	if (parameters.length === 1) {
+		return `${constructor.name}(${renderParameter(parameters[0], currentModule)})`;
+	}
+	const rendered = parameters
+		.map((p) => renderParameter(p, currentModule))
+		.join(",\n  ");
+	return `${constructor.name}(\n  ${rendered}\n)`;
+}
+
+function renderFunctionSignature(name, parameters, returnType, currentModule) {
+	let rendered;
 	if (!Array.isArray(parameters) || parameters.length === 0) {
+		rendered = "()";
+	} else if (parameters.length === 1) {
+		rendered = `(${renderParameter(parameters[0], currentModule)})`;
+	} else {
+		const params = parameters
+			.map((p) => renderParameter(p, currentModule))
+			.join(",\n  ");
+		rendered = `(\n  ${params}\n)`;
+	}
+	const ret = returnType ? renderType(returnType, currentModule) : "Nil";
+	return `pub fn ${name}${rendered} -> ${ret}`;
+}
+
+function renderTypeDefinition(name, typeDef, currentModule) {
+	const params = renderTypeParameters(typeDef.parameters || 0);
+	const constructors = normalizeConstructors(typeDef.constructors);
+	if (constructors.length === 0) {
+		return `pub type ${name}${params}`;
+	}
+	const body = constructors
+		.map((c) => `  ${renderConstructor(c, currentModule).replaceAll("\n", "\n  ")}`)
+		.join("\n");
+	return `pub type ${name}${params} {\n${body}\n}`;
+}
+
+function renderAliasDefinition(name, alias, currentModule) {
+	const params = renderTypeParameters(alias.parameters || 0);
+	const aliasType = alias.alias ?? alias.type;
+	return `pub type ${name}${params} = ${renderType(aliasType, currentModule)}`;
+}
+
+function renderConstantDefinition(name, constant, currentModule) {
+	return `pub const ${name}: ${renderType(constant.type, currentModule)}`;
+}
+
+function deprecationBlock(deprecation) {
+	if (!deprecation || typeof deprecation !== "object") {
 		return "";
 	}
-
-	return parameters
-		.map((parameter) => {
-			const label = parameter.label ? `${parameter.label}: ` : "";
-			return `${label}${renderType(parameter.type)}`;
-		})
-		.join(", ");
+	const message = (deprecation.message || "").trim();
+	const body = message.length > 0 ? message : "This item has been deprecated.";
+	return `\n\n:::caution[Deprecated]\n${body}\n:::`;
 }
 
 function renderIndex(packageInterface, modules) {
@@ -187,10 +265,10 @@ function renderModulePage(moduleName, moduleInterface) {
 		`Reference for ${moduleName}.`,
 	);
 	const sections = [
-		renderTypes(moduleInterface.types),
-		renderTypeAliases(moduleInterface["type-aliases"]),
-		renderConstants(moduleInterface.constants),
-		renderFunctions(moduleInterface.functions),
+		renderTypes(moduleInterface.types, moduleName),
+		renderTypeAliases(moduleInterface["type-aliases"], moduleName),
+		renderConstants(moduleInterface.constants, moduleName),
+		renderFunctions(moduleInterface.functions, moduleName),
 	].filter(Boolean);
 
 	return `---
@@ -206,7 +284,7 @@ ${sections.join("\n\n")}
 `;
 }
 
-function renderTypes(types) {
+function renderTypes(types, moduleName) {
 	const entries = Object.entries(types || {}).sort(([left], [right]) =>
 		left.localeCompare(right),
 	);
@@ -217,21 +295,16 @@ function renderTypes(types) {
 	return [
 		"## Types",
 		...entries.map(([name, typeInterface]) => {
-			const constructors = normalizeConstructors(typeInterface.constructors)
-				.map((constructor) => {
-					const parameters = constructor.parameters || constructor.arguments || [];
-					const parametersText = parameters
-						.map((parameter) => renderType(parameter.type))
-						.join(", ");
-					return `- ${code(`${constructor.name}(${parametersText})`)}`;
-				})
-				.join("\n");
 			const docs = normalizeDoc(typeInterface.documentation);
+			const deprecation = deprecationBlock(typeInterface.deprecation);
+			const definition = renderTypeDefinition(name, typeInterface, moduleName);
 			return `### ${code(name)}
 
-${docs}
+${docs}${deprecation}
 
-${constructors}`;
+\`\`\`gleam
+${definition}
+\`\`\``;
 		}),
 	].join("\n\n");
 }
@@ -245,7 +318,7 @@ function normalizeConstructors(constructors) {
 		.map(([name, constructor]) => ({ name, ...constructor }));
 }
 
-function renderTypeAliases(typeAliases) {
+function renderTypeAliases(typeAliases, moduleName) {
 	const entries = Object.entries(typeAliases || {}).sort(([left], [right]) =>
 		left.localeCompare(right),
 	);
@@ -257,19 +330,19 @@ function renderTypeAliases(typeAliases) {
 		"## Type aliases",
 		...entries.map(([name, alias]) => {
 			const docs = normalizeDoc(alias.documentation);
-			const aliasType = alias.alias ?? alias.type;
+			const deprecation = deprecationBlock(alias.deprecation);
 			return `### ${code(name)}
 
-${docs}
+${docs}${deprecation}
 
 \`\`\`gleam
-pub type ${name} = ${renderType(aliasType)}
+${renderAliasDefinition(name, alias, moduleName)}
 \`\`\``;
 		}),
 	].join("\n\n");
 }
 
-function renderConstants(constants) {
+function renderConstants(constants, moduleName) {
 	const entries = Object.entries(constants || {}).sort(([left], [right]) =>
 		left.localeCompare(right),
 	);
@@ -281,18 +354,19 @@ function renderConstants(constants) {
 		"## Constants",
 		...entries.map(([name, constant]) => {
 			const docs = normalizeDoc(constant.documentation);
+			const deprecation = deprecationBlock(constant.deprecation);
 			return `### ${code(name)}
 
-${docs}
+${docs}${deprecation}
 
 \`\`\`gleam
-pub const ${name}: ${renderType(constant.type)}
+${renderConstantDefinition(name, constant, moduleName)}
 \`\`\``;
 		}),
 	].join("\n\n");
 }
 
-function renderFunctions(functions) {
+function renderFunctions(functions, moduleName) {
 	const entries = Object.entries(functions || {}).sort(([left], [right]) =>
 		left.localeCompare(right),
 	);
@@ -304,13 +378,19 @@ function renderFunctions(functions) {
 		"## Functions",
 		...entries.map(([name, functionInterface]) => {
 			const docs = normalizeDoc(functionInterface.documentation);
-			const parameters = renderParameters(functionInterface.parameters);
+			const deprecation = deprecationBlock(functionInterface.deprecation);
+			const signature = renderFunctionSignature(
+				name,
+				functionInterface.parameters,
+				functionInterface.return,
+				moduleName,
+			);
 			return `### ${code(name)}
 
-${docs}
+${docs}${deprecation}
 
 \`\`\`gleam
-pub fn ${name}(${parameters}) -> ${renderType(functionInterface.return)}
+${signature}
 \`\`\``;
 		}),
 	].join("\n\n");

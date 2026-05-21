@@ -16,7 +16,14 @@ HTTP response values collected by `gluegun/client`.
 
 Informational `1xx` response represented by status and headers.
 
-- `Informational(Int, List(#(String, String)))`
+```gleam
+pub type Informational {
+  Informational(
+    status: Int,
+    headers: List(#(String, String))
+  )
+}
+```
 
 ### `Response`
 
@@ -25,7 +32,9 @@ Full HTTP response collected from a Gun stream.
  Accessors: `status`, `headers`, `body`, `body_text`, `trailers`,
  `informational`. The body is held fully in memory.
 
-
+```gleam
+pub type Response
+```
 
 ## Functions
 
@@ -34,7 +43,7 @@ Full HTTP response collected from a Gun stream.
 Return the full collected response body.
 
 ```gleam
-pub fn body(gluegun/response.Response) -> BitArray
+pub fn body(Response) -> BitArray
 ```
 
 ### `body_text`
@@ -45,7 +54,7 @@ Decode the collected response body as UTF-8 text.
  are not valid UTF-8. For binary responses use `body` directly.
 
 ```gleam
-pub fn body_text(gluegun/response.Response) -> Result(String, gluegun/error.GluegunError)
+pub fn body_text(Response) -> Result(String, error.GluegunError)
 ```
 
 ### `headers`
@@ -53,7 +62,7 @@ pub fn body_text(gluegun/response.Response) -> Result(String, gluegun/error.Glue
 Return final response headers.
 
 ```gleam
-pub fn headers(gluegun/response.Response) -> List(#(String, String))
+pub fn headers(Response) -> List(#(String, String))
 ```
 
 ### `informational`
@@ -61,7 +70,7 @@ pub fn headers(gluegun/response.Response) -> List(#(String, String))
 Return informational `1xx` responses received before the final response.
 
 ```gleam
-pub fn informational(gluegun/response.Response) -> List(gluegun/response.Informational)
+pub fn informational(Response) -> List(Informational)
 ```
 
 ### `status`
@@ -69,7 +78,7 @@ pub fn informational(gluegun/response.Response) -> List(gluegun/response.Informa
 Return the final response status.
 
 ```gleam
-pub fn status(gluegun/response.Response) -> Int
+pub fn status(Response) -> Int
 ```
 
 ### `trailers`
@@ -77,5 +86,5 @@ pub fn status(gluegun/response.Response) -> Int
 Return response trailers.
 
 ```gleam
-pub fn trailers(gluegun/response.Response) -> List(#(String, String))
+pub fn trailers(Response) -> List(#(String, String))
 ```

@@ -21,12 +21,16 @@ Errors returned by Gluegun connection, request, message, and WebSocket APIs.
  `ErlangError` / `DecodeError`, which can occur when Gun returns shapes
  Gluegun cannot normalize.
 
-- `Timeout()`
-- `ConnectionDown(String)`
-- `ConnectionError(String)`
-- `StreamError(String)`
-- `InvalidOptions(String)`
-- `InvalidMessage(String)`
-- `UnsupportedFeature(String)`
-- `ErlangError(String)`
-- `DecodeError(String)`
+```gleam
+pub type GluegunError {
+  Timeout
+  ConnectionDown(String)
+  ConnectionError(String)
+  StreamError(String)
+  InvalidOptions(String)
+  InvalidMessage(String)
+  UnsupportedFeature(String)
+  ErlangError(String)
+  DecodeError(String)
+}
+```
