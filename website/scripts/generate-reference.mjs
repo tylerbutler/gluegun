@@ -1,3 +1,12 @@
+// Generates the Starlight reference pages under
+// src/content/docs/reference/ from Gleam's package-interface.json.
+//
+// The Gleam-formatted code blocks (type-variable naming, current-module
+// qualifier elision, multi-line constructors and function params, sum-type
+// blocks, deprecation notices) are ported from gleamoire's render.gleam:
+//   https://github.com/GearsDatapacks/gleamoire (Apache-2.0)
+// Many thanks to the gleamoire authors.
+
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
