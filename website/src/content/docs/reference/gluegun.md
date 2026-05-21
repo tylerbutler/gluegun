@@ -37,12 +37,36 @@ Construct default connection options.
 pub fn connection_options() -> gluegun/connection.ConnectOptions
 ```
 
+### `method_to_string`
+
+Convert a request method to an HTTP method string.
+
+```gleam
+pub fn method_to_string(gluegun/request.Method) -> String
+```
+
+### `name`
+
+Return the package name.
+
+```gleam
+pub fn name() -> String
+```
+
 ### `new_request`
 
-Construct a collected HTTP request command.
+Construct a `Request` builder.
 
 ```gleam
 pub fn new_request(gluegun/request.Method, String) -> gluegun/client.Request
+```
+
+### `normalize_headers`
+
+Normalize header names for Gun.
+
+```gleam
+pub fn normalize_headers(List(#(String, String))) -> List(#(String, String))
 ```
 
 ### `open`
@@ -53,9 +77,17 @@ Open a Gun connection.
 pub fn open(gluegun/connection.ConnectOptions, host: String, port: Int) -> Result(gluegun/internal.Connection, gluegun/error.GluegunError)
 ```
 
+### `response`
+
+Construct a collected HTTP response.
+
+```gleam
+pub fn response(status: Int, headers: List(#(String, String)), body: BitArray, trailers: List(#(String, String))) -> gluegun/response.Response
+```
+
 ### `send`
 
-Send a collected HTTP request command.
+Send a `Request` on an open connection.
 
 ```gleam
 pub fn send(gluegun/client.Request, connection: gluegun/internal.Connection) -> Result(gluegun/response.Response, gluegun/error.GluegunError)

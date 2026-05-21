@@ -35,6 +35,9 @@ HTTP request method constructors.
 
 Request options passed through the low-level request API.
 
+ Build with `options()` then chain `with_headers` or `add_headers` for
+ option-level headers that apply to every call.
+
 
 
 ## Type aliases
@@ -44,7 +47,7 @@ Request options passed through the low-level request API.
 HTTP header represented as `#(name, value)`.
 
 ```gleam
-pub type Header = Unknown
+pub type Header = #(String, String)
 ```
 
 ### `Stream`
@@ -52,7 +55,7 @@ pub type Header = Unknown
 Opaque handle for a Gun request stream.
 
 ```gleam
-pub type Stream = Unknown
+pub type Stream = gluegun/internal.Stream
 ```
 
 ## Functions
@@ -67,7 +70,11 @@ pub fn add_headers(gluegun/request.RequestOptions, headers: List(#(String, Strin
 
 ### `cancel`
 
-Cancel a request stream.
+Cancel an in-flight request stream.
+
+ Sends a reset/cancel to Gun. The connection remains usable for new
+ streams. Pending response messages for the cancelled stream may still
+ arrive briefly and should be drained.
 
 ```gleam
 pub fn cancel(gluegun/internal.Connection, gluegun/internal.Stream) -> Result(Nil, gluegun/error.GluegunError)
@@ -75,7 +82,11 @@ pub fn cancel(gluegun/internal.Connection, gluegun/internal.Stream) -> Result(Ni
 
 ### `data`
 
-Stream request body data for a request.
+Send a chunk of request body data on an open stream.
+
+ Pass `fin.NoFin` for intermediate chunks and `fin.Fin` for the last
+ chunk. After sending the final chunk the request body is closed, but the
+ stream remains open for response messages.
 
 ```gleam
 pub fn data(gluegun/internal.Connection, gluegun/internal.Stream, gluegun/fin.Fin, BitArray) -> Result(Nil, gluegun/error.GluegunError)
@@ -83,7 +94,10 @@ pub fn data(gluegun/internal.Connection, gluegun/internal.Stream, gluegun/fin.Fi
 
 ### `flush`
 
-Flush Gun messages for a connection.
+Discard buffered Gun messages currently queued for the calling process.
+
+ Useful after `cancel` or when recovering from an aborted flow. Returns
+ `Ok(Nil)` even when no messages were buffered.
 
 ```gleam
 pub fn flush(gluegun/internal.Connection) -> Result(Nil, gluegun/error.GluegunError)
@@ -109,8 +123,12 @@ pub fn options() -> gluegun/request.RequestOptions
 
 Send a low-level HTTP request on an open Gun connection.
 
- This returns a stream reference. Use `gluegun/client` helpers to collect a
- regular HTTP response into a `Response`.
+ Returns a stream reference; response messages are delivered asynchronously
+ to the calling process (unless Gun options redirect replies). Use
+ `gluegun/message.await` / `await_body` to consume them, or use
+ `gluegun/client` helpers to collect a regular response.
+
+ Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.
 
 ```gleam
 pub fn request(gluegun/internal.Connection, gluegun/request.Method, String, List(#(String, String)), BitArray, gluegun/request.RequestOptions) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)
@@ -118,11 +136,18 @@ pub fn request(gluegun/internal.Connection, gluegun/request.Method, String, List
 
 ### `start_stream`
 
-Start a low-level HTTP request whose body will be streamed later.
+Start a low-level HTTP request whose body will be streamed in chunks.
 
- The caller must send request body chunks with `data(..., fin.NoFin, ...)` and
- complete the request with `data(..., fin.Fin, ...)`. Gun response messages go to
- the calling process by default unless Gun request options redirect replies.
+ Send zero or more body chunks with `data(..., fin.NoFin, ...)`, then
+ terminate the request with a final `data(..., fin.Fin, ...)` (which may
+ carry an empty `BitArray` if there is no trailing payload). The stream
+ remains open for response messages either way.
+
+ Gun response messages are delivered to the calling process by default;
+ pass an option to redirect via Gun's `reply_to` if you need another
+ process to consume them.
+
+ Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.
 
 ```gleam
 pub fn start_stream(gluegun/internal.Connection, gluegun/request.Method, String, List(#(String, String)), gluegun/request.RequestOptions) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)

@@ -17,6 +17,10 @@ Connection management for Erlang Gun.
 
 Pure representation of connection options before FFI conversion.
 
+ Build with `options()` then chain `with_transport`, `with_protocols`,
+ `with_retry`, `with_connect_timeout`, and `with_tls_opts`. Pass the
+ result to `open(host:, port:)`.
+
 
 
 ### `Protocol`
@@ -58,14 +62,22 @@ Transport selection for a Gun connection.
 Opaque handle for an open Gun connection.
 
 ```gleam
-pub type Connection = Unknown
+pub type Connection = gluegun/internal.Connection
 ```
 
 ## Functions
 
 ### `await_up`
 
-Wait until a Gun connection is up.
+Wait until a Gun connection is up and return the negotiated protocol.
+
+ Call after `open` and before any request, WebSocket upgrade, or close.
+ Blocks the caller process until Gun reports readiness or `timeout` elapses.
+
+ Errors:
+ - `Timeout` — Gun did not report ready within `timeout`.
+ - `ConnectionDown` / `ConnectionError` — handshake failed.
+ - `DecodeError` — Gun returned an unrecognized protocol atom.
 
 ```gleam
 pub fn await_up(gluegun/internal.Connection, gluegun/connection.Timeout) -> Result(gluegun/connection.Protocol, gluegun/error.GluegunError)
@@ -73,7 +85,10 @@ pub fn await_up(gluegun/internal.Connection, gluegun/connection.Timeout) -> Resu
 
 ### `close`
 
-Close a Gun connection.
+Close a Gun connection cleanly.
+
+ Sends Gun's shutdown signal and waits for the process to exit. Safe to
+ call once per connection. Outstanding streams are cancelled.
 
 ```gleam
 pub fn close(gluegun/internal.Connection) -> Result(Nil, gluegun/error.GluegunError)
@@ -89,7 +104,15 @@ pub fn connect_timeout(gluegun/connection.ConnectOptions) -> gluegun/connection.
 
 ### `open`
 
-Open a Gun connection.
+Open a Gun connection to `host:port`.
+
+ Returns immediately with a `Connection` handle; the underlying TCP/TLS
+ handshake completes asynchronously. Call `await_up` before sending any
+ request or WebSocket upgrade.
+
+ Errors:
+ - `InvalidOptions` — Gun rejected the converted options.
+ - `ErlangError` — Gun could not spawn the connection process.
 
 ```gleam
 pub fn open(gluegun/connection.ConnectOptions, host: String, port: Int) -> Result(gluegun/internal.Connection, gluegun/error.GluegunError)
@@ -121,18 +144,14 @@ pub fn retry(gluegun/connection.ConnectOptions) -> gluegun/connection.Timeout
 
 ### `shutdown`
 
-Shut down a Gun connection.
+Shut down a Gun connection immediately.
+
+ Terminates the Gun process without waiting for graceful close. Prefer
+ `close` for normal teardown; use `shutdown` when the connection is
+ suspected stuck.
 
 ```gleam
 pub fn shutdown(gluegun/internal.Connection) -> Result(Nil, gluegun/error.GluegunError)
-```
-
-### `timeout_to_ffi`
-
-Convert a timeout to the Erlang FFI shape.
-
-```gleam
-pub fn timeout_to_ffi(gluegun/connection.Timeout) -> gleam/dynamic.Dynamic
 ```
 
 ### `tls_opts`
@@ -142,6 +161,7 @@ Inspect explicitly configured TLS options, if any.
 ```gleam
 pub fn tls_opts(gluegun/connection.ConnectOptions) -> gleam/option.Option(gluegun/tls.TlsOptions)
 ```
+
 ### `transport`
 
 Inspect configured transport. Intended for tests and later FFI conversion.

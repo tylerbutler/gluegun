@@ -7,20 +7,21 @@ description: High-level HTTP helpers for existing Gun connections.
 
 High-level HTTP helpers for existing Gun connections.
 
- These helpers collect regular HTTP/1.1 and HTTP/2 responses into
- `response.Response`.
- Informational `1xx` responses are preserved and can be inspected with
- `response.informational`.
- Protocol messages for server push, upgrades, and WebSockets are rejected with
- `InvalidMessage`; use the lower-level `gluegun/message` API for those flows.
- Full response bodies are collected in memory; use the lower-level APIs for
- streaming or very large responses.
+ These helpers collect a full HTTP/1.1 or HTTP/2 response — status,
+ headers, body, trailers, and any informational `1xx` responses — into a
+ `response.Response`. The body is held fully in memory; use the lower-level
+ `gluegun/request` and `gluegun/message` APIs for streaming or very large
+ responses.
+
+ Protocol messages for server push, upgrades, and WebSockets are rejected
+ with `InvalidMessage`. Use the lower-level `gluegun/message` API for
+ those flows.
 
 ## Types
 
 ### `Request`
 
-A collected HTTP request command.
+A buildable HTTP request: method, path, headers, body, options, and timeout.
 
 
 
@@ -60,7 +61,7 @@ pub fn head(gluegun/internal.Connection, String, List(#(String, String)), gluegu
 
 ### `new`
 
-Construct a collected HTTP request command.
+Start a new `Request` builder with the given method and path.
 
 ```gleam
 pub fn new(gluegun/request.Method, String) -> gluegun/client.Request
@@ -100,7 +101,7 @@ pub fn request_options(gluegun/internal.Connection, String, List(#(String, Strin
 
 ### `send`
 
-Send a collected HTTP request command on an open connection.
+Send a built `Request` on an open connection and collect the response.
 
 ```gleam
 pub fn send(gluegun/client.Request, connection: gluegun/internal.Connection) -> Result(gluegun/response.Response, gluegun/error.GluegunError)

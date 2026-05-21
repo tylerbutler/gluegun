@@ -17,7 +17,7 @@ Gluegun does not parse full URLs. Open the connection with the host and port, th
 
 ## High-level client receives an unexpected message
 
-Use `gluegun/client` only for regular HTTP responses that can be collected in memory. Use `gluegun/request`, `gluegun/message`, or `gluegun/websocket` for streaming bodies, trailers as they arrive, HTTP/2 push, upgrades, and WebSocket frames.
+Use `gluegun/client` only for regular HTTP responses that can be collected in memory. The helpers reject HTTP/2 server push, protocol upgrades, and WebSocket frames with `InvalidMessage`. Use `gluegun/request`, `gluegun/message`, or `gluegun/websocket` for streaming bodies, trailers as they arrive, HTTP/2 push, upgrades, and WebSocket frames.
 
 ## WebSocket receive fails right after upgrade
 
@@ -25,7 +25,10 @@ When using low-level WebSocket helpers, call `websocket.await_upgrade(conn, stre
 
 ## WebSocket connection stays open
 
-`websocket.send_close_frame(socket)` sends a close frame but does not close the underlying Gun connection. Use `websocket.with_socket` for scoped cleanup or call `connection.close` when you own the reusable socket connection lifecycle.
+`websocket.send_close_frame(socket)` sends a close frame but does not close the underlying Gun connection. Either:
+
+- Use `websocket.with_socket(...)` for scoped cleanup. It sends the close frame and calls `connection.close` for you.
+- When holding the reusable `Socket` yourself, call `connection.close(socket.connection)` after `send_close_frame` to release the TCP/TLS connection.
 
 ## Response body is not UTF-8
 

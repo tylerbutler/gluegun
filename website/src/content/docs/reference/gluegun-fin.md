@@ -14,7 +14,7 @@ Fin (final) flags for Gun HTTP streaming.
 
 ### `Fin`
 
-
+Fin (final) flag for a Gun HTTP body chunk.
 
 - `Fin()`
 - `NoFin()`

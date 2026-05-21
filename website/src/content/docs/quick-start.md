@@ -46,4 +46,8 @@ Gluegun separates connection setup from requests:
 3. Send requests using paths such as `/`, `/api/items`, or `/health`.
 4. Close or shut down the connection when you are finished.
 
+`connection.Milliseconds(Int)` constructs a finite `Timeout`; use `connection.Infinity` when you want to wait without bound. The same `Timeout` value is reused for connection readiness, request bodies, and message receives.
+
+Use `connection.close` for normal teardown. Use `connection.shutdown` only when a connection appears stuck — it terminates the Gun process immediately without graceful close.
+
 For complete module, type, and function details, use the [API reference](/reference/).

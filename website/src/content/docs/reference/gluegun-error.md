@@ -17,6 +17,10 @@ Error types returned by Gluegun effectful APIs.
 
 Errors returned by Gluegun connection, request, message, and WebSocket APIs.
 
+ Match the variants relevant to your application and keep a fallback for
+ `ErlangError` / `DecodeError`, which can occur when Gun returns shapes
+ Gluegun cannot normalize.
+
 - `Timeout()`
 - `ConnectionDown(String)`
 - `ConnectionError(String)`
