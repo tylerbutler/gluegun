@@ -17,11 +17,13 @@ pub type GluegunError {
   StreamError(String)
   InvalidOptions(String)
   InvalidMessage(String)
+  UnsupportedFeature(String)
   ErlangError(String)
   DecodeError(String)
 }
 
 /// Decode an FFI error reason into a Gluegun error.
+@internal
 pub fn decode_ffi_error(error: Dynamic) -> GluegunError {
   case dyn_decode.run(error, atom.decoder()) {
     Ok(tag) ->
@@ -47,6 +49,7 @@ fn decode_tagged_ffi_error(error: Dynamic) -> GluegunError {
         "connection_error" -> ConnectionError(reason)
         "stream_error" -> StreamError(reason)
         "invalid_message" -> InvalidMessage(reason)
+        "unsupported_feature" -> UnsupportedFeature(reason)
         "erlang_error" -> ErlangError(reason)
         _ -> ErlangError(string.inspect(error))
       }

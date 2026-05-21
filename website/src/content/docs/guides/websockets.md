@@ -29,11 +29,11 @@ pub fn echo() {
     Error(_) -> io.println("websocket receive failed")
   }
 
-  let assert Ok(Nil) = websocket.close(socket)
+  let assert Ok(Nil) = websocket.send_close_frame(socket)
 }
 ```
 
-`websocket.close(socket)` sends a WebSocket close frame. It does not close the underlying Gun connection. Use `websocket.with_socket` for scoped cleanup, or close the connection yourself when using the reusable `Socket` API.
+`websocket.send_close_frame(socket)` sends a WebSocket close frame. It does not close the underlying Gun connection. Use `websocket.with_socket` for scoped cleanup, or close the connection yourself when using the reusable `Socket` API.
 
 ## Scoped sockets
 

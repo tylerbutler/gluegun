@@ -12,6 +12,10 @@ import startest/expect
 pub fn streaming_tests() {
   describe("streaming requests", [
     describe("request FFI shapes", [
+      it("exposes start_stream helper name", fn() {
+        compile_start_stream_helper(False)
+        |> expect.to_equal(Nil)
+      }),
       it("normalizes streaming request headers", fn() {
         let #(method, path, headers, _options) =
           request.headers_args_to_ffi(
@@ -19,7 +23,7 @@ pub fn streaming_tests() {
             "/upload",
             [#("Content-Type", "text/plain")],
             request.options()
-              |> request.with_headers([#("X-Trace", "abc")]),
+              |> request.add_headers([#("X-Trace", "abc")]),
           )
 
         method
@@ -113,6 +117,23 @@ pub fn streaming_tests() {
       }),
     ]),
   ])
+}
+
+fn compile_start_stream_helper(should_run: Bool) -> Nil {
+  case should_run {
+    True -> {
+      let _ =
+        request.start_stream(
+          internal.connection(dynamic.string("conn")),
+          request.Post,
+          "/upload",
+          [],
+          request.options(),
+        )
+      Nil
+    }
+    False -> Nil
+  }
 }
 
 fn send_streaming_data(

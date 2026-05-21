@@ -73,14 +73,6 @@ Wait for the WebSocket upgrade confirmation (`101 Switching Protocols`).
 pub fn await_upgrade(gluegun/internal.Connection, gluegun/internal.Stream, gluegun/connection.Timeout) -> Result(Nil, gluegun/error.GluegunError)
 ```
 
-### `close`
-
-Send a close WebSocket frame using a reusable socket.
-
-```gleam
-pub fn close(gluegun/websocket.Socket) -> Result(Nil, gluegun/error.GluegunError)
-```
-
 ### `connect`
 
 Open a connection, perform a WebSocket upgrade, and return a reusable socket.
@@ -168,6 +160,17 @@ Send a binary WebSocket frame using a reusable socket.
 pub fn send_binary(gluegun/websocket.Socket, BitArray) -> Result(Nil, gluegun/error.GluegunError)
 ```
 
+### `send_close_frame`
+
+Send a close WebSocket frame using a reusable socket.
+
+ This only sends the close frame; it does not close the underlying Gun
+ connection.
+
+```gleam
+pub fn send_close_frame(gluegun/websocket.Socket) -> Result(Nil, gluegun/error.GluegunError)
+```
+
 ### `send_frame`
 
 Send a single WebSocket frame using a reusable socket.
@@ -230,9 +233,9 @@ Initiate a WebSocket upgrade when the negotiated protocol is known.
  Sends the WebSocket upgrade request to the server and returns the stream
  reference. Call `await_upgrade` next to confirm the handshake completed.
 
- Returns `InvalidMessage` for HTTP/2 because Gun does not support WebSocket
- over HTTP/2. Use this after `connection.await_up` when protocol negotiation
- may choose HTTP/2.
+ Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
+ WebSocket over HTTP/2. Use this after `connection.await_up` when protocol
+ negotiation may choose HTTP/2.
 
 ```gleam
 pub fn upgrade_with_protocol(gluegun/internal.Connection, gluegun/connection.Protocol, String, List(#(String, String))) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)
@@ -242,8 +245,8 @@ pub fn upgrade_with_protocol(gluegun/internal.Connection, gluegun/connection.Pro
 
 Initiate a WebSocket upgrade with options when the negotiated protocol is known.
 
- Returns `InvalidMessage` for HTTP/2 because Gun does not support WebSocket
- over HTTP/2.
+ Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
+ WebSocket over HTTP/2.
 
 ```gleam
 pub fn upgrade_with_protocol_and_options(gluegun/internal.Connection, gluegun/connection.Protocol, String, List(#(String, String)), gluegun/websocket.UpgradeOptions) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)
@@ -313,14 +316,6 @@ Add a WebSocket subprotocol callback module.
 pub fn with_protocol_module(gluegun/websocket.UpgradeOptions, String, String) -> gluegun/websocket.UpgradeOptions
 ```
 
-### `with_reply_to_dynamic`
-
-Set Gun's raw `reply_to` option.
-
-```gleam
-pub fn with_reply_to_dynamic(gluegun/websocket.UpgradeOptions, gleam/dynamic.Dynamic) -> gluegun/websocket.UpgradeOptions
-```
-
 ### `with_silence_pings`
 
 Enable or disable silencing automatic ping frames.
@@ -345,26 +340,10 @@ Set the timeout used when awaiting connection readiness, upgrade, and frames.
 pub fn with_timeout(gluegun/websocket.Options, gluegun/connection.Timeout) -> gluegun/websocket.Options
 ```
 
-### `with_tunnel_dynamic`
-
-Set Gun's raw `tunnel` option.
-
-```gleam
-pub fn with_tunnel_dynamic(gluegun/websocket.UpgradeOptions, gleam/dynamic.Dynamic) -> gluegun/websocket.UpgradeOptions
-```
-
 ### `with_upgrade_options`
 
 Set Gun WebSocket upgrade options used for the upgrade request.
 
 ```gleam
 pub fn with_upgrade_options(gluegun/websocket.Options, gluegun/websocket.UpgradeOptions) -> gluegun/websocket.Options
-```
-
-### `with_user_opts_dynamic`
-
-Set Gun's raw `user_opts` option.
-
-```gleam
-pub fn with_user_opts_dynamic(gluegun/websocket.UpgradeOptions, gleam/dynamic.Dynamic) -> gluegun/websocket.UpgradeOptions
 ```

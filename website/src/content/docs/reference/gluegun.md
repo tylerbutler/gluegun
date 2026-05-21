@@ -1,17 +1,25 @@
 ---
 title: gluegun
-description: Root facade for the Gluegun HTTP client wrapper.
+description: Minimal common-path facade for the Gluegun HTTP client wrapper.
 ---
 
 # `gluegun`
 
-Root facade for the Gluegun HTTP client wrapper.
+Minimal common-path facade for the Gluegun HTTP client wrapper.
 
- This module exposes a small common-path facade. Submodules expose grouped
- APIs for connection, low-level request, response, message, and WebSocket
- concerns.
+ For full functionality import the submodules (`gluegun/connection`,
+ `gluegun/request`, `gluegun/client`, `gluegun/websocket`,
+ `gluegun/message`, `gluegun/response`, `gluegun/error`).
 
 ## Functions
+
+### `await_up`
+
+Wait until a Gun connection is up.
+
+```gleam
+pub fn await_up(gluegun/internal.Connection, gluegun/connection.Timeout) -> Result(gluegun/connection.Protocol, gluegun/error.GluegunError)
+```
 
 ### `body_text`
 
@@ -29,28 +37,12 @@ Construct default connection options.
 pub fn connection_options() -> gluegun/connection.ConnectOptions
 ```
 
-### `method_to_string`
+### `new_request`
 
-Convert a request method to an HTTP method string.
-
-```gleam
-pub fn method_to_string(gluegun/request.Method) -> String
-```
-
-### `name`
-
-Return the package name.
+Construct a collected HTTP request command.
 
 ```gleam
-pub fn name() -> String
-```
-
-### `normalize_headers`
-
-Normalize header names for Gun.
-
-```gleam
-pub fn normalize_headers(List(#(String, String))) -> List(#(String, String))
+pub fn new_request(gluegun/request.Method, String) -> gluegun/client.Request
 ```
 
 ### `open`
@@ -61,22 +53,6 @@ Open a Gun connection.
 pub fn open(gluegun/connection.ConnectOptions, host: String, port: Int) -> Result(gluegun/internal.Connection, gluegun/error.GluegunError)
 ```
 
-### `request`
-
-Send one request and collect the full response.
-
-```gleam
-pub fn request(gluegun/request.Method, String) -> gluegun/client.Request
-```
-
-### `response`
-
-Construct a collected HTTP response.
-
-```gleam
-pub fn response(status: Int, headers: List(#(String, String)), body: BitArray, trailers: List(#(String, String))) -> gluegun/response.Response
-```
-
 ### `send`
 
 Send a collected HTTP request command.
@@ -85,12 +61,12 @@ Send a collected HTTP request command.
 pub fn send(gluegun/client.Request, connection: gluegun/internal.Connection) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
 ```
 
-### `websocket_close`
+### `tls_options`
 
-Send a close WebSocket frame using a reusable socket.
+Construct default TLS options.
 
 ```gleam
-pub fn websocket_close(gluegun/websocket.Socket) -> Result(Nil, gluegun/error.GluegunError)
+pub fn tls_options() -> gluegun/tls.TlsOptions
 ```
 
 ### `websocket_connect`
@@ -115,6 +91,14 @@ Receive the next application WebSocket frame, handling ping/pong frames.
 
 ```gleam
 pub fn websocket_receive_app_frame(gluegun/websocket.Socket) -> Result(gluegun/message.Frame, gluegun/error.GluegunError)
+```
+
+### `websocket_send_close_frame`
+
+Send a close WebSocket frame using a reusable socket.
+
+```gleam
+pub fn websocket_send_close_frame(gluegun/websocket.Socket) -> Result(Nil, gluegun/error.GluegunError)
 ```
 
 ### `websocket_send_text`
@@ -155,6 +139,14 @@ Set Gun retry timeout on connection options.
 
 ```gleam
 pub fn with_retry(gluegun/connection.ConnectOptions, retry: gluegun/connection.Timeout) -> gluegun/connection.ConnectOptions
+```
+
+### `with_tls_opts`
+
+Set TLS options on connection options.
+
+```gleam
+pub fn with_tls_opts(gluegun/connection.ConnectOptions, tls_opts: gluegun/tls.TlsOptions) -> gluegun/connection.ConnectOptions
 ```
 
 ### `with_transport`

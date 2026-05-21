@@ -1,6 +1,5 @@
 import gleam/dynamic
 import gleam/option.{None, Some}
-import gluegun
 import gluegun/connection
 import gluegun/error
 import gluegun/fin
@@ -25,7 +24,7 @@ pub fn options_tests() {
         |> connection.protocols
         |> expect.to_equal(None)
       }),
-      it("exposes connection options through the root alias", fn() {
+      it("exposes connection option inspectors", fn() {
         connection.options()
         |> connection.transport
         |> expect.to_equal(connection.Auto)
@@ -38,16 +37,17 @@ pub fn options_tests() {
       }),
     ]),
     describe("request options and methods", [
-      it("sets request headers", fn() {
+      it("with_headers replaces request headers", fn() {
         request.options()
-        |> request.with_headers([#("accept", "application/json")])
-        |> request.headers_option
-        |> expect.to_equal([#("accept", "application/json")])
-      }),
-      it("appends request headers", fn() {
-        request.options()
-        |> request.with_headers([#("accept", "application/json")])
+        |> request.add_headers([#("accept", "application/json")])
         |> request.with_headers([#("x-request-id", "abc")])
+        |> request.headers_option
+        |> expect.to_equal([#("x-request-id", "abc")])
+      }),
+      it("add_headers appends request headers", fn() {
+        request.options()
+        |> request.add_headers([#("accept", "application/json")])
+        |> request.add_headers([#("x-request-id", "abc")])
         |> request.headers_option
         |> expect.to_equal([
           #("accept", "application/json"),
@@ -56,9 +56,6 @@ pub fn options_tests() {
       }),
       it("converts request methods to strings", fn() {
         request.method_to_string(request.Get)
-        |> expect.to_equal("GET")
-
-        gluegun.method_to_string(request.Get)
         |> expect.to_equal("GET")
 
         request.method_to_string(request.Post)
@@ -106,6 +103,9 @@ pub fn options_tests() {
             body: <<"hello":utf8>>,
             trailers: [#("expires", "soon")],
           )
+          |> response.with_informational(informational: [
+            response.Informational(status: 103, headers: [#("server", "gun")]),
+          ])
 
         res
         |> response.status
@@ -122,6 +122,12 @@ pub fn options_tests() {
         res
         |> response.trailers
         |> expect.to_equal([#("expires", "soon")])
+
+        res
+        |> response.informational
+        |> expect.to_equal([
+          response.Informational(status: 103, headers: [#("server", "gun")]),
+        ])
       }),
       it("constructs messages", fn() {
         message.Response(fin.NoFin, 204, [#("server", "gun")])
@@ -179,6 +185,13 @@ pub fn options_tests() {
 
         message.decode(value)
         |> expect.to_equal(Ok(message.Inform(102, [#("server", "gun")])))
+      }),
+      it("matches unsupported feature errors", fn() {
+        let unsupported =
+          error.UnsupportedFeature("WebSocket upgrade requires HTTP/1.1")
+        let error.UnsupportedFeature(reason) = unsupported
+
+        reason |> expect.to_equal("WebSocket upgrade requires HTTP/1.1")
       }),
       it("decodes trailer messages", fn() {
         let value =

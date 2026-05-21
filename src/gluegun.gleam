@@ -1,18 +1,19 @@
-//// Root facade for the Gluegun HTTP client wrapper.
+//// Minimal common-path facade for the Gluegun HTTP client wrapper.
 ////
-//// This module exposes a small common-path facade. Submodules expose grouped
-//// APIs for connection, low-level request, response, message, and WebSocket
-//// concerns.
+//// For full functionality import the submodules (`gluegun/connection`,
+//// `gluegun/request`, `gluegun/client`, `gluegun/websocket`,
+//// `gluegun/message`, `gluegun/response`, `gluegun/error`).
 
 import gluegun/client as http_client
 import gluegun/connection.{
-  type ConnectOptions, type Protocol, type Timeout, type Transport,
+  type ConnectOptions, type Connection, type Protocol, type Timeout,
+  type Transport,
 }
 import gluegun/error
-import gluegun/internal.{type Connection}
 import gluegun/message
 import gluegun/request as low_request
 import gluegun/response as http_response
+import gluegun/tls
 import gluegun/websocket
 
 /// Return the package name.
@@ -32,6 +33,11 @@ pub fn open(
   port port: Int,
 ) -> Result(Connection, error.GluegunError) {
   connection.open(options, host: host, port: port)
+}
+
+/// Construct default TLS options.
+pub fn tls_options() -> tls.TlsOptions {
+  tls.options()
 }
 
 /// Set the transport on connection options.
@@ -64,6 +70,14 @@ pub fn with_connect_timeout(
   timeout timeout: Timeout,
 ) -> ConnectOptions {
   connection.with_connect_timeout(options, timeout: timeout)
+}
+
+/// Set TLS options on connection options.
+pub fn with_tls_opts(
+  options: ConnectOptions,
+  tls_opts tls_opts: tls.TlsOptions,
+) -> ConnectOptions {
+  connection.with_tls_opts(options, tls_opts: tls_opts)
 }
 
 /// Convert a request method to an HTTP method string.
@@ -100,8 +114,19 @@ pub fn body_text(
   http_response.body_text(response)
 }
 
-/// Send one request and collect the full response.
-pub fn request(method: low_request.Method, path: String) -> http_client.Request {
+/// Wait until a Gun connection is up.
+pub fn await_up(
+  conn: Connection,
+  timeout: Timeout,
+) -> Result(Protocol, error.GluegunError) {
+  connection.await_up(conn, timeout)
+}
+
+/// Construct a collected HTTP request command.
+pub fn new_request(
+  method: low_request.Method,
+  path: String,
+) -> http_client.Request {
   http_client.new(method, path)
 }
 
@@ -161,8 +186,8 @@ pub fn websocket_receive_app_frame(
 }
 
 /// Send a close WebSocket frame using a reusable socket.
-pub fn websocket_close(
+pub fn websocket_send_close_frame(
   socket: websocket.Socket,
 ) -> Result(Nil, error.GluegunError) {
-  websocket.close(socket)
+  websocket.send_close_frame(socket)
 }

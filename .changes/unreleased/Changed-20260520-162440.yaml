@@ -1,0 +1,6 @@
+kind: Changed
+body: |-
+    Refine Gluegun error and informational response types
+
+    Add `error.UnsupportedFeature(String)` for preflight capability checks such as rejecting WebSocket upgrades on HTTP/2. BREAKING: `response.Informational` is now a named record (`Informational(status:, headers:)`) instead of a positional tuple, so callers must update construction and pattern matches.
+time: 2026-05-20T16:24:40.09157-07:00

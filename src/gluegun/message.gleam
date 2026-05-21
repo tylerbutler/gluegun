@@ -8,12 +8,13 @@ import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode as dyn_decode
 import gleam/result
 import gleam/string
-import gluegun/connection.{type Timeout, timeout_to_ffi}
+import gluegun/connection.{type Connection, type Timeout, timeout_to_ffi}
 import gluegun/error
 import gluegun/fin.{type Fin, Fin, NoFin}
-import gluegun/internal.{type Connection, type Stream}
+import gluegun/internal
 import gluegun/request.{
-  Connect, Custom, Delete, Get, Head, Options, Patch, Post, Put, Trace,
+  type Stream, Connect, Custom, Delete, Get, Head, Options, Patch, Post, Put,
+  Trace,
 }
 
 /// Alias for `gluegun/request.Method` used in decoded messages.
@@ -41,6 +42,9 @@ pub type Frame {
 }
 
 /// Gun HTTP stream messages delivered by the Erlang Gun client.
+///
+/// This type is closed; new variants are a breaking change. Pin to a major
+/// version.
 pub type Message {
   Inform(status: Int, headers: List(Header))
   Response(fin: Fin, status: Int, headers: List(Header))
@@ -59,11 +63,6 @@ pub type GluegunError =
 pub fn decode(data: Dynamic) -> Result(Message, GluegunError) {
   dyn_decode.run(data, message_decoder())
   |> result.map_error(fn(_) { error.DecodeError("Invalid Gun message") })
-}
-
-/// Decode a raw Erlang FFI error into `GluegunError`.
-pub fn decode_ffi_error(error: Dynamic) -> GluegunError {
-  error.decode_ffi_error(error)
 }
 
 /// Await the next Gun message for a stream.

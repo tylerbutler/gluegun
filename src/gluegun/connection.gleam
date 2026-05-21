@@ -5,14 +5,20 @@
 //// are Erlang process resources and are available on the Erlang target only.
 
 import gleam/dynamic
+import gleam/dynamic/decode as dyn_decode
 import gleam/erlang/atom
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gluegun/error
-import gluegun/internal.{type Connection}
+import gluegun/internal
+import gluegun/internal/ffi_result
+import gluegun/tls
 
 /// Transport selection for a Gun connection.
+///
+/// This type is closed; new variants are a breaking change. Pin to a major
+/// version.
 pub type Transport {
   /// Let Gun choose TLS for TLS ports and TCP otherwise.
   Auto
@@ -21,6 +27,9 @@ pub type Transport {
 }
 
 /// HTTP protocol preference for a Gun connection.
+///
+/// This type is closed; new variants are a breaking change. Pin to a major
+/// version.
 ///
 /// `Http2` is encoded as Gun's `http2` protocol atom, so it can be placed
 /// before `Http1` when TLS + ALPN should prefer HTTP/2 and fall back to
@@ -36,6 +45,10 @@ pub type Timeout {
   Infinity
 }
 
+/// Opaque handle for an open Gun connection.
+pub type Connection =
+  internal.Connection
+
 /// Pure representation of connection options before FFI conversion.
 pub opaque type ConnectOptions {
   ConnectOptions(
@@ -43,6 +56,7 @@ pub opaque type ConnectOptions {
     protocols: Option(List(Protocol)),
     retry: Timeout,
     connect_timeout: Timeout,
+    tls_opts: Option(tls.TlsOptions),
   )
 }
 
@@ -53,6 +67,7 @@ pub fn options() -> ConnectOptions {
     protocols: None,
     retry: Milliseconds(5000),
     connect_timeout: Milliseconds(5000),
+    tls_opts: None,
   )
 }
 
@@ -90,6 +105,14 @@ pub fn with_connect_timeout(
   ConnectOptions(..options, connect_timeout: timeout)
 }
 
+/// Set TLS options for TLS or auto-transport connections.
+pub fn with_tls_opts(
+  options: ConnectOptions,
+  tls_opts tls_opts: tls.TlsOptions,
+) -> ConnectOptions {
+  ConnectOptions(..options, tls_opts: Some(tls_opts))
+}
+
 /// Inspect configured transport. Intended for tests and later FFI conversion.
 pub fn transport(options: ConnectOptions) -> Transport {
   options.transport
@@ -108,6 +131,11 @@ pub fn retry(options: ConnectOptions) -> Timeout {
 /// Inspect connect timeout duration.
 pub fn connect_timeout(options: ConnectOptions) -> Timeout {
   options.connect_timeout
+}
+
+/// Inspect explicitly configured TLS options, if any.
+pub fn tls_opts(options: ConnectOptions) -> Option(tls.TlsOptions) {
+  options.tls_opts
 }
 
 /// Open a Gun connection.
@@ -147,18 +175,17 @@ pub fn decode_await_up_result(
 /// Close a Gun connection.
 pub fn close(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_close(internal.connection_raw(connection))
-  |> result.map(fn(_) { Nil })
-  |> result.map_error(error.decode_ffi_error)
+  |> ffi_result.decode_nil_result
 }
 
 /// Shut down a Gun connection.
 pub fn shutdown(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_shutdown(internal.connection_raw(connection))
-  |> result.map(fn(_) { Nil })
-  |> result.map_error(error.decode_ffi_error)
+  |> ffi_result.decode_nil_result
 }
 
 /// Convert connection options to the Erlang FFI map shape.
+@internal
 pub fn options_to_ffi(options: ConnectOptions) -> dynamic.Dynamic {
   let protocol_entries = case options.protocols {
     Some(protocols) -> [
@@ -170,18 +197,38 @@ pub fn options_to_ffi(options: ConnectOptions) -> dynamic.Dynamic {
     None -> []
   }
 
-  dynamic.properties([
-    #(dynamic.string("transport"), transport_to_ffi(options.transport)),
-    #(dynamic.string("retry"), timeout_to_ffi(options.retry)),
-    #(
-      dynamic.string("connect_timeout"),
-      timeout_to_ffi(options.connect_timeout),
-    ),
-    ..protocol_entries
-  ])
+  let transport_entries = case options.transport, options.tls_opts {
+    Tcp, _ -> []
+    _, Some(tls_opts) -> [
+      #(
+        dynamic.string("transport_opts"),
+        dynamic.properties([
+          #(dynamic.string("tls_opts"), tls.to_ffi(tls_opts)),
+        ]),
+      ),
+    ]
+    _, _ -> []
+  }
+
+  let fields =
+    list.append(
+      [
+        #(dynamic.string("transport"), transport_to_ffi(options.transport)),
+        #(dynamic.string("retry"), timeout_to_ffi(options.retry)),
+        #(
+          dynamic.string("connect_timeout"),
+          timeout_to_ffi(options.connect_timeout),
+        ),
+        ..protocol_entries
+      ],
+      transport_entries,
+    )
+
+  dynamic.properties(fields)
 }
 
 /// Convert a timeout to the Erlang FFI shape.
+@internal
 pub fn timeout_to_ffi(timeout: Timeout) -> dynamic.Dynamic {
   case timeout {
     Milliseconds(milliseconds) -> dynamic.int(milliseconds)
@@ -205,16 +252,14 @@ fn protocol_to_ffi(protocol: Protocol) -> dynamic.Dynamic {
 }
 
 fn decode_protocol(protocol: dynamic.Dynamic) -> Result(Protocol, String) {
-  case dynamic.classify(protocol) {
-    "Atom" -> {
-      let name = atom.to_string(atom.cast_from_dynamic(protocol))
-      case name {
+  case dyn_decode.run(protocol, atom.decoder()) {
+    Ok(protocol) ->
+      case atom.to_string(protocol) {
         "http" -> Ok(Http1)
         "http2" -> Ok(Http2)
         _ -> Error("Invalid protocol")
       }
-    }
-    _ -> Error("Invalid protocol")
+    Error(_) -> Error("Invalid protocol")
   }
 }
 

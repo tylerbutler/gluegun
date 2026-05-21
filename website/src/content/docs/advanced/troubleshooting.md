@@ -25,7 +25,7 @@ When using low-level WebSocket helpers, call `websocket.await_upgrade(conn, stre
 
 ## WebSocket connection stays open
 
-`websocket.close(socket)` sends a close frame but does not close the underlying Gun connection. Use `websocket.with_socket` for scoped cleanup or call `connection.close` when you own the reusable socket connection lifecycle.
+`websocket.send_close_frame(socket)` sends a close frame but does not close the underlying Gun connection. Use `websocket.with_socket` for scoped cleanup or call `connection.close` when you own the reusable socket connection lifecycle.
 
 ## Response body is not UTF-8
 

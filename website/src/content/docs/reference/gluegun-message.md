@@ -34,6 +34,9 @@ WebSocket frames delivered inside Gun stream messages.
 
 Gun HTTP stream messages delivered by the Erlang Gun client.
 
+ This type is closed; new variants are a breaking change. Pin to a major
+ version.
+
 - `Inform(Int, List(#(String, String)))`
 - `Response(gluegun/fin.Fin, Int, List(#(String, String)))`
 - `Data(gluegun/fin.Fin, BitArray)`
@@ -92,12 +95,4 @@ Decode a raw Erlang Gun message into a typed Gleam message.
 
 ```gleam
 pub fn decode(gleam/dynamic.Dynamic) -> Result(gluegun/message.Message, gluegun/error.GluegunError)
-```
-
-### `decode_ffi_error`
-
-Decode a raw Erlang FFI error into `GluegunError`.
-
-```gleam
-pub fn decode_ffi_error(gleam/dynamic.Dynamic) -> gluegun/error.GluegunError
 ```

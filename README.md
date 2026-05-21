@@ -19,6 +19,14 @@ gleam add gluegun
 - Erlang target only; Gluegun wraps the Erlang Gun client and does not support the JavaScript target.
 - Supports Gleam `>= 1.7.0` and Gun `>= 2.1.0 and < 3.0.0`.
 
+## Security
+
+Gluegun inherits Gun and Erlang SSL's historical TLS default: peer verification is **not** enabled unless you configure it.
+
+For production HTTPS, set `tls.with_verify(verify: tls.VerifyPeer)`, configure `tls.with_server_name_indication` for the expected hostname, and provide trusted CA certificates with `tls.with_cacerts` or `tls.with_cacertfile`.
+
+See the [TLS guide](https://gluegun.tylerbutler.com/guides/tls/) for recommended TLS 1.2+/1.3 settings, system CA usage, and client certificate examples.
+
 ## Basic GET
 
 Open a Gun connection, wait for it to be ready, send a GET, and collect the full response in memory.
@@ -73,7 +81,7 @@ fn fetch_json(conn, path, timeout) {
 
 ## Streaming a request body
 
-Use `gluegun/request` when the request body is produced in chunks. Start with `request.headers`, send zero or more chunks with `fin.NoFin`, and complete the body with `fin.Fin`. Response headers and body are separate asynchronous Gun stream messages; use `gluegun/message` helpers or your own receive loop for advanced flows.
+Use `gluegun/request` when the request body is produced in chunks. Start with `request.start_stream`, send zero or more chunks with `fin.NoFin`, and complete the body with `fin.Fin`. Response headers and body are separate asynchronous Gun stream messages; use `gluegun/message` helpers or your own receive loop for advanced flows.
 
 ```gleam
 import gluegun/connection
@@ -85,7 +93,7 @@ pub fn upload_chunks(conn) {
   let timeout = connection.Milliseconds(5000)
 
   let assert Ok(stream) =
-    request.headers(
+    request.start_stream(
       conn,
       request.Post,
       "/upload",
@@ -171,7 +179,7 @@ pub fn echo() {
     Error(_) -> io.println("websocket receive failed")
   }
 
-  let assert Ok(Nil) = websocket.close(socket)
+  let assert Ok(Nil) = websocket.send_close_frame(socket)
 }
 ```
 
@@ -199,7 +207,7 @@ pub fn echo_once() {
 }
 ```
 
-`Socket` is reusable and lifecycle-explicit. `with_socket` is convenience-only for scoped use. Low-level `upgrade_with_protocol_and_options`, `send`, and `receive` remain available for advanced flows. The root facade also exposes non-conflicting helpers such as `gluegun.websocket_connect` and `gluegun.websocket_send_text`.
+`Socket` is reusable and lifecycle-explicit. `with_socket` is convenience-only for scoped use. Low-level `upgrade_with_protocol_and_options`, `send`, and `receive` remain available for advanced flows. The root facade stays intentionally minimal; import `gluegun/websocket` directly for `send_text`, `receive_app_frame`, `send_close_frame`, and `with_socket`.
 
 See `examples/websocket_echo` for a fuller WebSocket example.
 

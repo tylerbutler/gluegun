@@ -32,7 +32,7 @@ fn safe_get(conn) {
 }
 ```
 
-Gluegun routes FFI errors through `error.decode_ffi_error` or `gluegun/internal/ffi_result` so Erlang failures become Gleam values at the API boundary.
+Gluegun normalizes FFI errors at the API boundary so Erlang failures become `GluegunError` values instead of leaking raw Erlang terms.
 
 ## Error variants
 

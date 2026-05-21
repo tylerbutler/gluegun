@@ -6,7 +6,8 @@
     test_stream_ref/0,
     test_erlang_error/0,
     test_stream_error/0,
-    test_invalid_utf8_websocket/0
+    test_invalid_utf8_websocket/0,
+    gun_tls_opts/1
 ]).
 
 test_response_message() ->
@@ -26,3 +27,6 @@ test_stream_error() ->
 
 test_invalid_utf8_websocket() ->
     {ws, {text, <<255>>}}.
+
+gun_tls_opts(Options) ->
+    maps:get(tls_opts, gluegun_ffi:options_to_gun(Options), undefined).
