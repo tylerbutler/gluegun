@@ -7,9 +7,10 @@
 import gleam/dynamic
 import gleam/list
 import gleam/string
+import gluegun/connection.{type Connection}
 import gluegun/error
 import gluegun/fin.{type Fin}
-import gluegun/internal.{type Connection, type Stream}
+import gluegun/internal
 import gluegun/internal/ffi_result
 
 /// HTTP request method constructors.
@@ -33,14 +34,18 @@ pub type Method {
 pub type Header =
   #(String, String)
 
+/// Opaque handle for a Gun request stream.
+pub type Stream =
+  internal.Stream
+
 /// Request options passed through the low-level request API.
 pub opaque type RequestOptions {
-  RequestOptions(headers: List(Header), reserved: Nil)
+  RequestOptions(headers: List(Header))
 }
 
 /// Construct default request options.
 pub fn options() -> RequestOptions {
-  RequestOptions(headers: [], reserved: Nil)
+  RequestOptions(headers: [])
 }
 
 /// Add option-level headers that are appended to per-call headers.
@@ -48,15 +53,15 @@ pub fn add_headers(
   options: RequestOptions,
   headers headers: List(Header),
 ) -> RequestOptions {
-  RequestOptions(..options, headers: list.append(options.headers, headers))
+  RequestOptions(headers: list.append(options.headers, headers))
 }
 
 /// Replace option-level headers.
 pub fn with_headers(
-  options: RequestOptions,
+  _options: RequestOptions,
   headers headers: List(Header),
 ) -> RequestOptions {
-  RequestOptions(..options, headers: headers)
+  RequestOptions(headers: headers)
 }
 
 /// Inspect option-level headers.
@@ -82,6 +87,7 @@ pub fn method_to_string(method: Method) -> String {
 }
 
 /// Lowercase header names for the Erlang Gun FFI boundary without changing values.
+@internal
 pub fn normalize_headers(headers: List(Header)) -> List(Header) {
   list.map(headers, fn(header) {
     let #(name, value) = header

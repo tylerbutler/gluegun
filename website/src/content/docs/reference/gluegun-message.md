@@ -96,11 +96,3 @@ Decode a raw Erlang Gun message into a typed Gleam message.
 ```gleam
 pub fn decode(gleam/dynamic.Dynamic) -> Result(gluegun/message.Message, gluegun/error.GluegunError)
 ```
-
-### `decode_ffi_error`
-
-Decode a raw Erlang FFI error into `GluegunError`.
-
-```gleam
-pub fn decode_ffi_error(gleam/dynamic.Dynamic) -> gluegun/error.GluegunError
-```

@@ -50,6 +50,7 @@ pub fn informational(response: Response) -> List(Informational) {
 }
 
 /// Construct a response without informational responses.
+@internal
 pub fn new(
   status status: Int,
   headers headers: List(Header),
@@ -66,11 +67,13 @@ pub fn new(
 }
 
 /// Return a response with a replaced body.
+@internal
 pub fn with_body(response: Response, body body: BitArray) -> Response {
   Response(..response, body: body)
 }
 
 /// Return a response with replaced trailers.
+@internal
 pub fn with_trailers(
   response: Response,
   trailers trailers: List(Header),
@@ -79,6 +82,7 @@ pub fn with_trailers(
 }
 
 /// Return a response with replaced informational responses.
+@internal
 pub fn with_informational(
   response: Response,
   informational informational: List(Informational),

@@ -51,6 +51,16 @@ Transport selection for a Gun connection.
 - `Tcp()`
 - `Tls()`
 
+## Type aliases
+
+### `Connection`
+
+Opaque handle for an open Gun connection.
+
+```gleam
+pub type Connection = Unknown
+```
+
 ## Functions
 
 ### `await_up`
@@ -93,14 +103,6 @@ Construct default connection options.
 pub fn options() -> gluegun/connection.ConnectOptions
 ```
 
-### `options_to_ffi`
-
-Convert connection options to the Erlang FFI map shape.
-
-```gleam
-pub fn options_to_ffi(gluegun/connection.ConnectOptions) -> gleam/dynamic.Dynamic
-```
-
 ### `protocols`
 
 Inspect explicitly configured protocol ordering, if any.
@@ -140,7 +142,6 @@ Inspect explicitly configured TLS options, if any.
 ```gleam
 pub fn tls_opts(gluegun/connection.ConnectOptions) -> gleam/option.Option(gluegun/tls.TlsOptions)
 ```
-
 ### `transport`
 
 Inspect configured transport. Intended for tests and later FFI conversion.

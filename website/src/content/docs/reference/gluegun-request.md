@@ -47,6 +47,14 @@ HTTP header represented as `#(name, value)`.
 pub type Header = Unknown
 ```
 
+### `Stream`
+
+Opaque handle for a Gun request stream.
+
+```gleam
+pub type Stream = Unknown
+```
+
 ## Functions
 
 ### `add_headers`
@@ -87,14 +95,6 @@ Convert a method constructor to its HTTP method string.
 
 ```gleam
 pub fn method_to_string(gluegun/request.Method) -> String
-```
-
-### `normalize_headers`
-
-Lowercase header names for the Erlang Gun FFI boundary without changing values.
-
-```gleam
-pub fn normalize_headers(List(#(String, String))) -> List(#(String, String))
 ```
 
 ### `options`

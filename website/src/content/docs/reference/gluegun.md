@@ -1,17 +1,25 @@
 ---
 title: gluegun
-description: Root facade for the Gluegun HTTP client wrapper.
+description: Minimal common-path facade for the Gluegun HTTP client wrapper.
 ---
 
 # `gluegun`
 
-Root facade for the Gluegun HTTP client wrapper.
+Minimal common-path facade for the Gluegun HTTP client wrapper.
 
- This module exposes a small common-path facade. Submodules expose grouped
- APIs for connection, low-level request, response, message, and WebSocket
- concerns.
+ For full functionality import the submodules (`gluegun/connection`,
+ `gluegun/request`, `gluegun/client`, `gluegun/websocket`,
+ `gluegun/message`, `gluegun/response`, `gluegun/error`).
 
 ## Functions
+
+### `await_up`
+
+Wait until a Gun connection is up.
+
+```gleam
+pub fn await_up(gluegun/internal.Connection, gluegun/connection.Timeout) -> Result(gluegun/connection.Protocol, gluegun/error.GluegunError)
+```
 
 ### `body_text`
 
@@ -29,22 +37,6 @@ Construct default connection options.
 pub fn connection_options() -> gluegun/connection.ConnectOptions
 ```
 
-### `method_to_string`
-
-Convert a request method to an HTTP method string.
-
-```gleam
-pub fn method_to_string(gluegun/request.Method) -> String
-```
-
-### `name`
-
-Return the package name.
-
-```gleam
-pub fn name() -> String
-```
-
 ### `new_request`
 
 Construct a collected HTTP request command.
@@ -53,28 +45,12 @@ Construct a collected HTTP request command.
 pub fn new_request(gluegun/request.Method, String) -> gluegun/client.Request
 ```
 
-### `normalize_headers`
-
-Normalize header names for Gun.
-
-```gleam
-pub fn normalize_headers(List(#(String, String))) -> List(#(String, String))
-```
-
 ### `open`
 
 Open a Gun connection.
 
 ```gleam
 pub fn open(gluegun/connection.ConnectOptions, host: String, port: Int) -> Result(gluegun/internal.Connection, gluegun/error.GluegunError)
-```
-
-### `response`
-
-Construct a collected HTTP response.
-
-```gleam
-pub fn response(status: Int, headers: List(#(String, String)), body: BitArray, trailers: List(#(String, String))) -> gluegun/response.Response
 ```
 
 ### `send`

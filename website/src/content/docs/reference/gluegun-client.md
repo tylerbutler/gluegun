@@ -106,14 +106,6 @@ Send a collected HTTP request command on an open connection.
 pub fn send(gluegun/client.Request, connection: gluegun/internal.Connection) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
 ```
 
-### `send_raw`
-
-Send an HTTP request on an open connection and collect its full response.
-
-```gleam
-pub fn send_raw(gluegun/internal.Connection, gluegun/request.Method, String, List(#(String, String)), BitArray, gluegun/request.RequestOptions, gluegun/connection.Timeout) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
-```
-
 ### `with_body`
 
 Replace the request body.

@@ -23,6 +23,7 @@ pub type GluegunError {
 }
 
 /// Decode an FFI error reason into a Gluegun error.
+@internal
 pub fn decode_ffi_error(error: Dynamic) -> GluegunError {
   case dyn_decode.run(error, atom.decoder()) {
     Ok(tag) ->

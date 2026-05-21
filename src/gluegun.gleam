@@ -1,15 +1,15 @@
-//// Root facade for the Gluegun HTTP client wrapper.
+//// Minimal common-path facade for the Gluegun HTTP client wrapper.
 ////
-//// This module exposes a small common-path facade. Submodules expose grouped
-//// APIs for connection, low-level request, response, message, and WebSocket
-//// concerns.
+//// For full functionality import the submodules (`gluegun/connection`,
+//// `gluegun/request`, `gluegun/client`, `gluegun/websocket`,
+//// `gluegun/message`, `gluegun/response`, `gluegun/error`).
 
 import gluegun/client as http_client
 import gluegun/connection.{
-  type ConnectOptions, type Protocol, type Timeout, type Transport,
+  type ConnectOptions, type Connection, type Protocol, type Timeout,
+  type Transport,
 }
 import gluegun/error
-import gluegun/internal.{type Connection}
 import gluegun/message
 import gluegun/request as low_request
 import gluegun/response as http_response
@@ -112,6 +112,14 @@ pub fn body_text(
   response: http_response.Response,
 ) -> Result(String, error.GluegunError) {
   http_response.body_text(response)
+}
+
+/// Wait until a Gun connection is up.
+pub fn await_up(
+  conn: Connection,
+  timeout: Timeout,
+) -> Result(Protocol, error.GluegunError) {
+  connection.await_up(conn, timeout)
 }
 
 /// Construct a collected HTTP request command.

@@ -316,14 +316,6 @@ Add a WebSocket subprotocol callback module.
 pub fn with_protocol_module(gluegun/websocket.UpgradeOptions, String, String) -> gluegun/websocket.UpgradeOptions
 ```
 
-### `with_reply_to_dynamic`
-
-Set Gun's raw `reply_to` option.
-
-```gleam
-pub fn with_reply_to_dynamic(gluegun/websocket.UpgradeOptions, gleam/dynamic.Dynamic) -> gluegun/websocket.UpgradeOptions
-```
-
 ### `with_silence_pings`
 
 Enable or disable silencing automatic ping frames.
@@ -348,26 +340,10 @@ Set the timeout used when awaiting connection readiness, upgrade, and frames.
 pub fn with_timeout(gluegun/websocket.Options, gluegun/connection.Timeout) -> gluegun/websocket.Options
 ```
 
-### `with_tunnel_dynamic`
-
-Set Gun's raw `tunnel` option.
-
-```gleam
-pub fn with_tunnel_dynamic(gluegun/websocket.UpgradeOptions, gleam/dynamic.Dynamic) -> gluegun/websocket.UpgradeOptions
-```
-
 ### `with_upgrade_options`
 
 Set Gun WebSocket upgrade options used for the upgrade request.
 
 ```gleam
 pub fn with_upgrade_options(gluegun/websocket.Options, gluegun/websocket.UpgradeOptions) -> gluegun/websocket.Options
-```
-
-### `with_user_opts_dynamic`
-
-Set Gun's raw `user_opts` option.
-
-```gleam
-pub fn with_user_opts_dynamic(gluegun/websocket.UpgradeOptions, gleam/dynamic.Dynamic) -> gluegun/websocket.UpgradeOptions
 ```

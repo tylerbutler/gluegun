@@ -1,6 +1,5 @@
 import gleam/dynamic
 import gleam/option.{None, Some}
-import gluegun
 import gluegun/connection
 import gluegun/error
 import gluegun/fin
@@ -25,7 +24,7 @@ pub fn options_tests() {
         |> connection.protocols
         |> expect.to_equal(None)
       }),
-      it("exposes connection options through the root alias", fn() {
+      it("exposes connection option inspectors", fn() {
         connection.options()
         |> connection.transport
         |> expect.to_equal(connection.Auto)
@@ -57,9 +56,6 @@ pub fn options_tests() {
       }),
       it("converts request methods to strings", fn() {
         request.method_to_string(request.Get)
-        |> expect.to_equal("GET")
-
-        gluegun.method_to_string(request.Get)
         |> expect.to_equal("GET")
 
         request.method_to_string(request.Post)

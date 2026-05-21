@@ -33,12 +33,12 @@ import gleam/dynamic
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
-import gluegun/connection.{type Protocol, type Timeout}
+import gluegun/connection.{type Connection, type Protocol, type Timeout}
 import gluegun/error
-import gluegun/internal.{type Connection, type Stream}
+import gluegun/internal
 import gluegun/internal/ffi_result
 import gluegun/message.{type Frame}
-import gluegun/request.{type Header}
+import gluegun/request.{type Header, type Stream}
 
 /// A reusable WebSocket handle.
 ///
@@ -174,34 +174,30 @@ pub fn connect(
     port: port,
   ))
 
-  case connection.await_up(conn, options.timeout) {
+  close_on_error(conn, {
+    use protocol <- result.try(connection.await_up(conn, options.timeout))
+    use stream <- result.try(upgrade_with_protocol_and_options(
+      conn,
+      protocol,
+      path,
+      options.headers,
+      options.upgrade_options,
+    ))
+    use _ <- result.try(await_upgrade(conn, stream, options.timeout))
+    Ok(socket(conn, stream, options.timeout))
+  })
+}
+
+fn close_on_error(
+  conn: Connection,
+  result: Result(a, error.GluegunError),
+) -> Result(a, error.GluegunError) {
+  case result {
     Error(error) -> {
       let _ = connection.close(conn)
       Error(error)
     }
-    Ok(protocol) ->
-      case
-        upgrade_with_protocol_and_options(
-          conn,
-          protocol,
-          path,
-          options.headers,
-          options.upgrade_options,
-        )
-      {
-        Error(error) -> {
-          let _ = connection.close(conn)
-          Error(error)
-        }
-        Ok(stream) ->
-          case await_upgrade(conn, stream, options.timeout) {
-            Error(error) -> {
-              let _ = connection.close(conn)
-              Error(error)
-            }
-            Ok(Nil) -> Ok(socket(conn, stream, options.timeout))
-          }
-      }
+    Ok(value) -> Ok(value)
   }
 }
 
@@ -238,18 +234,10 @@ pub fn with_socket_result(
   close_frame_result: Result(Nil, error.GluegunError),
   close_connection_result: Result(Nil, error.GluegunError),
 ) -> Result(a, error.GluegunError) {
-  case callback_result {
-    Error(callback_error) -> Error(callback_error)
-    Ok(value) ->
-      case close_frame_result {
-        Error(cleanup_error) -> Error(cleanup_error)
-        Ok(Nil) ->
-          case close_connection_result {
-            Error(cleanup_error) -> Error(cleanup_error)
-            Ok(Nil) -> Ok(value)
-          }
-      }
-  }
+  use value <- result.try(callback_result)
+  use _ <- result.try(close_frame_result)
+  use _ <- result.try(close_connection_result)
+  Ok(value)
 }
 
 /// Set Gun's WebSocket closing timeout.
@@ -306,24 +294,24 @@ pub fn with_protocol_module(
   )
 }
 
-/// Set Gun's raw `reply_to` option.
-pub fn with_reply_to_dynamic(
+@internal
+pub fn with_reply_to_raw(
   options: UpgradeOptions,
   reply_to: dynamic.Dynamic,
 ) -> UpgradeOptions {
   UpgradeOptions(..options, reply_to: Some(reply_to))
 }
 
-/// Set Gun's raw `tunnel` option.
-pub fn with_tunnel_dynamic(
+@internal
+pub fn with_tunnel_raw(
   options: UpgradeOptions,
   tunnel: dynamic.Dynamic,
 ) -> UpgradeOptions {
   UpgradeOptions(..options, tunnel: Some(tunnel))
 }
 
-/// Set Gun's raw `user_opts` option.
-pub fn with_user_opts_dynamic(
+@internal
+pub fn with_user_opts_raw(
   options: UpgradeOptions,
   user_opts: dynamic.Dynamic,
 ) -> UpgradeOptions {
@@ -334,16 +322,28 @@ pub fn with_user_opts_dynamic(
 @internal
 pub fn upgrade_options_to_ffi(options: UpgradeOptions) -> dynamic.Dynamic {
   []
-  |> prepend_optional_timeout("closing_timeout", options.closing_timeout)
-  |> prepend_optional_bool("compress", options.compress)
-  |> prepend_optional_string("default_protocol", options.default_protocol)
-  |> prepend_optional_int("flow", options.flow)
-  |> prepend_optional_timeout("keepalive", options.keepalive)
-  |> prepend_protocols(options.protocols)
-  |> prepend_optional_dynamic("reply_to", options.reply_to)
-  |> prepend_optional_bool("silence_pings", options.silence_pings)
-  |> prepend_optional_dynamic("tunnel", options.tunnel)
-  |> prepend_optional_dynamic("user_opts", options.user_opts)
+  |> prepend_optional(
+    "closing_timeout",
+    options.closing_timeout,
+    connection.timeout_to_ffi,
+  )
+  |> prepend_optional("compress", options.compress, dynamic.bool)
+  |> prepend_optional(
+    "default_protocol",
+    options.default_protocol,
+    dynamic.string,
+  )
+  |> prepend_optional("flow", options.flow, dynamic.int)
+  |> prepend_optional("keepalive", options.keepalive, connection.timeout_to_ffi)
+  |> prepend_optional(
+    "protocols",
+    non_empty(options.protocols),
+    encode_protocols,
+  )
+  |> prepend_optional("reply_to", options.reply_to, fn(value) { value })
+  |> prepend_optional("silence_pings", options.silence_pings, dynamic.bool)
+  |> prepend_optional("tunnel", options.tunnel, fn(value) { value })
+  |> prepend_optional("user_opts", options.user_opts, fn(value) { value })
   |> dynamic.properties
 }
 
@@ -591,7 +591,11 @@ pub fn receive_from(
       Error(error.InvalidMessage(
         "websocket.receive: expected WebSocket frame, got Upgrade message; call await_upgrade first",
       ))
-    _ ->
+    message.Inform(_, _)
+    | message.Response(_, _, _)
+    | message.Data(_, _)
+    | message.Trailers(_)
+    | message.Push(_, _, _, _) ->
       Error(error.InvalidMessage(
         "websocket.receive: expected WebSocket frame, got HTTP message",
       ))
@@ -609,7 +613,12 @@ pub fn await_upgrade_from(
   use msg <- result.try(message_result)
   case msg {
     message.Upgrade(_, _) -> Ok(Nil)
-    _ ->
+    message.Inform(_, _)
+    | message.Response(_, _, _)
+    | message.Data(_, _)
+    | message.Trailers(_)
+    | message.Push(_, _, _, _)
+    | message.WebSocket(_) ->
       Error(error.InvalidMessage(
         "websocket.await_upgrade: expected Upgrade message",
       ))
@@ -631,83 +640,32 @@ fn ffi_ws_send(
   frames: List(Frame),
 ) -> Result(dynamic.Dynamic, dynamic.Dynamic)
 
-fn prepend_optional_timeout(
+fn prepend_optional(
   fields: List(#(dynamic.Dynamic, dynamic.Dynamic)),
   key: String,
-  value: Option(Timeout),
+  value: Option(a),
+  encode: fn(a) -> dynamic.Dynamic,
 ) -> List(#(dynamic.Dynamic, dynamic.Dynamic)) {
   case value {
-    Some(timeout) -> [
-      #(dynamic.string(key), connection.timeout_to_ffi(timeout)),
-      ..fields
-    ]
+    Some(value) -> [#(dynamic.string(key), encode(value)), ..fields]
     None -> fields
   }
 }
 
-fn prepend_optional_bool(
-  fields: List(#(dynamic.Dynamic, dynamic.Dynamic)),
-  key: String,
-  value: Option(Bool),
-) -> List(#(dynamic.Dynamic, dynamic.Dynamic)) {
-  case value {
-    Some(value) -> [#(dynamic.string(key), dynamic.bool(value)), ..fields]
-    None -> fields
+fn non_empty(values: List(a)) -> Option(List(a)) {
+  case values {
+    [] -> None
+    _ -> Some(values)
   }
 }
 
-fn prepend_optional_string(
-  fields: List(#(dynamic.Dynamic, dynamic.Dynamic)),
-  key: String,
-  value: Option(String),
-) -> List(#(dynamic.Dynamic, dynamic.Dynamic)) {
-  case value {
-    Some(value) -> [#(dynamic.string(key), dynamic.string(value)), ..fields]
-    None -> fields
-  }
-}
-
-fn prepend_optional_int(
-  fields: List(#(dynamic.Dynamic, dynamic.Dynamic)),
-  key: String,
-  value: Option(Int),
-) -> List(#(dynamic.Dynamic, dynamic.Dynamic)) {
-  case value {
-    Some(value) -> [#(dynamic.string(key), dynamic.int(value)), ..fields]
-    None -> fields
-  }
-}
-
-fn prepend_optional_dynamic(
-  fields: List(#(dynamic.Dynamic, dynamic.Dynamic)),
-  key: String,
-  value: Option(dynamic.Dynamic),
-) -> List(#(dynamic.Dynamic, dynamic.Dynamic)) {
-  case value {
-    Some(value) -> [#(dynamic.string(key), value), ..fields]
-    None -> fields
-  }
-}
-
-fn prepend_protocols(
-  fields: List(#(dynamic.Dynamic, dynamic.Dynamic)),
-  protocols: List(#(String, String)),
-) -> List(#(dynamic.Dynamic, dynamic.Dynamic)) {
-  case protocols {
-    [] -> fields
-    protocols -> [
-      #(
-        dynamic.string("protocols"),
-        dynamic.list(
-          list.map(protocols, fn(protocol) {
-            dynamic.array([
-              dynamic.string(protocol.0),
-              dynamic.string(protocol.1),
-            ])
-          }),
-        ),
-      ),
-      ..fields
-    ]
-  }
+fn encode_protocols(protocols: List(#(String, String))) -> dynamic.Dynamic {
+  dynamic.list(
+    list.map(protocols, fn(protocol) {
+      dynamic.array([
+        dynamic.string(protocol.0),
+        dynamic.string(protocol.1),
+      ])
+    }),
+  )
 }
