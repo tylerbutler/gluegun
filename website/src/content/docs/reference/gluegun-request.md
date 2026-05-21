@@ -35,6 +35,48 @@ pub type Method {
 }
 ```
 
+**Constructors**
+
+#### `Get`
+
+HTTP `GET`. Safe and idempotent.
+
+#### `Head`
+
+HTTP `HEAD`. Same as `Get` but the response has no body.
+
+#### `Post`
+
+HTTP `POST`. Create or submit data; not idempotent.
+
+#### `Put`
+
+HTTP `PUT`. Replace the target resource; idempotent.
+
+#### `Patch`
+
+HTTP `PATCH`. Apply a partial modification.
+
+#### `Delete`
+
+HTTP `DELETE`. Remove the target resource; idempotent.
+
+#### `Options`
+
+HTTP `OPTIONS`. Describe communication options for the target.
+
+#### `Trace`
+
+HTTP `TRACE`. Loop-back diagnostics; rarely used.
+
+#### `Connect`
+
+HTTP `CONNECT`. Establish a tunnel through a proxy.
+
+#### `Custom(String)`
+
+An extension or non-standard method. The wrapped string is sent verbatim.
+
 ### `RequestOptions`
 
 Request options passed through the low-level request API.

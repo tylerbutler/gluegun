@@ -293,6 +293,24 @@ ${sections.join("\n\n")}
 `;
 }
 
+function renderConstructorsSection(typeInterface, moduleName) {
+	const constructors = normalizeConstructors(typeInterface.constructors).filter(
+		(c) => normalizeDoc(c.documentation).length > 0,
+	);
+	if (constructors.length === 0) {
+		return "";
+	}
+
+	const items = constructors
+		.map((c) => {
+			const signature = renderConstructor(c, moduleName);
+			const docs = normalizeDoc(c.documentation);
+			return `#### ${code(signature)}\n\n${docs}`;
+		})
+		.join("\n\n");
+	return `**Constructors**\n\n${items}`;
+}
+
 function renderTypes(types, moduleName) {
 	const entries = Object.entries(types || {}).sort(([left], [right]) =>
 		left.localeCompare(right),
@@ -307,13 +325,13 @@ function renderTypes(types, moduleName) {
 			const docs = normalizeDoc(typeInterface.documentation);
 			const deprecation = deprecationBlock(typeInterface.deprecation);
 			const definition = renderTypeDefinition(name, typeInterface, moduleName);
-			return `### ${code(name)}
-
-${docs}${deprecation}
-
-\`\`\`gleam
-${definition}
-\`\`\``;
+			const constructors = renderConstructorsSection(typeInterface, moduleName);
+			const sections = [
+				docs ? `${docs}${deprecation}` : deprecation.replace(/^\n\n/, ""),
+				`\`\`\`gleam\n${definition}\n\`\`\``,
+				constructors,
+			].filter((section) => section && section.length > 0);
+			return `### ${code(name)}\n\n${sections.join("\n\n")}`;
 		}),
 	].join("\n\n");
 }

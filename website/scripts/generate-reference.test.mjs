@@ -240,6 +240,89 @@ test("renders parameterised type aliases and constants", async () => {
 	}
 });
 
+test("renders per-constructor documentation under a Constructors heading", async () => {
+	const { read, cleanup } = await runWithFixture({
+		name: "gluegun",
+		version: "0.1.0",
+		modules: {
+			"gluegun/connection": {
+				documentation: [],
+				"type-aliases": {},
+				types: {
+					Transport: {
+						documentation: " Transport selection.\n",
+						parameters: 0,
+						constructors: [
+							{
+								name: "Auto",
+								documentation: " Let Gun choose TLS for TLS ports and TCP otherwise.\n",
+								parameters: [],
+							},
+							{
+								name: "Tcp",
+								documentation: " Force plain TCP (no TLS).\n",
+								parameters: [],
+							},
+							{
+								name: "Tls",
+								documentation: " Force TLS.\n",
+								parameters: [],
+							},
+						],
+					},
+				},
+				constants: {},
+				functions: {},
+			},
+		},
+	});
+
+	try {
+		const page = await read("gluegun-connection.md");
+		assert.match(
+			page,
+			/\*\*Constructors\*\*\n\n#### `Auto`\n\nLet Gun choose TLS for TLS ports and TCP otherwise\./,
+		);
+		assert.match(page, /#### `Tcp`\n\nForce plain TCP \(no TLS\)\./);
+		assert.match(page, /#### `Tls`\n\nForce TLS\./);
+	} finally {
+		await cleanup();
+	}
+});
+
+test("omits Constructors block when no constructor has documentation", async () => {
+	const { read, cleanup } = await runWithFixture({
+		name: "gluegun",
+		version: "0.1.0",
+		modules: {
+			"gluegun/empty": {
+				documentation: [],
+				"type-aliases": {},
+				types: {
+					Flag: {
+						documentation: "",
+						parameters: 0,
+						constructors: [
+							{ name: "On", documentation: "", parameters: [] },
+							{ name: "Off", documentation: "", parameters: [] },
+						],
+					},
+				},
+				constants: {},
+				functions: {},
+			},
+		},
+	});
+
+	try {
+		const page = await read("gluegun-empty.md");
+		assert.ok(!page.includes("**Constructors**"));
+		assert.match(page, /pub type Flag \{\n {2}On\n {2}Off\n\}/);
+	} finally {
+		await cleanup();
+	}
+});
+
 test("renders deprecation notices as Starlight caution admonitions", async () => {
 	const { read, cleanup } = await runWithFixture({
 		name: "gluegun",

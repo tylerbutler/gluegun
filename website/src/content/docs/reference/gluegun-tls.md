@@ -52,6 +52,16 @@ pub type ServerNameIndication {
 }
 ```
 
+**Constructors**
+
+#### `Disable`
+
+Disable SNI for this connection.
+
+#### `ServerName(String)`
+
+Send the provided hostname as the SNI value.
+
 ### `TlsOptions`
 
 Pure representation of TLS client options before FFI conversion.
@@ -77,6 +87,16 @@ pub type TlsVersion {
 }
 ```
 
+**Constructors**
+
+#### `TlsV12`
+
+Allow TLS 1.2.
+
+#### `TlsV13`
+
+Allow TLS 1.3.
+
 ### `VerifyMode`
 
 TLS peer verification mode.
@@ -87,6 +107,16 @@ pub type VerifyMode {
   VerifyNone
 }
 ```
+
+**Constructors**
+
+#### `VerifyPeer`
+
+Verify the peer certificate chain and hostname.
+
+#### `VerifyNone`
+
+Disable peer certificate verification.
 
 ## Functions
 
