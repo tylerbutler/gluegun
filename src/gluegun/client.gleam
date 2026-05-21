@@ -379,85 +379,94 @@ fn step(
   collection: Collection,
   message: Message,
 ) -> Result(Step, error.GluegunError) {
+  case collection {
+    AwaitingResponse(info) -> handle_awaiting(info, message)
+    Collecting(status, headers, chunks, trailers, info) ->
+      handle_collecting(status, headers, chunks, trailers, info, message)
+  }
+}
+
+fn handle_awaiting(
+  informational: List(Informational),
+  message: Message,
+) -> Result(Step, error.GluegunError) {
   case message {
     message.Inform(status, headers) ->
-      case collection {
-        AwaitingResponse(informational) ->
-          Ok(
-            Continue(
-              AwaitingResponse(
-                list.append(informational, [
-                  response.Informational(status: status, headers: headers),
-                ]),
-              ),
-            ),
-          )
-        Collecting(_, _, _, _, _) ->
-          invalid(
-            "HTTP helper received informational response after final response",
-          )
-      }
-
+      Ok(
+        Continue(
+          AwaitingResponse(
+            list.append(informational, [
+              response.Informational(status: status, headers: headers),
+            ]),
+          ),
+        ),
+      )
     message.Response(fin, status, headers) ->
-      case collection {
-        AwaitingResponse(informational) ->
-          case fin {
-            fin.Fin ->
-              Ok(Done(build_response(status, headers, [], [], informational)))
-            fin.NoFin ->
-              Ok(Continue(Collecting(status, headers, [], [], informational)))
-          }
-        Collecting(_, _, _, _, _) ->
-          invalid("HTTP helper received duplicate response")
+      case fin {
+        fin.Fin ->
+          Ok(Done(build_response(status, headers, [], [], informational)))
+        fin.NoFin ->
+          Ok(Continue(Collecting(status, headers, [], [], informational)))
       }
+    message.Data(_, _) -> invalid("HTTP helper received body before response")
+    message.Trailers(_) ->
+      invalid("HTTP helper received trailers before response")
+    message.Push(_, _, _, _) -> invalid("HTTP helper received push message")
+    message.Upgrade(_, _) -> invalid("HTTP helper received upgrade message")
+    message.WebSocket(_) -> invalid("HTTP helper received websocket message")
+  }
+}
 
-    message.Data(fin, data) ->
-      case collection {
-        AwaitingResponse(_) ->
-          invalid("HTTP helper received body before response")
-        Collecting(status, headers, chunks, trailers, informational) -> {
-          let chunks = [data, ..chunks]
-          case fin {
-            fin.Fin ->
-              Ok(
-                Done(build_response(
-                  status,
-                  headers,
-                  chunks,
-                  trailers,
-                  informational,
-                )),
-              )
-            fin.NoFin ->
-              Ok(
-                Continue(Collecting(
-                  status,
-                  headers,
-                  chunks,
-                  trailers,
-                  informational,
-                )),
-              )
-          }
-        }
-      }
-
-    message.Trailers(headers) ->
-      case collection {
-        AwaitingResponse(_) ->
-          invalid("HTTP helper received trailers before response")
-        Collecting(status, response_headers, chunks, trailers, informational) ->
+fn handle_collecting(
+  status: Int,
+  headers: List(low_request.Header),
+  chunks: List(BitArray),
+  trailers: List(low_request.Header),
+  informational: List(Informational),
+  message: Message,
+) -> Result(Step, error.GluegunError) {
+  case message {
+    message.Inform(_, _) ->
+      invalid(
+        "HTTP helper received informational response after final response",
+      )
+    message.Response(_, _, _) ->
+      invalid("HTTP helper received duplicate response")
+    message.Data(fin, data) -> {
+      let chunks = [data, ..chunks]
+      case fin {
+        fin.Fin ->
           Ok(
             Done(build_response(
               status,
-              response_headers,
+              headers,
               chunks,
-              list.append(trailers, headers),
+              trailers,
+              informational,
+            )),
+          )
+        fin.NoFin ->
+          Ok(
+            Continue(Collecting(
+              status,
+              headers,
+              chunks,
+              trailers,
               informational,
             )),
           )
       }
-
+    }
+    message.Trailers(trailer_headers) ->
+      Ok(
+        Done(build_response(
+          status,
+          headers,
+          chunks,
+          list.append(trailers, trailer_headers),
+          informational,
+        )),
+      )
     message.Push(_, _, _, _) -> invalid("HTTP helper received push message")
     message.Upgrade(_, _) -> invalid("HTTP helper received upgrade message")
     message.WebSocket(_) -> invalid("HTTP helper received websocket message")
