@@ -1,10 +1,36 @@
 //// Typed TLS client options for Gun and Erlang SSL.
 ////
-//// Gluegun keeps TLS configuration explicit instead of relying on Erlang's
-//// historical defaults. Use this module to opt into peer verification, pin
-//// TLS versions, configure CA bundles, or supply client certificate files.
+//// Gluegun applies a secure baseline whenever a connection uses TLS
+//// (`connection.Tls`, or `connection.Auto` resolving to TLS): peer +
+//// hostname verification, the OS trust store via
+//// `public_key:cacerts_get/0`, TLS 1.2/1.3, SNI derived from the host
+//// passed to `connection.open`, and a `customize_hostname_check` match
+//// function for HTTPS. Use the builders here to override individual
+//// fields; user-supplied values always win over the defaults.
 ////
-//// ## Production HTTPS baseline
+//// For development against self-signed endpoints, use `insecure()` —
+//// it returns a `TlsOptions` that disables verification (and therefore
+//// the rest of the secure baseline). Do **not** ship `insecure()` to
+//// production.
+////
+//// ## Production HTTPS
+////
+//// The minimal HTTPS setup is just:
+////
+//// ```gleam
+//// import gluegun/connection
+////
+//// pub fn https_options() {
+////   connection.options()
+////   |> connection.with_transport(transport: connection.Tls)
+//// }
+//// ```
+////
+//// Gluegun fills in `verify_peer`, the OS trust store, TLS 1.2/1.3, SNI,
+//// and HTTPS hostname matching automatically when you call
+//// `connection.open(host:, port:)`.
+////
+//// ## Overriding the baseline
 ////
 //// ```gleam
 //// import gluegun/connection
@@ -13,13 +39,9 @@
 //// pub fn https_options(host: String) {
 ////   let tls_opts =
 ////     tls.options()
-////     |> tls.with_verify(verify: tls.VerifyPeer)
-////     |> tls.with_versions(versions: [tls.TlsV13, tls.TlsV12])
+////     |> tls.with_versions(versions: [tls.TlsV13])
 ////     |> tls.with_cacertfile(cacertfile: "/etc/ssl/cert.pem")
-////     |> tls.with_server_name_indication(
-////       server_name_indication: tls.ServerName(host),
-////     )
-////     |> tls.with_depth(depth: 10)
+////     |> tls.with_depth(depth: 5)
 ////
 ////   connection.options()
 ////   |> connection.with_transport(transport: connection.Tls)
@@ -27,10 +49,8 @@
 //// }
 //// ```
 ////
-//// `VerifyPeer` enables certificate chain *and* hostname verification.
-//// `with_server_name_indication` sets the SNI value sent in the TLS
-//// ClientHello; hostname verification itself requires `VerifyPeer` plus
-//// trusted CA material (`with_cacerts` or `with_cacertfile`).
+//// Any field you set on `TlsOptions` overrides the corresponding default;
+//// fields you leave unset are filled in by the secure baseline.
 
 import gleam/dynamic
 import gleam/erlang/atom
@@ -100,6 +120,19 @@ pub fn options() -> TlsOptions {
     depth: None,
     raw_options: [],
   )
+}
+
+/// Construct TLS options that **disable** peer verification.
+///
+/// **Development only.** Returns options with `verify_none` and SNI
+/// disabled, which suppresses Gluegun's secure TLS defaults (system CA
+/// trust store, hostname verification, TLS 1.2/1.3 floor). This bypasses
+/// the protections that make HTTPS trustworthy — never use it against
+/// untrusted networks or production endpoints.
+pub fn insecure() -> TlsOptions {
+  options()
+  |> with_verify(verify: VerifyNone)
+  |> with_server_name_indication(server_name_indication: Disable)
 }
 
 /// Set the TLS peer verification mode.

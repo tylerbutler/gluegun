@@ -17,12 +17,13 @@
     ws_upgrade/4,
     ws_send/3,
     safe_message_to_map/1,
-    options_to_gun/1
+    options_to_gun/1,
+    apply_secure_tls_defaults/2
 ]).
 
 open(Host, Port, Options) ->
     try
-        GunOptions = options_to_gun(Options),
+        GunOptions = apply_secure_tls_defaults(Host, options_to_gun(Options)),
         with_normalize(connection, fun() ->
             gun:open(normalize_host(Host), Port, GunOptions)
         end)
@@ -297,6 +298,125 @@ tls_version_to_gun(Version) -> Version.
 
 server_name_indication_to_gun(disable) -> disable;
 server_name_indication_to_gun(Value) -> unicode_value_to_list(Value).
+
+%% --- Secure TLS defaults ----------------------------------------------------
+%%
+%% When a connection uses TLS (transport `tls` or `auto`), fill in any TLS
+%% option fields the caller did not set with a secure baseline: peer +
+%% hostname verification, the OS trust store, SNI from the target host,
+%% TLS 1.2/1.3, and a hostname match function.
+%%
+%% User-supplied `tls_opts` always win — the merge is "add only missing
+%% keys". If the caller explicitly sets `verify => verify_none` we skip the
+%% rest of the baseline (no cacerts, no hostname checks).
+
+apply_secure_tls_defaults(_Host, GunOptions) when not is_map(GunOptions) ->
+    GunOptions;
+apply_secure_tls_defaults(Host, GunOptions) ->
+    case tls_relevant_transport(GunOptions) of
+        false -> GunOptions;
+        true ->
+            TlsOpts0 = maps:get(tls_opts, GunOptions, []),
+            TlsOpts = merge_secure_tls_defaults(Host, TlsOpts0),
+            GunOptions#{tls_opts => TlsOpts}
+    end.
+
+tls_relevant_transport(GunOptions) ->
+    case maps:get(transport, GunOptions, auto) of
+        tls -> true;
+        auto -> true;
+        _ -> false
+    end.
+
+merge_secure_tls_defaults(Host, TlsOpts) when is_list(TlsOpts) ->
+    Verify = proplist_get(verify, TlsOpts),
+    EffectiveVerify = case Verify of
+        undefined -> verify_peer;
+        V -> V
+    end,
+    Step1 = case Verify of
+        undefined -> [{verify, verify_peer} | TlsOpts];
+        _ -> TlsOpts
+    end,
+    case EffectiveVerify of
+        verify_peer -> add_verify_peer_defaults(Host, Step1);
+        _ -> Step1
+    end.
+
+add_verify_peer_defaults(Host, TlsOpts) ->
+    TlsOpts1 = maybe_add_cacerts(TlsOpts),
+    TlsOpts2 = maybe_add(versions, ['tlsv1.3', 'tlsv1.2'], TlsOpts1),
+    TlsOpts3 = maybe_add(depth, 10, TlsOpts2),
+    TlsOpts4 = maybe_add_sni(Host, TlsOpts3),
+    maybe_add_hostname_match(TlsOpts4).
+
+maybe_add(Key, Value, TlsOpts) ->
+    case proplist_has(Key, TlsOpts) of
+        true -> TlsOpts;
+        false -> [{Key, Value} | TlsOpts]
+    end.
+
+maybe_add_cacerts(TlsOpts) ->
+    case proplist_has(cacerts, TlsOpts) orelse proplist_has(cacertfile, TlsOpts) of
+        true -> TlsOpts;
+        false ->
+            case system_cacerts() of
+                {ok, CACerts} -> [{cacerts, CACerts} | TlsOpts];
+                error -> error({invalid_options, {tls, no_system_cacerts}})
+            end
+    end.
+
+system_cacerts() ->
+    try public_key:cacerts_get() of
+        CACerts when is_list(CACerts), CACerts =/= [] -> {ok, CACerts}
+    catch
+        _:_ -> error
+    end.
+
+maybe_add_sni(Host, TlsOpts) ->
+    case proplist_has(server_name_indication, TlsOpts) of
+        true -> TlsOpts;
+        false ->
+            case sni_for_host(Host) of
+                {ok, Sni} -> [{server_name_indication, Sni} | TlsOpts];
+                skip -> TlsOpts
+            end
+    end.
+
+sni_for_host(Host) ->
+    HostStr = host_to_charlist(Host),
+    case HostStr of
+        [] -> skip;
+        _ ->
+            case inet:parse_address(HostStr) of
+                {ok, _IP} -> skip;
+                {error, _} -> {ok, HostStr}
+            end
+    end.
+
+host_to_charlist(Host) when is_binary(Host) -> unicode:characters_to_list(Host);
+host_to_charlist(Host) when is_list(Host) -> Host;
+host_to_charlist(_) -> [].
+
+maybe_add_hostname_match(TlsOpts) ->
+    case proplist_has(customize_hostname_check, TlsOpts) of
+        true -> TlsOpts;
+        false ->
+            try public_key:pkix_verify_hostname_match_fun(https) of
+                MatchFun ->
+                    [{customize_hostname_check, [{match_fun, MatchFun}]} | TlsOpts]
+            catch
+                _:_ -> TlsOpts
+            end
+    end.
+
+proplist_has(Key, List) -> proplist_get(Key, List) =/= undefined.
+
+proplist_get(Key, [{Key, Value} | _]) -> Value;
+proplist_get(Key, [_ | Rest]) -> proplist_get(Key, Rest);
+proplist_get(_Key, []) -> undefined.
+
+%% ---------------------------------------------------------------------------
 
 file_name_to_gun(Value) -> unicode_value_to_list(Value).
 
