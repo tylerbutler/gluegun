@@ -11,7 +11,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gluegun/error
-import gluegun/internal.{type Connection}
+import gluegun/internal
 import gluegun/internal/ffi_result
 
 /// Transport selection for a Gun connection.
