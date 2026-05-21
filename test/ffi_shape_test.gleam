@@ -45,7 +45,7 @@ pub fn ffi_shape_tests() {
         |> expect.to_equal(Error(error.DecodeError("Invalid protocol")))
       }),
       it("maps timeout errors", fn() {
-        message.decode_ffi_error(atom.to_dynamic(atom.create("timeout")))
+        error.decode_ffi_error(atom.to_dynamic(atom.create("timeout")))
         |> expect.to_equal(error.Timeout)
       }),
       it("decodes response message shapes", fn() {
@@ -76,7 +76,7 @@ pub fn ffi_shape_tests() {
         |> expect.to_equal(Error(error.ErlangError("Error(Badarg)")))
       }),
       it("keeps non-option open errors explicit", fn() {
-        message.decode_ffi_error(gluegun_ffi_test_erlang_error())
+        error.decode_ffi_error(gluegun_ffi_test_erlang_error())
         |> expect.to_equal(error.ErlangError("Error(Badarg)"))
       }),
       it("keeps close errors explicit", fn() {

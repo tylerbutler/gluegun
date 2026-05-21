@@ -1,17 +1,25 @@
 ---
 title: gluegun
-description: Root facade for the Gluegun HTTP client wrapper.
+description: Minimal common-path facade for the Gluegun HTTP client wrapper.
 ---
 
 # `gluegun`
 
-Root facade for the Gluegun HTTP client wrapper.
+Minimal common-path facade for the Gluegun HTTP client wrapper.
 
- This module exposes a small common-path facade. Submodules expose grouped
- APIs for connection, low-level request, response, message, and WebSocket
- concerns.
+ For full functionality import the submodules (`gluegun/connection`,
+ `gluegun/request`, `gluegun/client`, `gluegun/websocket`,
+ `gluegun/message`, `gluegun/response`, `gluegun/error`).
 
 ## Functions
+
+### `await_up`
+
+Wait until a Gun connection is up.
+
+```gleam
+pub fn await_up(gluegun/internal.Connection, gluegun/connection.Timeout) -> Result(gluegun/connection.Protocol, gluegun/error.GluegunError)
+```
 
 ### `body_text`
 
@@ -29,22 +37,6 @@ Construct default connection options.
 pub fn connection_options() -> gluegun/connection.ConnectOptions
 ```
 
-### `method_to_string`
-
-Convert a request method to an HTTP method string.
-
-```gleam
-pub fn method_to_string(gluegun/request.Method) -> String
-```
-
-### `name`
-
-Return the package name.
-
-```gleam
-pub fn name() -> String
-```
-
 ### `new_request`
 
 Construct a collected HTTP request command.
@@ -53,28 +45,12 @@ Construct a collected HTTP request command.
 pub fn new_request(gluegun/request.Method, String) -> gluegun/client.Request
 ```
 
-### `normalize_headers`
-
-Normalize header names for Gun.
-
-```gleam
-pub fn normalize_headers(List(#(String, String))) -> List(#(String, String))
-```
-
 ### `open`
 
 Open a Gun connection.
 
 ```gleam
 pub fn open(gluegun/connection.ConnectOptions, host: String, port: Int) -> Result(gluegun/internal.Connection, gluegun/error.GluegunError)
-```
-
-### `response`
-
-Construct a collected HTTP response.
-
-```gleam
-pub fn response(status: Int, headers: List(#(String, String)), body: BitArray, trailers: List(#(String, String))) -> gluegun/response.Response
 ```
 
 ### `send`
@@ -99,68 +75,4 @@ Construct default high-level WebSocket connection options.
 
 ```gleam
 pub fn websocket_options() -> gluegun/websocket.Options
-```
-
-### `websocket_receive_app_frame`
-
-Receive the next application WebSocket frame, handling ping/pong frames.
-
-```gleam
-pub fn websocket_receive_app_frame(gluegun/websocket.Socket) -> Result(gluegun/message.Frame, gluegun/error.GluegunError)
-```
-
-### `websocket_send_close_frame`
-
-Send a close WebSocket frame using a reusable socket.
-
-```gleam
-pub fn websocket_send_close_frame(gluegun/websocket.Socket) -> Result(Nil, gluegun/error.GluegunError)
-```
-
-### `websocket_send_text`
-
-Send a text WebSocket frame using a reusable socket.
-
-```gleam
-pub fn websocket_send_text(gluegun/websocket.Socket, String) -> Result(Nil, gluegun/error.GluegunError)
-```
-
-### `websocket_with_socket`
-
-Open a WebSocket, run a callback, then close the WebSocket and connection.
-
-```gleam
-pub fn websocket_with_socket(host: String, port: Int, path: String, options: gluegun/websocket.Options, callback: fn(gluegun/websocket.Socket) -> Result(a, gluegun/error.GluegunError)) -> Result(a, gluegun/error.GluegunError)
-```
-
-### `with_connect_timeout`
-
-Set connect timeout on connection options.
-
-```gleam
-pub fn with_connect_timeout(gluegun/connection.ConnectOptions, timeout: gluegun/connection.Timeout) -> gluegun/connection.ConnectOptions
-```
-
-### `with_protocols`
-
-Set protocol preferences on connection options.
-
-```gleam
-pub fn with_protocols(gluegun/connection.ConnectOptions, protocols: List(gluegun/connection.Protocol)) -> gluegun/connection.ConnectOptions
-```
-
-### `with_retry`
-
-Set Gun retry timeout on connection options.
-
-```gleam
-pub fn with_retry(gluegun/connection.ConnectOptions, retry: gluegun/connection.Timeout) -> gluegun/connection.ConnectOptions
-```
-
-### `with_transport`
-
-Set the transport on connection options.
-
-```gleam
-pub fn with_transport(gluegun/connection.ConnectOptions, transport: gluegun/connection.Transport) -> gluegun/connection.ConnectOptions
 ```

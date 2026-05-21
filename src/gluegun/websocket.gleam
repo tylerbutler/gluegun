@@ -33,12 +33,12 @@ import gleam/dynamic
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
-import gluegun/connection.{type Protocol, type Timeout}
+import gluegun/connection.{type Connection, type Protocol, type Timeout}
 import gluegun/error
-import gluegun/internal.{type Connection, type Stream}
+import gluegun/internal
 import gluegun/internal/ffi_result
 import gluegun/message.{type Frame}
-import gluegun/request.{type Header}
+import gluegun/request.{type Header, type Stream}
 
 /// A reusable WebSocket handle.
 ///
@@ -294,24 +294,24 @@ pub fn with_protocol_module(
   )
 }
 
-/// Set Gun's raw `reply_to` option.
-pub fn with_reply_to_dynamic(
+@internal
+pub fn with_reply_to_raw(
   options: UpgradeOptions,
   reply_to: dynamic.Dynamic,
 ) -> UpgradeOptions {
   UpgradeOptions(..options, reply_to: Some(reply_to))
 }
 
-/// Set Gun's raw `tunnel` option.
-pub fn with_tunnel_dynamic(
+@internal
+pub fn with_tunnel_raw(
   options: UpgradeOptions,
   tunnel: dynamic.Dynamic,
 ) -> UpgradeOptions {
   UpgradeOptions(..options, tunnel: Some(tunnel))
 }
 
-/// Set Gun's raw `user_opts` option.
-pub fn with_user_opts_dynamic(
+@internal
+pub fn with_user_opts_raw(
   options: UpgradeOptions,
   user_opts: dynamic.Dynamic,
 ) -> UpgradeOptions {

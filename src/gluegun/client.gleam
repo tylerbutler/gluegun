@@ -12,10 +12,9 @@
 import gleam/bit_array
 import gleam/list
 import gleam/result
-import gluegun/connection.{type Timeout, Milliseconds}
+import gluegun/connection.{type Connection, type Timeout, Milliseconds}
 import gluegun/error
 import gluegun/fin
-import gluegun/internal.{type Connection, type Stream}
 import gluegun/message.{type Message}
 import gluegun/request as low_request
 import gluegun/response.{type Informational, type Response}
@@ -146,6 +145,7 @@ pub fn send(
 }
 
 /// Send an HTTP request on an open connection and collect its full response.
+@internal
 pub fn send_raw(
   connection: Connection,
   method: low_request.Method,
@@ -286,8 +286,8 @@ pub fn get_with(
     BitArray,
     low_request.RequestOptions,
   ) ->
-    Result(Stream, error.GluegunError),
-  await_fn: fn(Connection, Stream, Timeout) ->
+    Result(low_request.Stream, error.GluegunError),
+  await_fn: fn(Connection, low_request.Stream, Timeout) ->
     Result(Message, error.GluegunError),
 ) -> Result(Response, error.GluegunError) {
   request_with(
@@ -320,8 +320,8 @@ pub fn request_with(
     BitArray,
     low_request.RequestOptions,
   ) ->
-    Result(Stream, error.GluegunError),
-  await_fn: fn(Connection, Stream, Timeout) ->
+    Result(low_request.Stream, error.GluegunError),
+  await_fn: fn(Connection, low_request.Stream, Timeout) ->
     Result(Message, error.GluegunError),
 ) -> Result(Response, error.GluegunError) {
   use stream <- result.try(request_fn(
@@ -343,10 +343,10 @@ pub fn request_with(
 
 fn collect_stream_with(
   connection: Connection,
-  stream: Stream,
+  stream: low_request.Stream,
   collection: Collection,
   timeout: Timeout,
-  await_fn: fn(Connection, Stream, Timeout) ->
+  await_fn: fn(Connection, low_request.Stream, Timeout) ->
     Result(Message, error.GluegunError),
 ) -> Result(Response, error.GluegunError) {
   use awaited <- result.try(await_fn(connection, stream, timeout))

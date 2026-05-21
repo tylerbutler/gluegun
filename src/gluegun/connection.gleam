@@ -11,7 +11,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gluegun/error
-import gluegun/internal.{type Connection}
+import gluegun/internal
 import gluegun/internal/ffi_result
 
 /// Transport selection for a Gun connection.
@@ -43,6 +43,10 @@ pub type Timeout {
   Milliseconds(Int)
   Infinity
 }
+
+/// Opaque handle for an open Gun connection.
+pub type Connection =
+  internal.Connection
 
 /// Pure representation of connection options before FFI conversion.
 pub opaque type ConnectOptions {
@@ -165,6 +169,7 @@ pub fn shutdown(connection: Connection) -> Result(Nil, error.GluegunError) {
 }
 
 /// Convert connection options to the Erlang FFI map shape.
+@internal
 pub fn options_to_ffi(options: ConnectOptions) -> dynamic.Dynamic {
   let protocol_entries = case options.protocols {
     Some(protocols) -> [
@@ -188,6 +193,7 @@ pub fn options_to_ffi(options: ConnectOptions) -> dynamic.Dynamic {
 }
 
 /// Convert a timeout to the Erlang FFI shape.
+@internal
 pub fn timeout_to_ffi(timeout: Timeout) -> dynamic.Dynamic {
   case timeout {
     Milliseconds(milliseconds) -> dynamic.int(milliseconds)

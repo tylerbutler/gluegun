@@ -23,15 +23,6 @@ Errors returned by Gluegun connection, request, message, and WebSocket APIs.
 - `StreamError(String)`
 - `InvalidOptions(String)`
 - `InvalidMessage(String)`
+- `UnsupportedFeature(String)`
 - `ErlangError(String)`
 - `DecodeError(String)`
-
-## Functions
-
-### `decode_ffi_error`
-
-Decode an FFI error reason into a Gluegun error.
-
-```gleam
-pub fn decode_ffi_error(gleam/dynamic.Dynamic) -> gluegun/error.GluegunError
-```
