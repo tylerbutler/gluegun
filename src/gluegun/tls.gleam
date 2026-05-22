@@ -1,12 +1,10 @@
 //// Typed TLS client options for Gun and Erlang SSL.
 ////
 //// Gluegun applies a secure baseline whenever a connection uses TLS
-//// (`connection.Tls`, or `connection.Auto` resolving to TLS): peer +
-//// hostname verification, the OS trust store via
-//// `public_key:cacerts_get/0`, TLS 1.2/1.3, SNI derived from the host
-//// passed to `connection.open`, and a `customize_hostname_check` match
-//// function for HTTPS. Use the builders here to override individual
-//// fields; user-supplied values always win over the defaults.
+//// (`connection.Tls`, or `connection.Auto` resolving to TLS): peer and
+//// hostname verification, system CA certificates, TLS 1.2/1.3, SNI for DNS
+//// hosts, and HTTPS hostname matching. See the TLS guide for the canonical
+//// default list and override behavior.
 ////
 //// For development against self-signed endpoints, use `insecure()` —
 //// it returns a `TlsOptions` that disables verification (and therefore

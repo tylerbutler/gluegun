@@ -18,7 +18,8 @@
     ws_send/3,
     safe_message_to_map/1,
     options_to_gun/1,
-    apply_secure_tls_defaults/2
+    apply_secure_tls_defaults/2,
+    apply_secure_tls_defaults/3
 ]).
 
 open(Host, Port, Options) ->
@@ -310,71 +311,85 @@ server_name_indication_to_gun(Value) -> unicode_value_to_list(Value).
 %% keys". If the caller explicitly sets `verify => verify_none` we skip the
 %% rest of the baseline (no cacerts, no hostname checks).
 
-apply_secure_tls_defaults(_Host, GunOptions) when not is_map(GunOptions) ->
-    GunOptions;
 apply_secure_tls_defaults(Host, GunOptions) ->
-    case tls_relevant_transport(GunOptions) of
+    apply_secure_tls_defaults(Host, GunOptions, #{}).
+
+apply_secure_tls_defaults(_Host, GunOptions, _Deps) when not is_map(GunOptions) ->
+    GunOptions;
+apply_secure_tls_defaults(Host, GunOptions, Deps) ->
+    case tls_defaults_apply_to_transport(GunOptions) of
         false -> GunOptions;
         true ->
             TlsOpts0 = maps:get(tls_opts, GunOptions, []),
-            TlsOpts = merge_secure_tls_defaults(Host, TlsOpts0),
+            TlsOpts = merge_secure_tls_defaults(Host, TlsOpts0, Deps),
             GunOptions#{tls_opts => TlsOpts}
     end.
 
-tls_relevant_transport(GunOptions) ->
+tls_defaults_apply_to_transport(GunOptions) ->
     case maps:get(transport, GunOptions, auto) of
         tls -> true;
         auto -> true;
         _ -> false
     end.
 
-merge_secure_tls_defaults(Host, TlsOpts) when is_list(TlsOpts) ->
-    Verify = proplist_get(verify, TlsOpts),
-    EffectiveVerify = case Verify of
-        undefined -> verify_peer;
-        V -> V
-    end,
-    Step1 = case Verify of
-        undefined -> [{verify, verify_peer} | TlsOpts];
+merge_secure_tls_defaults(Host, TlsOpts, Deps) when is_list(TlsOpts) ->
+    case proplists:get_value(verify, TlsOpts) of
+        undefined -> add_verify_peer_defaults(Host, [{verify, verify_peer} | TlsOpts], Deps);
+        verify_peer -> add_verify_peer_defaults(Host, TlsOpts, Deps);
         _ -> TlsOpts
-    end,
-    case EffectiveVerify of
-        verify_peer -> add_verify_peer_defaults(Host, Step1);
-        _ -> Step1
     end.
 
-add_verify_peer_defaults(Host, TlsOpts) ->
-    TlsOpts1 = maybe_add_cacerts(TlsOpts),
-    TlsOpts2 = maybe_add(versions, ['tlsv1.3', 'tlsv1.2'], TlsOpts1),
-    TlsOpts3 = maybe_add(depth, 10, TlsOpts2),
-    TlsOpts4 = maybe_add_sni(Host, TlsOpts3),
-    maybe_add_hostname_match(TlsOpts4).
+add_verify_peer_defaults(Host, TlsOpts, Deps) ->
+    TlsOptsWithCACerts = maybe_add_cacerts(TlsOpts, Deps),
+    TlsOptsWithVersions = maybe_add(versions, ['tlsv1.3', 'tlsv1.2'], TlsOptsWithCACerts),
+    TlsOptsWithDepth = maybe_add(depth, 10, TlsOptsWithVersions),
+    TlsOptsWithSni = maybe_add_sni(Host, TlsOptsWithDepth),
+    maybe_add_hostname_match(TlsOptsWithSni, Deps).
 
 maybe_add(Key, Value, TlsOpts) ->
-    case proplist_has(Key, TlsOpts) of
+    case proplists:is_defined(Key, TlsOpts) of
         true -> TlsOpts;
         false -> [{Key, Value} | TlsOpts]
     end.
 
-maybe_add_cacerts(TlsOpts) ->
-    case proplist_has(cacerts, TlsOpts) orelse proplist_has(cacertfile, TlsOpts) of
+maybe_add_cacerts(TlsOpts, Deps) ->
+    case proplists:is_defined(cacerts, TlsOpts) orelse proplists:is_defined(cacertfile, TlsOpts) of
         true -> TlsOpts;
         false ->
-            case system_cacerts() of
+            case system_cacerts(Deps) of
                 {ok, CACerts} -> [{cacerts, CACerts} | TlsOpts];
-                error -> error({invalid_options, {tls, no_system_cacerts}})
+                {error, Reason} -> error({invalid_options, {tls, {no_system_cacerts, Reason}}})
             end
     end.
 
-system_cacerts() ->
-    try public_key:cacerts_get() of
-        CACerts when is_list(CACerts), CACerts =/= [] -> {ok, CACerts}
+system_cacerts(Deps) ->
+    CACertsFun = maps:get(cacerts_fun, Deps, fun public_key:cacerts_get/0),
+    CacheKey = maps:get(cacerts_cache_key, Deps, gluegun_system_cacerts),
+    try cached_system_cacerts(CacheKey, CACertsFun) of
+        CACerts when is_list(CACerts), CACerts =/= [] -> {ok, CACerts};
+        [] -> {error, empty};
+        Other -> {error, {unexpected_return, Other}}
     catch
-        _:_ -> error
+        Class:Reason:_Stack -> {error, {Class, Reason}}
+    end.
+
+cached_system_cacerts(CacheKey, CACertsFun) ->
+    case persistent_term:get(CacheKey, undefined) of
+        undefined ->
+            CACerts = CACertsFun(),
+            case CACerts of
+                List when is_list(List), List =/= [] ->
+                    persistent_term:put(CacheKey, List),
+                    List;
+                _ ->
+                    CACerts
+            end;
+        CACerts ->
+            CACerts
     end.
 
 maybe_add_sni(Host, TlsOpts) ->
-    case proplist_has(server_name_indication, TlsOpts) of
+    case proplists:is_defined(server_name_indication, TlsOpts) of
         true -> TlsOpts;
         false ->
             case sni_for_host(Host) of
@@ -388,33 +403,41 @@ sni_for_host(Host) ->
     case HostStr of
         [] -> skip;
         _ ->
-            case inet:parse_address(HostStr) of
+            case inet:parse_address(strip_ipv6_brackets(HostStr)) of
                 {ok, _IP} -> skip;
                 {error, _} -> {ok, HostStr}
             end
     end.
 
+strip_ipv6_brackets([$[ | Rest]) ->
+    case lists:reverse(Rest) of
+        [$] | RevInner] -> lists:reverse(RevInner);
+        _ -> [$[ | Rest]
+    end;
+strip_ipv6_brackets(Host) -> Host.
+
 host_to_charlist(Host) when is_binary(Host) -> unicode:characters_to_list(Host);
 host_to_charlist(Host) when is_list(Host) -> Host;
 host_to_charlist(_) -> [].
 
-maybe_add_hostname_match(TlsOpts) ->
-    case proplist_has(customize_hostname_check, TlsOpts) of
+maybe_add_hostname_match(TlsOpts, Deps) ->
+    case proplists:is_defined(customize_hostname_check, TlsOpts) of
         true -> TlsOpts;
         false ->
-            try public_key:pkix_verify_hostname_match_fun(https) of
+            HostnameMatchFun =
+                maps:get(
+                    hostname_match_fun,
+                    Deps,
+                    fun public_key:pkix_verify_hostname_match_fun/1
+                ),
+            try HostnameMatchFun(https) of
                 MatchFun ->
                     [{customize_hostname_check, [{match_fun, MatchFun}]} | TlsOpts]
             catch
-                _:_ -> TlsOpts
+                Class:Reason:_Stack ->
+                    error({invalid_options, {tls, {hostname_match_fun_unavailable, {Class, Reason}}}})
             end
     end.
-
-proplist_has(Key, List) -> proplist_get(Key, List) =/= undefined.
-
-proplist_get(Key, [{Key, Value} | _]) -> Value;
-proplist_get(Key, [_ | Rest]) -> proplist_get(Key, Rest);
-proplist_get(_Key, []) -> undefined.
 
 %% ---------------------------------------------------------------------------
 
