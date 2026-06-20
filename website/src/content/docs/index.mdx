@@ -16,31 +16,29 @@ hero:
     - text: What is Gluegun?
       link: /introduction/
       variant: secondary
-    - text: Guides
-      link: /guides/basic-requests/
-      variant: minimal
-    - text: API reference
-      link: /reference/
-      variant: minimal
 ---
 
 <style lang="css">{`
   .gluegun-splash {
     display: grid;
-    gap: clamp(1rem, 3vw, 1.5rem);
-    margin-block: clamp(2rem, 6vw, 4rem);
+    gap: clamp(1.5rem, 4vw, 3rem);
+    margin-block: clamp(2rem, 7vw, 5rem);
   }
 
   .gluegun-lab {
     display: grid;
-    grid-template-columns: minmax(0, 0.9fr) minmax(18rem, 1.1fr);
-    gap: clamp(1rem, 4vw, 2rem);
+    grid-template-columns: minmax(0, 0.78fr) minmax(19rem, 1.22fr);
+    grid-template-areas:
+      "intro code"
+      "path code";
+    gap: clamp(1rem, 4vw, 2.25rem);
     align-items: stretch;
-    padding: clamp(1rem, 4vw, 2rem);
+    padding: clamp(1rem, 4vw, 2.25rem);
     border: 1px solid var(--sl-color-gray-5);
     border-radius: 1rem;
     background:
-      radial-gradient(circle at 0 0, var(--sl-color-accent-low), transparent 34rem),
+      radial-gradient(circle at 8% 0, var(--sl-color-accent), transparent 12rem),
+      radial-gradient(circle at 100% 100%, var(--sl-color-accent-low), transparent 28rem),
       var(--sl-color-black);
   }
 
@@ -49,17 +47,30 @@ hero:
   }
 
   .gluegun-lab__intro {
+    grid-area: intro;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    gap: 2rem;
+    gap: clamp(1rem, 3vw, 1.5rem);
+  }
+
+  .gluegun-lab__signal {
+    width: fit-content;
+    margin: 0 0 0.75rem;
+    padding: 0.375rem 0.625rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 999px;
+    background: var(--sl-color-gray-6);
+    color: var(--sl-color-accent-high);
+    font-size: 0.8125rem;
+    font-weight: 600;
   }
 
   .gluegun-lab__intro h2 {
-    max-width: 13ch;
+    max-width: 11ch;
     margin: 0;
     color: var(--sl-color-white);
-    font-size: clamp(2rem, 7vw, 4.75rem);
+    font-size: clamp(2.25rem, 7vw, 5.25rem);
     line-height: 0.98;
     letter-spacing: -0.03em;
     text-wrap: balance;
@@ -72,6 +83,13 @@ hero:
     font-size: clamp(1rem, 1.5vw, 1.125rem);
     line-height: 1.65;
     text-wrap: pretty;
+  }
+
+  .gluegun-lab__proof {
+    grid-area: code;
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
   }
 
   .gluegun-lab__code {
@@ -89,38 +107,57 @@ hero:
     line-height: 1.65;
   }
 
+  .gluegun-lab__caption {
+    max-width: 62ch;
+    margin: 0;
+    color: var(--sl-color-gray-2);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
   .gluegun-lab__code code {
     display: block;
     min-width: max-content;
   }
 
   .gluegun-paths {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
+    grid-area: path;
+    display: grid;
+    gap: 0.625rem;
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
   .gluegun-paths a {
-    display: inline-flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
     min-height: 2.75rem;
     align-items: center;
     gap: 0.625rem;
-    padding: 0.625rem 0.875rem;
+    padding: 0.75rem 0.875rem;
     border: 1px solid var(--sl-color-gray-5);
-    border-radius: 999px;
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--sl-color-gray-6) 72%, transparent);
     color: var(--sl-color-white);
     font-weight: 600;
     text-decoration: none;
     transition:
+      background-color 160ms cubic-bezier(0.22, 1, 0.36, 1),
       border-color 160ms cubic-bezier(0.22, 1, 0.36, 1),
       color 160ms cubic-bezier(0.22, 1, 0.36, 1),
       transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
+  .gluegun-paths a[aria-current='step'] {
+    border-color: var(--sl-color-accent);
+    background: var(--sl-color-accent);
+    color: var(--sl-color-black);
+  }
+
   .gluegun-paths a:hover {
+    background-color: var(--sl-color-accent-low);
     border-color: var(--sl-color-accent);
     color: var(--sl-color-accent-high);
     transform: translateY(-1px);
@@ -136,9 +173,13 @@ hero:
     font-variant-numeric: tabular-nums;
   }
 
+  .gluegun-paths a[aria-current='step'] .gluegun-paths__step {
+    color: var(--sl-color-black);
+  }
+
   .gluegun-map {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(16rem, 0.85fr);
+    grid-template-columns: minmax(0, 0.85fr) minmax(18rem, 1.15fr);
     gap: clamp(1rem, 4vw, 2rem);
     align-items: start;
   }
@@ -159,14 +200,48 @@ hero:
     text-wrap: pretty;
   }
 
+  .gluegun-production {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-block-start: 1.25rem;
+  }
+
+  .gluegun-production a {
+    min-height: 2.75rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 999px;
+    color: var(--sl-color-accent-high);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .gluegun-production a:hover,
+  .gluegun-production a:focus-visible {
+    border-color: var(--sl-color-accent);
+    color: var(--sl-color-white);
+  }
+
+  .gluegun-production a:focus-visible {
+    outline: 3px solid var(--sl-color-accent);
+    outline-offset: 3px;
+  }
+
   .gluegun-module-list {
     display: grid;
-    gap: 0.625rem;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 0.75rem;
     margin: 0;
     padding: 1rem;
     border: 1px solid var(--sl-color-gray-5);
     border-radius: 0.875rem;
     background: var(--sl-color-black);
+  }
+
+  .gluegun-module-list h2 {
+    grid-column: 1 / -1;
+    font-size: 1rem;
   }
 
   .gluegun-module-list a {
@@ -198,7 +273,14 @@ hero:
   }
 
   @media (max-width: 52rem) {
-    .gluegun-lab,
+    .gluegun-lab {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "intro"
+        "code"
+        "path";
+    }
+
     .gluegun-map {
       grid-template-columns: 1fr;
     }
@@ -224,27 +306,37 @@ hero:
   <div class="gluegun-lab">
     <div class="gluegun-lab__intro">
       <div>
+        <p class="gluegun-lab__signal">Start with one collected response.</p>
         <h2 id="gluegun-lab-title">Typed HTTP without hiding Gun.</h2>
         <p>
-          Gluegun keeps the BEAM-native Gun model visible, then gives each sharp edge a Gleam type: connections, stream messages, response bodies, TLS options, and WebSocket frames.
+          Gluegun keeps the BEAM-native Gun model visible: open a connection, wait for the negotiated protocol, send the request, then collect a typed response or drop into streams when the body cannot fit in memory.
         </p>
       </div>
-      <ul class="gluegun-paths" aria-label="Recommended reading path">
-        <li><a href="/quick-start/"><span class="gluegun-paths__step">01</span> Send a GET</a></li>
-        <li><a href="/guides/streaming/"><span class="gluegun-paths__step">02</span> Stream bodies</a></li>
-        <li><a href="/guides/websockets/"><span class="gluegun-paths__step">03</span> Open sockets</a></li>
-      </ul>
     </div>
-    <pre class="gluegun-lab__code" aria-label="Gleam example using Gluegun"><code>{`let assert Ok(conn) =
+    <div class="gluegun-lab__proof">
+      <pre class="gluegun-lab__code" aria-label="Gleam example using Gluegun"><code>{`let assert Ok(conn) =
   connection.options()
   |> connection.open(host: "example.com", port: 443)
 
-let assert Ok(protocol) =
+let assert Ok(_) =
   connection.await_up(conn, connection.Milliseconds(5000))
 
-client.new(request.Get, "/")
-|> client.with_timeout(timeout: connection.Milliseconds(5000))
-|> client.send(connection: conn)`}</code></pre>
+let assert Ok(res) =
+  client.new(request.Get, "/")
+  |> client.with_timeout(timeout: connection.Milliseconds(5000))
+  |> client.send(connection: conn)
+
+io.println("status: " <> int.to_string(response.status(res)))
+let assert Ok(Nil) = connection.close(conn)`}</code></pre>
+      <p class="gluegun-lab__caption">
+        `client.send` collects status, headers, body, trailers, and informational `1xx` responses into one typed value. Use the lower-level request and message APIs when the response must stream.
+      </p>
+    </div>
+    <ul class="gluegun-paths" aria-label="Recommended reading path">
+      <li><a href="/quick-start/" aria-current="step"><span class="gluegun-paths__step">01</span> Send a GET</a></li>
+      <li><a href="/guides/streaming/"><span class="gluegun-paths__step">02</span> Stream bodies</a></li>
+      <li><a href="/guides/websockets/"><span class="gluegun-paths__step">03</span> Open sockets</a></li>
+    </ul>
   </div>
 </section>
 
@@ -254,13 +346,23 @@ client.new(request.Get, "/")
     <p>
       Use the high-level client when collecting one regular response is enough. Drop to request and message helpers when streaming, cancellation, HTTP/2 push, upgrades, trailers, or WebSocket frames need to stay explicit.
     </p>
+    <div class="gluegun-production" aria-label="Production readiness topics">
+      <a href="/guides/tls/">TLS setup</a>
+      <a href="/advanced/error-handling/">Error handling</a>
+      <a href="/advanced/limitations/">Limits</a>
+      <a href="/advanced/troubleshooting/">Troubleshooting</a>
+    </div>
   </div>
 
-  <nav class="gluegun-module-list" aria-label="Gluegun module map">
-    <h2>Module map</h2>
+  <nav class="gluegun-module-list" aria-label="Gluegun lifecycle module map">
+    <h2>Lifecycle map</h2>
+    <a href="/reference/gluegun-connection/">
+      <strong>connection</strong>
+      <span>Open Gun, await protocol negotiation, close cleanly.</span>
+    </a>
     <a href="/reference/gluegun-client/">
       <strong>client</strong>
-      <span>One request, collected response, visible errors.</span>
+      <span>One regular request, collected response, visible errors.</span>
     </a>
     <a href="/reference/gluegun-request/">
       <strong>request</strong>
