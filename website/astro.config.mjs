@@ -20,6 +20,7 @@ const sidebar = [
 		label: "Guides",
 		items: [
 			{ label: "Basic Requests", slug: "guides/basic-requests" },
+			{ label: "Production Checklist", slug: "guides/production-checklist" },
 			{ label: "Streaming", slug: "guides/streaming" },
 			{ label: "WebSockets", slug: "guides/websockets" },
 			{ label: "HTTP/2", slug: "guides/http2" },
