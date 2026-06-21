@@ -75,7 +75,7 @@ pub fn main() {
 
 ## One-shot helper on an existing connection
 
-`gluegun/client` helpers are one-shot per request: they send one request on an existing connection and collect that response. Gluegun does not parse URLs; pass the host and port to `connection.open`, then pass a path to request helpers.
+`gluegun/client` helpers are one-shot per request: they send one request on an existing connection and collect that response. Gluegun does not parse URLs; pass the host and port to `connection.open`, then pass a path to request helpers. If your input is a full URL, parse it first with the standard `gleam/uri` module and pass the parsed `host`, `port`, `path`, and `query` pieces into Gluegun.
 
 ```gleam
 import gluegun/client

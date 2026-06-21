@@ -10,7 +10,7 @@ Use this checklist before shipping Gluegun in a production BEAM service. It does
 | Decision | Production-ready when | Read next |
 |---|---|---|
 | Runtime target | The service runs on Erlang. Gluegun wraps Erlang Gun and does not support the JavaScript target. | [Limitations: Erlang target only](/advanced/limitations/#erlang-target-only) |
-| Connection boundary | You open a Gun connection with a host and port, then pass paths such as `/`, `/api/items`, or `/ws` to request helpers. Gluegun does not parse full URLs. | [What Gluegun does not do](/introduction/#what-gluegun-does-not-do) |
+| Connection boundary | You open a Gun connection with a host and port, then pass paths such as `/`, `/api/items`, or `/ws` to request helpers. Gluegun does not parse full URLs; callers that accept full URLs parse them first with `gleam/uri`. | [What Gluegun does not do](/introduction/#what-gluegun-does-not-do) |
 | Protocol readiness | Code waits for `connection.await_up` before sending requests or upgrading WebSockets. | [Quick Start: key idea](/quick-start/#key-idea) |
 | Connection ownership | One process owns or awaits the Gun stream messages for a request flow. High-level `client` helpers consume messages on the calling process while `send` runs. | [Limitations: connection ownership](/advanced/limitations/#connection-ownership-matters) |
 

@@ -22,6 +22,8 @@ Because Gun is Erlang-only, Gluegun targets the Erlang runtime.
 
 Gluegun does not parse URLs. Open a connection with `connection.options() |> connection.open(host: "example.com", port: 443)`, wait for protocol negotiation with `connection.await_up`, then pass request paths such as `/`, `/api/items`, or `/ws` to HTTP or WebSocket helpers.
 
+If your application starts from full URLs, parse them first with Gleam's standard `gleam/uri` module. Use the parsed `host` and `port` for `connection.open`, choose the transport from the scheme, and pass the parsed path plus query string to Gluegun's HTTP or WebSocket helpers.
+
 Gluegun also does not hide Gun's streaming model. The high-level client helpers are convenient for regular responses, but streaming bodies, HTTP/2 push, upgrades, WebSocket messages, cancellation, and flow-control updates belong in `gluegun/request` and `gluegun/message`.
 
 ## Module map

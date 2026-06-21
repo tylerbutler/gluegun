@@ -13,7 +13,7 @@ WebSocket support is HTTP/1.1 only. Use the default WebSocket options or make su
 
 ## Request fails with an unexpected path or host issue
 
-Gluegun does not parse full URLs. Open the connection with the host and port, then pass only a path such as `/`, `/api/items`, or `/ws` to HTTP and WebSocket helpers.
+Gluegun does not parse full URLs. Open the connection with the host and port, then pass only a path such as `/`, `/api/items`, or `/ws` to HTTP and WebSocket helpers. If your caller provides full URLs, parse them first with `gleam/uri` and feed the parsed host, port, path, and query pieces into Gluegun.
 
 ## High-level client receives an unexpected message
 
