@@ -20,9 +20,9 @@ importers:
       '@fontsource-variable/chivo':
         specifier: ^5.2.8
         version: 5.2.8
-      '@fontsource/commit-mono':
-        specifier: ^5.2.5
-        version: 5.2.5
+      '@fontsource-variable/jetbrains-mono':
+        specifier: ^5.2.8
+        version: 5.2.8
       astro:
         specifier: ^6.1.4
         version: 6.3.3(@types/node@24.12.4)(rollup@4.60.3)(yaml@2.9.0)
@@ -359,8 +359,8 @@ packages:
   '@fontsource-variable/chivo@5.2.8':
     resolution: {integrity: sha512-YX4jvI4D6FSa0Ar2XjU1No3doFQBqwLkuRTmqM0dp9k4IW6gr/oL2EReeriVzN+8Olq2s84OPEU5XxL+4OsrYg==}
 
-  '@fontsource/commit-mono@5.2.5':
-    resolution: {integrity: sha512-htX8yQWtiPt5L1Hzh4sirvfUJT2+KYiquDB/Q2sY2tWQYplpBUOD5zHnIM3k36Hnm4V+JIIqA/wmwupSQ68WjA==}
+  '@fontsource-variable/jetbrains-mono@5.2.8':
+    resolution: {integrity: sha512-WBA9elru6Jdp5df2mES55wuOO0WIrn3kpXnI4+W2ek5u3ZgLS9XS4gmIlcQhiZOWEKl95meYdvK7xI+ETLCq/Q==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -2639,7 +2639,7 @@ snapshots:
 
   '@fontsource-variable/chivo@5.2.8': {}
 
-  '@fontsource/commit-mono@5.2.5': {}
+  '@fontsource-variable/jetbrains-mono@5.2.8': {}
 
   '@img/colour@1.1.0': {}
 

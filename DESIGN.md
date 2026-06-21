@@ -34,7 +34,7 @@ typography:
     fontWeight: 600
     lineHeight: 1.2
   code:
-    fontFamily: "Commit Mono, var(--sl-font-system-mono)"
+    fontFamily: "JetBrains Mono Variable, var(--sl-font-system-mono)"
     fontWeight: 400
 components:
   button-primary:
@@ -57,7 +57,7 @@ components:
 
 **Creative North Star: "The Charged Lab Manual"**
 
-Gluegun's visual system should feel like technical documentation with live current running through it: precise enough for production developers, vivid enough to be remembered after a quick package evaluation. The Astro/Starlight site commits to a magenta-and-purple identity with a retro BEAM manual type system — Chivo headings over Atkinson Hyperlegible Next body, Commit Mono for code; future work should deepen that identity rather than replacing it with generic developer-docs gray.
+Gluegun's visual system should feel like technical documentation with live current running through it: precise enough for production developers, vivid enough to be remembered after a quick package evaluation. The Astro/Starlight site commits to a magenta-and-purple identity with a retro BEAM manual type system — Chivo headings over Atkinson Hyperlegible Next body, JetBrains Mono for code; future work should deepen that identity rather than replacing it with generic developer-docs gray.
 
 The system rejects toy-like candy branding that undercuts technical trust. Energy should come from saturated accent, confident contrast, direct copy, and strong examples, not novelty shapes or decorative gimmicks.
 
@@ -99,9 +99,9 @@ The palette is a charged magenta/purple system: dark mode feels like a compact i
 
 **Display / Heading Font:** Chivo (variable, with Starlight system fallback)
 **Body / UI Font:** Atkinson Hyperlegible Next (variable, with Starlight system fallback)
-**Code Font:** Commit Mono (drives inline code and Expressive Code blocks via `--sl-font-mono`)
+**Code Font:** JetBrains Mono (variable; drives inline code and Expressive Code blocks via `--sl-font-mono`)
 
-**Character:** Chivo gives headings a sturdy, late-manual voice that matches the BEAM/Erlang substrate beneath Gluegun; Atkinson Hyperlegible Next keeps long-form docs highly readable and practical. The two pair on a contrast axis (industrial display vs. accessibility-forward body) rather than as two near-identical sans-serifs. Commit Mono is a precise code face, not faux-terminal decoration.
+**Character:** Chivo gives headings a sturdy, late-manual voice that matches the BEAM/Erlang substrate beneath Gluegun; Atkinson Hyperlegible Next keeps long-form docs highly readable and practical. The two pair on a contrast axis (industrial display vs. accessibility-forward body) rather than as two near-identical sans-serifs. JetBrains Mono is a deliberate code face, not faux-terminal decoration; ligatures stay on.
 
 ### Hierarchy
 - **Display** (Chivo 700, fluid Starlight hero scale, ~1.05 line-height): Splash-page headlines and one dominant idea per landing surface.
@@ -114,7 +114,7 @@ The heading scale follows a deliberate 1.25 modular ratio (`--sl-text-*` overrid
 
 ### Named Rules
 
-**The Retro Manual Type Rule.** Headings speak in Chivo; body and UI speak in Atkinson Hyperlegible Next; code speaks in Commit Mono. Keep these three roles distinct and don't reintroduce a single-family flattening or borrow monospace as lazy shorthand for "developer" outside of code.
+**The Retro Manual Type Rule.** Headings speak in Chivo; body and UI speak in Atkinson Hyperlegible Next; code speaks in JetBrains Mono. Keep these three roles distinct and don't reintroduce a single-family flattening or borrow monospace as lazy shorthand for "developer" outside of code.
 
 ## 4. Elevation
 

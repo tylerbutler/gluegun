@@ -84,7 +84,7 @@ export default defineConfig({
 			customCss: [
 				"@fontsource-variable/chivo/index.css",
 				"@fontsource-variable/atkinson-hyperlegible-next/index.css",
-				"@fontsource/commit-mono/index.css",
+				"@fontsource-variable/jetbrains-mono/index.css",
 				"./src/styles/fonts.css",
 				"./src/styles/custom.css",
 			],
