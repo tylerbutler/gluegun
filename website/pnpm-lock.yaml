@@ -14,15 +14,15 @@ importers:
       '@astrojs/starlight':
         specifier: ^0.39.2
         version: 0.39.2(astro@6.3.3(@types/node@24.12.4)(rollup@4.60.3)(yaml@2.9.0))(typescript@6.0.3)
-      '@fontsource-variable/bricolage-grotesque':
-        specifier: ^5.2.10
-        version: 5.2.10
-      '@fontsource-variable/hanken-grotesk':
+      '@fontsource-variable/atkinson-hyperlegible-next':
+        specifier: ^5.2.6
+        version: 5.2.6
+      '@fontsource-variable/chivo':
         specifier: ^5.2.8
         version: 5.2.8
-      '@fontsource-variable/jetbrains-mono':
-        specifier: ^5.2.8
-        version: 5.2.8
+      '@fontsource/commit-mono':
+        specifier: ^5.2.5
+        version: 5.2.5
       astro:
         specifier: ^6.1.4
         version: 6.3.3(@types/node@24.12.4)(rollup@4.60.3)(yaml@2.9.0)
@@ -353,14 +353,14 @@ packages:
     resolution: {integrity: sha512-Au3jSkt66PRwTKTCYm7KzTGfMzUmn1LYPK+cyrytfzjfOPkHpohrLcGYPLsgxV8nzc4vXxt3Ay7MlBrmeIfFLg==}
     engines: {node: '>=16.0'}
 
-  '@fontsource-variable/bricolage-grotesque@5.2.10':
-    resolution: {integrity: sha512-5EDsCqgGpKVcJWE4sg9ydli+t5WM97mISYw5lla/Ev4z71FwXh1oN0YUU8xjkRW9+wBCGD9R+ntAvI8G4bUFJg==}
+  '@fontsource-variable/atkinson-hyperlegible-next@5.2.6':
+    resolution: {integrity: sha512-D0Z8peFkRGYACvmWp8Sl8YPGYLBEJbzqapugtsMEYSUUtpQDiZVDHjk9s7bqB4hSCRYCrKuW6V1V+mnHybVnPw==}
 
-  '@fontsource-variable/hanken-grotesk@5.2.8':
-    resolution: {integrity: sha512-K7hu09ZKReBc7EifRLeM4K94NZBrxFEg0nGcISmVwlFQOJo4EmYkLXTWEwr5JcNW4z2hr5zy8vLS2sxC8JDmrQ==}
+  '@fontsource-variable/chivo@5.2.8':
+    resolution: {integrity: sha512-YX4jvI4D6FSa0Ar2XjU1No3doFQBqwLkuRTmqM0dp9k4IW6gr/oL2EReeriVzN+8Olq2s84OPEU5XxL+4OsrYg==}
 
-  '@fontsource-variable/jetbrains-mono@5.2.8':
-    resolution: {integrity: sha512-WBA9elru6Jdp5df2mES55wuOO0WIrn3kpXnI4+W2ek5u3ZgLS9XS4gmIlcQhiZOWEKl95meYdvK7xI+ETLCq/Q==}
+  '@fontsource/commit-mono@5.2.5':
+    resolution: {integrity: sha512-htX8yQWtiPt5L1Hzh4sirvfUJT2+KYiquDB/Q2sY2tWQYplpBUOD5zHnIM3k36Hnm4V+JIIqA/wmwupSQ68WjA==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -2635,11 +2635,11 @@ snapshots:
       mdast-util-find-and-replace: 1.1.1
       unist-util-visit: 2.0.3
 
-  '@fontsource-variable/bricolage-grotesque@5.2.10': {}
+  '@fontsource-variable/atkinson-hyperlegible-next@5.2.6': {}
 
-  '@fontsource-variable/hanken-grotesk@5.2.8': {}
+  '@fontsource-variable/chivo@5.2.8': {}
 
-  '@fontsource-variable/jetbrains-mono@5.2.8': {}
+  '@fontsource/commit-mono@5.2.5': {}
 
   '@img/colour@1.1.0': {}
 

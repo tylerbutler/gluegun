@@ -1,12 +1,12 @@
 /*
   Type system:
-  - Body / UI:  Hanken Grotesk (calm, highly legible workhorse)
-  - Display:    Bricolage Grotesque (characterful headings)
-  - Code:       JetBrains Mono (drives inline code + Expressive Code blocks)
+  - Body / UI:  Atkinson Hyperlegible Next (durable, highly readable manual prose)
+  - Display:    Chivo (sturdy, retro-engineered headings)
+  - Code:       Commit Mono (precise code blocks without faux-terminal costume)
 */
 :root {
-	--sl-font: "Hanken Grotesk Variable", var(--sl-font-system);
-	--sl-font-mono: "JetBrains Mono Variable", var(--sl-font-system-mono);
-	--gg-font-display: "Bricolage Grotesque Variable", "Hanken Grotesk Variable",
+	--sl-font: "Atkinson Hyperlegible Next Variable", var(--sl-font-system);
+	--sl-font-mono: "Commit Mono", var(--sl-font-system-mono);
+	--gg-font-display: "Chivo Variable", "Atkinson Hyperlegible Next Variable",
 		var(--sl-font-system);
 }

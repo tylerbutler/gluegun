@@ -82,9 +82,9 @@ export default defineConfig({
 			},
 			favicon: "./src/assets/gluegun-dark.png",
 			customCss: [
-				"@fontsource-variable/bricolage-grotesque/index.css",
-				"@fontsource-variable/hanken-grotesk/index.css",
-				"@fontsource-variable/jetbrains-mono/index.css",
+				"@fontsource-variable/chivo/index.css",
+				"@fontsource-variable/atkinson-hyperlegible-next/index.css",
+				"@fontsource/commit-mono/index.css",
 				"./src/styles/fonts.css",
 				"./src/styles/custom.css",
 			],
