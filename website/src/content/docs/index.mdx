@@ -88,6 +88,7 @@ hero:
   .gluegun-lab__proof {
     grid-area: code;
     display: grid;
+    align-content: start;
     gap: 0.75rem;
     min-width: 0;
   }
@@ -307,7 +308,7 @@ hero:
     <div class="gluegun-lab__intro">
       <div>
         <p class="gluegun-lab__signal">Start with one collected response.</p>
-        <h2 id="gluegun-lab-title">Typed HTTP without hiding Gun.</h2>
+        <h2 id="gluegun-lab-title">HTTP without the footguns.</h2>
         <p>
           Gluegun keeps the BEAM-native Gun model visible: open a connection, wait for the negotiated protocol, send the request, then collect a typed response or drop into streams when the body cannot fit in memory.
         </p>
