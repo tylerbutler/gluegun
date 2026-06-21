@@ -1,7 +1,6 @@
 # Gluegun
 
-[![Package Version](https://img.shields.io/hexpm/v/gluegun)](https://hex.pm/packages/gluegun)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/gluegun/)
+[![Docs](https://img.shields.io/badge/docs-gluegun.tylerbutler.com-ffaff3)](https://gluegun.tylerbutler.com/)
 [![CI](https://github.com/tylerbutler/gluegun/actions/workflows/ci.yml/badge.svg)](https://github.com/tylerbutler/gluegun/actions/workflows/ci.yml)
 
 A Gleam wrapper for the Erlang [Gun](https://ninenines.eu/docs/en/gun/) HTTP client.
@@ -10,9 +9,15 @@ Gun is an asynchronous HTTP client supporting HTTP/1.1, HTTP/2, and WebSocket ov
 
 ## Installation
 
-```sh
-gleam add gluegun
+Gluegun is distributed as a Git dependency until `1.0`. Add it to your
+`gleam.toml` instead of using `gleam add`:
+
+```toml
+[dependencies]
+gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "main" }
 ```
+
+For reproducible builds, replace `main` with a release tag or commit SHA.
 
 ## Compatibility
 
