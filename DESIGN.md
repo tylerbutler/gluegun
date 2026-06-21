@@ -16,23 +16,26 @@ colors:
   shell-white: "#fff7fa"
 typography:
   display:
-    fontFamily: "Metropolis, var(--sl-font-system)"
-    fontWeight: 600
+    fontFamily: "Bricolage Grotesque Variable, var(--sl-font-system)"
+    fontWeight: 700
     lineHeight: 1.05
     letterSpacing: "-0.02em"
   headline:
-    fontFamily: "Metropolis, var(--sl-font-system)"
-    fontWeight: 600
+    fontFamily: "Bricolage Grotesque Variable, var(--sl-font-system)"
+    fontWeight: 700
     lineHeight: 1.15
-    letterSpacing: "-0.01em"
+    letterSpacing: "-0.02em"
   body:
-    fontFamily: "Metropolis, var(--sl-font-system)"
+    fontFamily: "Hanken Grotesk Variable, var(--sl-font-system)"
     fontWeight: 400
     lineHeight: 1.65
   label:
-    fontFamily: "Metropolis, var(--sl-font-system)"
+    fontFamily: "Hanken Grotesk Variable, var(--sl-font-system)"
     fontWeight: 600
     lineHeight: 1.2
+  code:
+    fontFamily: "JetBrains Mono Variable, var(--sl-font-system-mono)"
+    fontWeight: 400
 components:
   button-primary:
     backgroundColor: "{colors.charged-magenta}"
@@ -54,14 +57,13 @@ components:
 
 **Creative North Star: "The Charged Lab Manual"**
 
-Gluegun's visual system should feel like technical documentation with live current running through it: precise enough for production developers, vivid enough to be remembered after a quick package evaluation. The existing Astro/Starlight site already commits to a magenta-and-purple identity with Metropolis as the single family; future work should deepen that identity rather than replacing it with generic developer-docs gray.
+Gluegun's visual system should feel like technical documentation with live current running through it: precise enough for production developers, vivid enough to be remembered after a quick package evaluation. The Astro/Starlight site commits to a magenta-and-purple identity with a two-voice type system — Bricolage Grotesque headings over Hanken Grotesk body, JetBrains Mono for code; future work should deepen that identity rather than replacing it with generic developer-docs gray.
 
 The system rejects toy-like candy branding that undercuts technical trust. Energy should come from saturated accent, confident contrast, direct copy, and strong examples, not novelty shapes or decorative gimmicks.
 
 **Key Characteristics:**
 - Saturated magenta and violet are identity colors, not occasional decoration.
-- Single-family Metropolis typography keeps the voice direct, friendly, and technical.
-- Documentation density should stay scannable: short sections, explicit examples, and clear module mapping.
+- Bricolage Grotesque headings over a Hanken Grotesk body keep the voice direct and technical while giving the brand real typographic character.- Documentation density should stay scannable: short sections, explicit examples, and clear module mapping.
 - Framework defaults are acceptable only when they preserve the bold Gluegun palette.
 
 ## 2. Colors
@@ -94,22 +96,24 @@ The palette is a charged magenta/purple system: dark mode feels like a compact i
 
 ## 3. Typography
 
-**Display Font:** Metropolis (with Starlight system fallback)  
-**Body Font:** Metropolis (with Starlight system fallback)  
-**Label/Mono Font:** Use the site default unless code blocks are rendered by Starlight.
+**Display / Heading Font:** Bricolage Grotesque (variable, with Starlight system fallback)
+**Body / UI Font:** Hanken Grotesk (variable, with Starlight system fallback)
+**Code Font:** JetBrains Mono (variable; drives inline code and Expressive Code blocks via `--sl-font-mono`)
 
-**Character:** Metropolis makes Gluegun feel approachable without losing technical confidence. It should be set with decisive weight and scale contrast, not faux-terminal styling.
+**Character:** Bricolage Grotesque gives headings a confident, slightly mechanical voice that matches the charged-lab personality; Hanken Grotesk is a calm, highly legible workhorse for long-form docs. The two pair on a contrast axis (expressive display vs. quiet body) rather than as two near-identical sans-serifs. JetBrains Mono is a deliberate code face, not faux-terminal decoration; ligatures stay on.
 
 ### Hierarchy
-- **Display** (600, fluid Starlight hero scale, ~1.05 line-height): Splash-page headlines and one dominant idea per landing surface.
-- **Headline** (600, section heading scale, ~1.15 line-height): Guide and reference section headings.
-- **Title** (600, compact heading scale): Card titles, navigation group names, and module names.
-- **Body** (400, readable docs scale, ~1.65 line-height): Long-form documentation, capped around 65-75ch where layout allows.
-- **Label** (600, compact scale): Buttons, nav labels, badges, and short interface labels.
+- **Display** (Bricolage 700, fluid Starlight hero scale, ~1.05 line-height): Splash-page headlines and one dominant idea per landing surface.
+- **Headline** (Bricolage 700, section heading scale, ~1.15 line-height): Guide and reference section headings.
+- **Title** (Bricolage 600, compact heading scale): Card titles, navigation group names, and module names.
+- **Body** (Hanken 400, readable docs scale, ~1.65 line-height): Long-form documentation, capped around 65-75ch where layout allows.
+- **Label** (Hanken 600, compact scale): Buttons, nav labels, badges, and short interface labels.
+
+The heading scale follows a deliberate 1.25 modular ratio (`--sl-text-*` overrides) so hierarchy reads as committed, not flat.
 
 ### Named Rules
 
-**The One-Family Commitment Rule.** Keep Metropolis as the system voice unless a future redesign deliberately introduces a contrasting family. Do not add monospace as lazy shorthand for "developer."
+**The Two-Voice Type Rule.** Headings speak in Bricolage Grotesque; body and UI speak in Hanken Grotesk; code speaks in JetBrains Mono. Keep these three roles distinct and don't reintroduce a single-family flattening or borrow monospace as lazy shorthand for "developer" outside of code.
 
 ## 4. Elevation
 

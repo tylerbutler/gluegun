@@ -54,24 +54,12 @@ hero:
     gap: clamp(1rem, 3vw, 1.5rem);
   }
 
-  .gluegun-lab__signal {
-    width: fit-content;
-    margin: 0 0 0.75rem;
-    padding: 0.375rem 0.625rem;
-    border: 1px solid var(--sl-color-gray-5);
-    border-radius: 999px;
-    background: var(--sl-color-gray-6);
-    color: var(--sl-color-accent-high);
-    font-size: 0.8125rem;
-    font-weight: 600;
-  }
-
   .gluegun-lab__intro h2 {
     max-width: 11ch;
     margin: 0;
     color: var(--sl-color-white);
     font-size: clamp(2.25rem, 7vw, 5.25rem);
-    line-height: 0.98;
+    line-height: 1.04;
     letter-spacing: -0.03em;
     text-wrap: balance;
   }
@@ -106,6 +94,11 @@ hero:
     color: var(--sl-color-gray-1);
     font-size: clamp(0.8125rem, 1.5vw, 0.9375rem);
     line-height: 1.65;
+  }
+
+  .gluegun-lab__code:focus-visible {
+    outline: 3px solid var(--sl-color-accent);
+    outline-offset: 3px;
   }
 
   .gluegun-lab__caption {
@@ -151,7 +144,7 @@ hero:
       transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .gluegun-paths a[aria-current='step'] {
+  .gluegun-paths a.is-start {
     border-color: var(--sl-color-accent);
     background: var(--sl-color-accent);
     color: var(--sl-color-black);
@@ -174,7 +167,7 @@ hero:
     font-variant-numeric: tabular-nums;
   }
 
-  .gluegun-paths a[aria-current='step'] .gluegun-paths__step {
+  .gluegun-paths a.is-start .gluegun-paths__step {
     color: var(--sl-color-black);
   }
 
@@ -307,7 +300,6 @@ hero:
   <div class="gluegun-lab">
     <div class="gluegun-lab__intro">
       <div>
-        <p class="gluegun-lab__signal">Start with one collected response.</p>
         <h2 id="gluegun-lab-title">HTTP without footguns.</h2>
         <p>
           Gluegun keeps the BEAM-native Gun model visible: open a connection, wait for the negotiated protocol, send the request, then collect a typed response or drop into streams when the body cannot fit in memory.
@@ -315,7 +307,7 @@ hero:
       </div>
     </div>
     <div class="gluegun-lab__proof">
-      <pre class="gluegun-lab__code" aria-label="Gleam example using Gluegun"><code>{`let assert Ok(conn) =
+      <pre class="gluegun-lab__code" tabindex="0" aria-label="Gleam example using Gluegun"><code>{`let assert Ok(conn) =
   connection.options()
   |> connection.open(host: "example.com", port: 443)
 
@@ -334,7 +326,7 @@ let assert Ok(Nil) = connection.close(conn)`}</code></pre>
       </p>
     </div>
     <ul class="gluegun-paths" aria-label="Recommended reading path">
-      <li><a href="/quick-start/" aria-current="step"><span class="gluegun-paths__step">01</span> Send a GET</a></li>
+      <li><a class="is-start" href="/quick-start/"><span class="gluegun-paths__step">01</span> Send a GET</a></li>
       <li><a href="/guides/streaming/"><span class="gluegun-paths__step">02</span> Stream bodies</a></li>
       <li><a href="/guides/websockets/"><span class="gluegun-paths__step">03</span> Open sockets</a></li>
     </ul>

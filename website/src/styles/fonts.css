@@ -1,3 +1,12 @@
+/*
+  Type system:
+  - Body / UI:  Hanken Grotesk (calm, highly legible workhorse)
+  - Display:    Bricolage Grotesque (characterful headings)
+  - Code:       JetBrains Mono (drives inline code + Expressive Code blocks)
+*/
 :root {
---sl-font: "Metropolis", var(--sl-font-system);
+	--sl-font: "Hanken Grotesk Variable", var(--sl-font-system);
+	--sl-font-mono: "JetBrains Mono Variable", var(--sl-font-system-mono);
+	--gg-font-display: "Bricolage Grotesque Variable", "Hanken Grotesk Variable",
+		var(--sl-font-system);
 }

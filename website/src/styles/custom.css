@@ -28,3 +28,31 @@
 --sl-color-gray-7: #fff7fa;
 --sl-color-black: #ffffff;
 }
+
+/* Deliberate 1.25 modular type scale (overrides Starlight's flatter ~1.2). */
+:root {
+	--sl-text-h1: 2.75rem;
+	--sl-text-h2: 2.1875rem;
+	--sl-text-h3: 1.75rem;
+	--sl-text-h4: 1.4rem;
+	--sl-text-h5: 1.125rem;
+	--sl-line-height-headings: 1.15;
+}
+
+/* Display headings — Bricolage Grotesque, tracked tight for a confident voice. */
+.content-panel h1,
+.sl-markdown-content :is(h1, h2, h3),
+.gluegun-lab__intro h2,
+.gluegun-map h2,
+.gluegun-module-list h2 {
+	font-family: var(--gg-font-display);
+	font-weight: 700;
+	letter-spacing: -0.02em;
+	text-wrap: balance;
+}
+
+.sl-markdown-content :is(h4, h5, h6) {
+	font-family: var(--gg-font-display);
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
