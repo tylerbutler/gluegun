@@ -56,10 +56,7 @@ A pong control frame. Usually delivered in response to a `Ping`.
 
 A close control frame with no status code or reason.
 
-##### `CloseWithReason(
-  code: Int,
-  reason: BitArray
-)`
+##### `CloseWithReason(code: Int, reason: BitArray)`
 
 A close control frame carrying a numeric close code and opaque reason
  payload (RFC 6455 §5.5.1).
@@ -109,26 +106,16 @@ pub type Message {
 
 #### Constructors
 
-##### `Inform(
-  status: Int,
-  headers: List(#(String, String))
-)`
+##### `Inform(status: Int, headers: List(#(String, String)))`
 
 A 1xx informational response. May appear multiple times before the
  final `Response`.
 
-##### `Response(
-  fin: fin.Fin,
-  status: Int,
-  headers: List(#(String, String))
-)`
+##### `Response(fin: fin.Fin, status: Int, headers: List(#(String, String)))`
 
 The final HTTP response headers. `fin` is `Fin` when there is no body.
 
-##### `Data(
-  fin: fin.Fin,
-  data: BitArray
-)`
+##### `Data(fin: fin.Fin, data: BitArray)`
 
 A response body chunk. `fin` is `Fin` on the last chunk.
 
@@ -137,20 +124,12 @@ A response body chunk. `fin` is `Fin` on the last chunk.
 Trailing headers delivered after the body (HTTP/1.1 trailers or HTTP/2
  trailer frames).
 
-##### `Push(
-  stream: internal.Stream,
-  method: request.Method,
-  uri: String,
-  headers: List(#(String, String))
-)`
+##### `Push(stream: internal.Stream, method: request.Method, uri: String, headers: List(#(String, String)))`
 
 An HTTP/2 server push. The `stream` is a new stream the caller may
  await or cancel.
 
-##### `Upgrade(
-  protocols: List(String),
-  headers: List(#(String, String))
-)`
+##### `Upgrade(protocols: List(String), headers: List(#(String, String)))`
 
 A successful protocol upgrade. Subsequent messages on this stream use
  the new protocol (e.g. WebSocket).
