@@ -290,6 +290,55 @@ test("renders per-constructor documentation under a Constructors heading", async
 	}
 });
 
+test("renders multi-parameter constructor headings on a single line", async () => {
+	const { read, cleanup } = await runWithFixture({
+		name: "gluegun",
+		version: "0.1.0",
+		modules: {
+			"gluegun/message": {
+				documentation: [],
+				"type-aliases": {},
+				types: {
+					Frame: {
+						documentation: " WebSocket frames.\n",
+						parameters: 0,
+						constructors: [
+							{
+								name: "CloseWithReason",
+								documentation: " A close frame with a code and reason.\n",
+								parameters: [
+									{ label: "code", type: intType() },
+									{ label: "reason", type: namedType("BitArray") },
+								],
+							},
+						],
+					},
+				},
+				constants: {},
+				functions: {},
+			},
+		},
+	});
+
+	try {
+		const page = await read("gluegun-message.md");
+		// The type block keeps the multi-line constructor form.
+		assert.match(
+			page,
+			/pub type Frame \{\n {2}CloseWithReason\(\n {4}code: Int,\n {4}reason: BitArray\n {2}\)\n\}/,
+		);
+		// The Constructors heading must be a single-line code span, not broken
+		// across lines (which would leave the code span unclosed in the heading).
+		assert.match(
+			page,
+			/##### `CloseWithReason\(code: Int, reason: BitArray\)`\n\nA close frame with a code and reason\./,
+		);
+		assert.ok(!page.includes("##### `CloseWithReason(\n"));
+	} finally {
+		await cleanup();
+	}
+});
+
 test("omits Constructors block when no constructor has documentation", async () => {
 	const { read, cleanup } = await runWithFixture({
 		name: "gluegun",

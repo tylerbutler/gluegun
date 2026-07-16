@@ -186,6 +186,20 @@ function renderConstructor(constructor, currentModule) {
 	return `${constructor.name}(\n  ${rendered}\n)`;
 }
 
+// Single-line constructor signature for use in headings, which cannot contain
+// line breaks. Unlike renderConstructor, this never breaks parameters across
+// lines, so the surrounding code span stays closed on one line.
+function renderConstructorInline(constructor, currentModule) {
+	const parameters = constructor.parameters || constructor.arguments || [];
+	if (parameters.length === 0) {
+		return constructor.name;
+	}
+	const rendered = parameters
+		.map((p) => renderParameter(p, currentModule))
+		.join(", ");
+	return `${constructor.name}(${rendered})`;
+}
+
 function renderFunctionSignature(name, parameters, returnType, currentModule) {
 	let rendered;
 	if (!Array.isArray(parameters) || parameters.length === 0) {
@@ -303,7 +317,7 @@ function renderConstructorsSection(typeInterface, moduleName) {
 
 	const items = constructors
 		.map((c) => {
-			const signature = renderConstructor(c, moduleName);
+			const signature = renderConstructorInline(c, moduleName);
 			const docs = normalizeDoc(c.documentation);
 			return `##### ${code(signature)}\n\n${docs}`;
 		})
