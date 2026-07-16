@@ -3,8 +3,6 @@ title: gluegun/websocket
 description: WebSocket helpers for Gun connections.
 ---
 
-# `gluegun/websocket`
-
 WebSocket helpers for Gun connections.
 
  ## Protocol limitations
@@ -30,6 +28,7 @@ WebSocket helpers for Gun connections.
    connection.options()
    |> connection.open(host: "echo.example.com", port: 80),
  )
+
  use protocol <- result.try(connection.await_up(conn, connection.Milliseconds(5000)))
 
  use stream <- result.try(websocket.upgrade_with_protocol(conn, protocol, "/ws", []))

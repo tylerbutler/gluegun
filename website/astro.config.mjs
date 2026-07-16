@@ -1,7 +1,6 @@
 import starlight from "@astrojs/starlight";
 import a11yEmoji from "@fec/remark-a11y-emoji";
 import { defineConfig } from "astro/config";
-import starlightAnnouncement from "starlight-announcement";
 import starlightHeadingBadges from "starlight-heading-badges";
 import starlightLinksValidator from "starlight-links-validator";
 import starlightLlmsTxt from "starlight-llms-txt";
@@ -113,15 +112,6 @@ export default defineConfig({
 						items: [sidebar[3]],
 					},
 				]),
-				starlightAnnouncement({
-					announcements: [
-						{
-							id: "welcome",
-							content: "Welcome to the Gluegun documentation!",
-							variant: "tip",
-						},
-					],
-				}),
 				starlightLinksValidator(),
 			],
 			social: [

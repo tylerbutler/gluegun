@@ -3,8 +3,6 @@ title: gluegun/response
 description: HTTP response values collected by `gluegun/client`.
 ---
 
-# `gluegun/response`
-
 HTTP response values collected by `gluegun/client`.
 
  A response contains the final status, headers, full body, trailers, and any

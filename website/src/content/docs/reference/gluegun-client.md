@@ -3,8 +3,6 @@ title: gluegun/client
 description: High-level HTTP helpers for existing Gun connections.
 ---
 
-# `gluegun/client`
-
 High-level HTTP helpers for existing Gun connections.
 
  These helpers collect a full HTTP/1.1 or HTTP/2 response — status,

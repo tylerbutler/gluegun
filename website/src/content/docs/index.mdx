@@ -44,6 +44,12 @@ hero:
 
   :root[data-theme='light'] .gluegun-lab {
     border-color: var(--sl-color-gray-6);
+    /* Softened glow: full-strength Command Magenta under the ink heading
+       measures ~3.4:1; a 42% mix keeps the hue and clears 4.5:1. */
+    background:
+      radial-gradient(circle at 8% 0, color-mix(in srgb, var(--sl-color-accent) 42%, var(--sl-color-black)), transparent 12rem),
+      radial-gradient(circle at 100% 100%, var(--sl-color-accent-low), transparent 28rem),
+      var(--sl-color-black);
   }
 
   .gluegun-lab__intro {
@@ -82,6 +88,8 @@ hero:
   }
 
   .gluegun-lab__code {
+    --gg-code-bg: var(--sl-color-gray-6);
+    --gg-scroll-shadow: rgb(0 0 0 / 0.55);
     display: grid;
     align-content: center;
     min-width: 0;
@@ -90,10 +98,21 @@ hero:
     overflow: auto;
     border: 1px solid var(--sl-color-gray-5);
     border-radius: 0.75rem;
-    background: var(--sl-color-gray-6);
+    /* Scroll shadows: the local-attachment covers slide away from the edges
+       only when the block can scroll, revealing the edge shadows. */
+    background:
+      linear-gradient(to right, var(--gg-code-bg) 40%, transparent) left center / 2.5rem 100% no-repeat local,
+      linear-gradient(to left, var(--gg-code-bg) 40%, transparent) right center / 2.5rem 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, var(--gg-scroll-shadow), transparent) left center / 1.125rem 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, var(--gg-scroll-shadow), transparent) right center / 1.125rem 100% no-repeat scroll,
+      var(--gg-code-bg);
     color: var(--sl-color-gray-1);
     font-size: clamp(0.8125rem, 1.5vw, 0.9375rem);
     line-height: 1.65;
+  }
+
+  :root[data-theme='light'] .gluegun-lab__code {
+    --gg-scroll-shadow: rgb(80 16 96 / 0.25);
   }
 
   .gluegun-lab__code:focus-visible {
@@ -186,11 +205,15 @@ hero:
   .gluegun-map {
     display: grid;
     grid-template-columns: minmax(0, 0.85fr) minmax(18rem, 1.15fr);
+    grid-template-areas:
+      "heading map"
+      "ship ship";
     gap: clamp(1rem, 4vw, 2rem);
     align-items: start;
   }
 
   .gluegun-map__heading {
+    grid-area: heading;
     max-width: 58ch;
   }
 
@@ -207,10 +230,21 @@ hero:
   }
 
   .gluegun-production {
+    grid-area: ship;
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-block-start: 1.25rem;
+    align-items: center;
+    gap: 0.5rem 0.625rem;
+    padding-block-start: 1rem;
+    border-block-start: 1px solid var(--sl-color-gray-5);
+  }
+
+  .gluegun-production h3 {
+    margin: 0 0.5rem 0 0;
+    color: var(--sl-color-accent-high);
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.4;
   }
 
   .gluegun-production a {
@@ -235,6 +269,7 @@ hero:
   }
 
   .gluegun-module-list {
+    grid-area: map;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
     gap: 0.75rem;
@@ -289,6 +324,10 @@ hero:
 
     .gluegun-map {
       grid-template-columns: 1fr;
+      grid-template-areas:
+        "heading"
+        "map"
+        "ship";
     }
 
     .gluegun-lab__intro h2 {
@@ -371,13 +410,6 @@ connection.close(conn)`}</code></pre>
     <p>
       Use the high-level client when collecting one regular response is enough. Drop to request and message helpers when streaming, cancellation, HTTP/2 push, upgrades, trailers, or WebSocket frames need to stay explicit.
     </p>
-    <div class="gluegun-production" aria-label="Production readiness topics">
-      <a href="/guides/production-checklist/">Production checklist</a>
-      <a href="/guides/tls/">TLS setup</a>
-      <a href="/advanced/error-handling/">Error handling</a>
-      <a href="/advanced/limitations/">Limits</a>
-      <a href="/advanced/troubleshooting/">Troubleshooting</a>
-    </div>
   </div>
 
   <nav class="gluegun-module-list" aria-label="Gluegun lifecycle module map">
@@ -402,5 +434,14 @@ connection.close(conn)`}</code></pre>
       <strong>websocket</strong>
       <span>HTTP/1.1 upgrades, reusable sockets, frames, and closes.</span>
     </a>
+  </nav>
+
+  <nav class="gluegun-production" aria-labelledby="gluegun-production-title">
+    <h3 id="gluegun-production-title">Before you ship</h3>
+    <a href="/guides/production-checklist/">Production checklist</a>
+    <a href="/guides/tls/">TLS setup</a>
+    <a href="/advanced/error-handling/">Error handling</a>
+    <a href="/advanced/limitations/">Limits</a>
+    <a href="/advanced/troubleshooting/">Troubleshooting</a>
   </nav>
 </section>

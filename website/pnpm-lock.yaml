@@ -29,9 +29,6 @@ importers:
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
-      starlight-announcement:
-        specifier: ^1.1.0
-        version: 1.1.0(@astrojs/starlight@0.39.2(astro@6.3.3(@types/node@24.12.4)(rollup@4.60.3)(yaml@2.9.0))(typescript@6.0.3))
       starlight-heading-badges:
         specifier: ^0.7.0
         version: 0.7.0(@astrojs/starlight@0.39.2(astro@6.3.3(@types/node@24.12.4)(rollup@4.60.3)(yaml@2.9.0))(typescript@6.0.3))
@@ -1863,12 +1860,6 @@ packages:
 
   space-separated-tokens@2.0.2:
     resolution: {integrity: sha512-PEGlAwrG8yXGXRjW32fGbg66JAlOAwbObuqVoJpv/mRgoWDQfgH1wDPvtzWyUSNAXBGSk8h755YDbbcEy3SH2Q==}
-
-  starlight-announcement@1.1.0:
-    resolution: {integrity: sha512-+AuFgJdJhmvupMaqeSuA4ke/6DeXGq2hl1y8eYKflmg9OXt9FaVkDJDYPkx2Ivp4rfJMqg5Lw+E1I4h4/hVnhw==}
-    engines: {node: '>=22.12.0'}
-    peerDependencies:
-      '@astrojs/starlight': '>=0.38.0'
 
   starlight-heading-badges@0.7.0:
     resolution: {integrity: sha512-mzxTn7lFd2OPB6naJKYelZbu1EUGCT2hm8Ozx/9EqgGy68y7ggUGxrDmdTvpozzi5OLkijiZw8zcvdq63JdRbA==}
@@ -4666,11 +4657,6 @@ snapshots:
   source-map@0.7.6: {}
 
   space-separated-tokens@2.0.2: {}
-
-  starlight-announcement@1.1.0(@astrojs/starlight@0.39.2(astro@6.3.3(@types/node@24.12.4)(rollup@4.60.3)(yaml@2.9.0))(typescript@6.0.3)):
-    dependencies:
-      '@astrojs/starlight': 0.39.2(astro@6.3.3(@types/node@24.12.4)(rollup@4.60.3)(yaml@2.9.0))(typescript@6.0.3)
-      picomatch: 4.0.4
 
   starlight-heading-badges@0.7.0(@astrojs/starlight@0.39.2(astro@6.3.3(@types/node@24.12.4)(rollup@4.60.3)(yaml@2.9.0))(typescript@6.0.3)):
     dependencies:

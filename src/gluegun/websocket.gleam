@@ -13,20 +13,29 @@
 //// ## Typical usage
 ////
 //// ```gleam
+//// import gleam/result
 //// import gluegun/connection
-//// import gluegun/websocket
+//// import gluegun/error
 //// import gluegun/message
+//// import gluegun/websocket
 ////
-//// let assert Ok(conn) =
+//// use conn <- result.try(
 ////   connection.options()
-////   |> connection.open(host: "echo.example.com", port: 80)
-//// let assert Ok(protocol) = connection.await_up(conn, connection.Milliseconds(5000))
+////   |> connection.open(host: "echo.example.com", port: 80),
+//// )
 ////
-//// let assert Ok(stream) = websocket.upgrade_with_protocol(conn, protocol, "/ws", [])
-//// let assert Ok(Nil) = websocket.await_upgrade(conn, stream, connection.Milliseconds(5000))
+//// use protocol <- result.try(connection.await_up(conn, connection.Milliseconds(5000)))
 ////
-//// let assert Ok(Nil) = websocket.send(conn, stream, message.Text("hello"))
-//// let assert Ok(message.Text(reply)) = websocket.receive(conn, stream, connection.Milliseconds(5000))
+//// use stream <- result.try(websocket.upgrade_with_protocol(conn, protocol, "/ws", []))
+//// use _ <- result.try(websocket.await_upgrade(conn, stream, connection.Milliseconds(5000)))
+////
+//// use _ <- result.try(websocket.send(conn, stream, message.Text("hello")))
+////
+//// case websocket.receive(conn, stream, connection.Milliseconds(5000)) {
+////   Ok(message.Text(reply)) -> Ok(reply)
+////   Ok(_) -> Error(error.InvalidMessage("expected a text frame"))
+////   Error(err) -> Error(err)
+//// }
 //// ```
 
 import gleam/dynamic
