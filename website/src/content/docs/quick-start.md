@@ -8,6 +8,7 @@ Open a Gun connection, wait for it to be ready, send a GET request, and collect 
 ```gleam
 import gleam/int
 import gleam/io
+import gleam/result
 import gluegun/client
 import gluegun/connection
 import gluegun/request
@@ -16,15 +17,17 @@ import gluegun/response
 pub fn main() {
   let timeout = connection.Milliseconds(5000)
 
-  let assert Ok(conn) =
+  use conn <- result.try(
     connection.options()
-    |> connection.open(host: "example.com", port: 80)
-  let assert Ok(_protocol) = connection.await_up(conn, timeout)
+    |> connection.open(host: "example.com", port: 80),
+  )
+  use _protocol <- result.try(connection.await_up(conn, timeout))
 
-  let assert Ok(res) =
+  use res <- result.try(
     client.new(request.Get, "/")
     |> client.with_timeout(timeout: timeout)
-    |> client.send(connection: conn)
+    |> client.send(connection: conn),
+  )
 
   io.println("status: " <> int.to_string(response.status(res)))
 
@@ -33,7 +36,7 @@ pub fn main() {
     Error(_) -> io.println("response body was not UTF-8")
   }
 
-  let assert Ok(Nil) = connection.close(conn)
+  connection.close(conn)
 }
 ```
 

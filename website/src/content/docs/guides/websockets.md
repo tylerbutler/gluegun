@@ -13,19 +13,21 @@ Use the reusable `Socket` API when you want explicit lifecycle control.
 
 ```gleam
 import gleam/io
+import gleam/result
 import gluegun/message
 import gluegun/websocket
 
-pub fn echo() {
-  let assert Ok(socket) =
+pub fn ws_echo() {
+  use socket <- result.try(
     websocket.connect(
       host: "localhost",
       port: 8080,
       path: "/echo",
       options: websocket.options(),
-    )
+    ),
+  )
 
-  let assert Ok(Nil) = websocket.send_text(socket, "hello")
+  use _ <- result.try(websocket.send_text(socket, "hello"))
 
   case websocket.receive_app_frame(socket) {
     Ok(message.Text(reply)) -> io.println(reply)
@@ -33,7 +35,7 @@ pub fn echo() {
     Error(_) -> io.println("websocket receive failed")
   }
 
-  let assert Ok(Nil) = websocket.send_close_frame(socket)
+  websocket.send_close_frame(socket)
 }
 ```
 
@@ -45,23 +47,32 @@ For shorter one-shot flows, `with_socket` opens the socket, runs a callback, the
 
 ```gleam
 import gleam/io
+import gleam/result
+import gluegun/error
 import gluegun/message
 import gluegun/websocket
 
 pub fn echo_once() {
-  let assert Ok(message.Text(reply)) =
+  use frame <- result.try(
     websocket.with_socket(
       host: "localhost",
       port: 8080,
       path: "/echo",
       options: websocket.options(),
       callback: fn(socket) {
-        let assert Ok(Nil) = websocket.send_text(socket, "hello")
+        use _ <- result.try(websocket.send_text(socket, "hello"))
         websocket.receive_app_frame(socket)
       },
-    )
+    ),
+  )
 
-  io.println(reply)
+  case frame {
+    message.Text(reply) -> {
+      io.println(reply)
+      Ok(Nil)
+    }
+    _ -> Error(error.InvalidMessage("expected a text frame"))
+  }
 }
 ```
 
@@ -72,24 +83,27 @@ pub fn echo_once() {
 Use the low-level helpers when you already own the connection lifecycle or need to inspect the negotiated protocol before upgrading.
 
 ```gleam
+import gleam/result
 import gluegun/connection
+import gluegun/error
 import gluegun/message
 import gluegun/websocket
 
 pub fn low_level_echo(conn) {
   let timeout = connection.Milliseconds(5000)
-  let assert Ok(protocol) = connection.await_up(conn, timeout)
+  use protocol <- result.try(connection.await_up(conn, timeout))
 
-  let assert Ok(stream) =
-    websocket.upgrade_with_protocol(conn, protocol, "/echo", [])
+  use stream <- result.try(
+    websocket.upgrade_with_protocol(conn, protocol, "/echo", []),
+  )
 
-  let assert Ok(Nil) = websocket.await_upgrade(conn, stream, timeout)
-  let assert Ok(Nil) = websocket.send(conn, stream, message.Text("hello"))
+  use _ <- result.try(websocket.await_upgrade(conn, stream, timeout))
+  use _ <- result.try(websocket.send(conn, stream, message.Text("hello")))
 
   case websocket.receive(conn, stream, timeout) {
     Ok(message.Text(reply)) -> Ok(reply)
-    Ok(_) -> Error("received a non-text frame")
-    Error(_) -> Error("websocket receive failed")
+    Ok(_) -> Error(error.InvalidMessage("received a non-text frame"))
+    Error(err) -> Error(err)
   }
 }
 ```

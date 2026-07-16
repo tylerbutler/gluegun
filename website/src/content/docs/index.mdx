@@ -315,20 +315,23 @@ hero:
       </div>
     </div>
     <div class="gluegun-lab__proof">
-      <pre class="gluegun-lab__code" tabindex="0" aria-label="Gleam example using Gluegun"><code>{`let assert Ok(conn) =
+      <pre class="gluegun-lab__code" tabindex="0" aria-label="Gleam example using Gluegun"><code>{`use conn <- result.try(
   connection.options()
-  |> connection.open(host: "example.com", port: 443)
+  |> connection.open(host: "example.com", port: 443),
+)
 
-let assert Ok(_) =
-  connection.await_up(conn, connection.Milliseconds(5000))
+use _ <- result.try(
+  connection.await_up(conn, connection.Milliseconds(5000)),
+)
 
-let assert Ok(res) =
+use res <- result.try(
   client.new(request.Get, "/")
   |> client.with_timeout(timeout: connection.Milliseconds(5000))
-  |> client.send(connection: conn)
+  |> client.send(connection: conn),
+)
 
 io.println("status: " <> int.to_string(response.status(res)))
-let assert Ok(Nil) = connection.close(conn)`}</code></pre>
+connection.close(conn)`}</code></pre>
       <p class="gluegun-lab__caption">
         `client.send` collects status, headers, body, trailers, and informational `1xx` responses into one typed value. Use the lower-level request and message APIs when the response must stream.
       </p>

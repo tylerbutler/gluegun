@@ -44,6 +44,7 @@ Open a Gun connection, wait for it to be ready, send a GET, and collect the full
 ```gleam
 import gleam/int
 import gleam/io
+import gleam/result
 import gluegun/client
 import gluegun/connection
 import gluegun/request
@@ -52,15 +53,17 @@ import gluegun/response
 pub fn main() {
   let timeout = connection.Milliseconds(5000)
 
-  let assert Ok(conn) =
+  use conn <- result.try(
     connection.options()
-    |> connection.open(host: "example.com", port: 80)
-  let assert Ok(_protocol) = connection.await_up(conn, timeout)
+    |> connection.open(host: "example.com", port: 80),
+  )
+  use _protocol <- result.try(connection.await_up(conn, timeout))
 
-  let assert Ok(res) =
+  use res <- result.try(
     client.new(request.Get, "/")
     |> client.with_timeout(timeout: timeout)
-    |> client.send(connection: conn)
+    |> client.send(connection: conn),
+  )
 
   io.println("status: " <> int.to_string(response.status(res)))
 
@@ -69,7 +72,7 @@ pub fn main() {
     Error(_) -> io.println("response body was not UTF-8")
   }
 
-  let assert Ok(Nil) = connection.close(conn)
+  connection.close(conn)
 }
 ```
 
@@ -95,35 +98,36 @@ Use `gluegun/request` when the request body is produced in chunks. Start with `r
 
 ```gleam
 import gluegun/connection
+import gluegun/error
 import gluegun/fin
 import gluegun/message
 import gluegun/request
+import gleam/result
 
 pub fn upload_chunks(conn) {
   let timeout = connection.Milliseconds(5000)
 
-  let assert Ok(stream) =
+  use stream <- result.try(
     request.start_stream(
       conn,
       request.Post,
       "/upload",
       [#("content-type", "text/plain")],
       request.options(),
-    )
+    ),
+  )
 
-  let assert Ok(Nil) = request.data(conn, stream, fin.NoFin, <<"first ":utf8>>)
-  let assert Ok(Nil) = request.data(conn, stream, fin.Fin, <<"last":utf8>>)
+  use _ <- result.try(request.data(conn, stream, fin.NoFin, <<"first ":utf8>>))
+  use _ <- result.try(request.data(conn, stream, fin.Fin, <<"last":utf8>>))
 
   // Await response headers, then consume the response body.
-  let assert Ok(message.Response(response_fin, _status, _headers)) =
-    message.await(conn, stream, timeout)
+  use response <- result.try(message.await(conn, stream, timeout))
 
-  case response_fin {
-    fin.Fin -> <<>>
-    fin.NoFin -> {
-      let assert Ok(body) = message.await_body(conn, stream, timeout)
-      body
-    }
+  case response {
+    message.Response(fin.NoFin, _status, _headers) ->
+      message.await_body(conn, stream, timeout)
+    message.Response(fin.Fin, _status, _headers) -> Ok(<<>>)
+    _ -> Error(error.InvalidMessage("expected a final response message"))
   }
 }
 ```
@@ -137,6 +141,7 @@ the full body with `message.await_body`.
 Use TLS and put `Http2` before `Http1` to prefer HTTP/2 while allowing Gun to fall back to HTTP/1.1 when needed.
 
 ```gleam
+import gleam/result
 import gluegun/client
 import gluegun/connection
 
@@ -146,11 +151,13 @@ pub fn get_over_http2() {
     |> connection.with_transport(transport: connection.Tls)
     |> connection.with_protocols(protocols: [connection.Http2, connection.Http1])
 
-  let assert Ok(conn) =
+  use conn <- result.try(
     options
-    |> connection.open(host: "example.com", port: 443)
-  let assert Ok(protocol) =
-    connection.await_up(conn, connection.Milliseconds(5000))
+    |> connection.open(host: "example.com", port: 443),
+  )
+  use protocol <- result.try(
+    connection.await_up(conn, connection.Milliseconds(5000)),
+  )
 
   case protocol {
     connection.Http2 -> Nil
@@ -169,19 +176,21 @@ Use the reusable `Socket` API when you want explicit lifecycle control.
 
 ```gleam
 import gleam/io
+import gleam/result
 import gluegun/message
 import gluegun/websocket
 
-pub fn echo() {
-  let assert Ok(socket) =
+pub fn ws_echo() {
+  use socket <- result.try(
     websocket.connect(
       host: "localhost",
       port: 8080,
       path: "/echo",
       options: websocket.options(),
-    )
+    ),
+  )
 
-  let assert Ok(Nil) = websocket.send_text(socket, "hello")
+  use _ <- result.try(websocket.send_text(socket, "hello"))
 
   case websocket.receive_app_frame(socket) {
     Ok(message.Text(reply)) -> io.println(reply)
@@ -189,7 +198,7 @@ pub fn echo() {
     Error(_) -> io.println("websocket receive failed")
   }
 
-  let assert Ok(Nil) = websocket.send_close_frame(socket)
+  websocket.send_close_frame(socket)
 }
 ```
 
@@ -197,23 +206,32 @@ For shorter one-shot flows, `with_socket` opens the socket, runs a callback, the
 
 ```gleam
 import gleam/io
+import gleam/result
+import gluegun/error
 import gluegun/message
 import gluegun/websocket
 
 pub fn echo_once() {
-  let assert Ok(message.Text(reply)) =
+  use frame <- result.try(
     websocket.with_socket(
       host: "localhost",
       port: 8080,
       path: "/echo",
       options: websocket.options(),
       callback: fn(socket) {
-        let assert Ok(Nil) = websocket.send_text(socket, "hello")
+        use _ <- result.try(websocket.send_text(socket, "hello"))
         websocket.receive_app_frame(socket)
       },
-    )
+    ),
+  )
 
-  io.println(reply)
+  case frame {
+    message.Text(reply) -> {
+      io.println(reply)
+      Ok(Nil)
+    }
+    _ -> Error(error.InvalidMessage("expected a text frame"))
+  }
 }
 ```
 
