@@ -18,6 +18,8 @@ hero:
       variant: secondary
 ---
 
+import { Code } from "@astrojs/starlight/components";
+
 <style lang="css">{`
   .gluegun-splash {
     display: grid;
@@ -87,37 +89,16 @@ hero:
     min-width: 0;
   }
 
+  /* Expressive Code owns the frame, syntax highlighting, and scroll
+     behaviour; keep the block from stretching the grid column. */
   .gluegun-lab__code {
-    --gg-code-bg: var(--sl-color-gray-6);
-    --gg-scroll-shadow: rgb(0 0 0 / 0.55);
-    display: grid;
-    align-content: center;
     min-width: 0;
     margin: 0;
-    padding: clamp(1rem, 3vw, 1.5rem);
-    overflow: auto;
-    border: 1px solid var(--sl-color-gray-5);
-    border-radius: 0.75rem;
-    /* Scroll shadows: the local-attachment covers slide away from the edges
-       only when the block can scroll, revealing the edge shadows. */
-    background:
-      linear-gradient(to right, var(--gg-code-bg) 40%, transparent) left center / 2.5rem 100% no-repeat local,
-      linear-gradient(to left, var(--gg-code-bg) 40%, transparent) right center / 2.5rem 100% no-repeat local,
-      radial-gradient(farthest-side at 0 50%, var(--gg-scroll-shadow), transparent) left center / 1.125rem 100% no-repeat scroll,
-      radial-gradient(farthest-side at 100% 50%, var(--gg-scroll-shadow), transparent) right center / 1.125rem 100% no-repeat scroll,
-      var(--gg-code-bg);
-    color: var(--sl-color-gray-1);
     font-size: clamp(0.8125rem, 1.5vw, 0.9375rem);
+  }
+
+  .gluegun-lab__code :is(pre, code) {
     line-height: 1.65;
-  }
-
-  :root[data-theme='light'] .gluegun-lab__code {
-    --gg-scroll-shadow: rgb(80 16 96 / 0.25);
-  }
-
-  .gluegun-lab__code:focus-visible {
-    outline: 3px solid var(--sl-color-accent);
-    outline-offset: 3px;
   }
 
   .gluegun-lab__caption {
@@ -127,11 +108,6 @@ hero:
     font-size: 0.9375rem;
     line-height: 1.55;
     text-wrap: pretty;
-  }
-
-  .gluegun-lab__code code {
-    display: block;
-    min-width: max-content;
   }
 
   .gluegun-paths {
@@ -354,7 +330,10 @@ hero:
       </div>
     </div>
     <div class="gluegun-lab__proof">
-      <pre class="gluegun-lab__code" tabindex="0" aria-label="Gleam example using Gluegun"><code>{`use conn <- result.try(
+      <Code
+        class="gluegun-lab__code"
+        lang="gleam"
+        code={`use conn <- result.try(
   connection.options()
   |> connection.open(host: "example.com", port: 443),
 )
@@ -370,7 +349,8 @@ use res <- result.try(
 )
 
 io.println("status: " <> int.to_string(response.status(res)))
-connection.close(conn)`}</code></pre>
+connection.close(conn)`}
+      />
       <p class="gluegun-lab__caption">
         `client.send` collects status, headers, body, trailers, and informational `1xx` responses into one typed value. Use the lower-level request and message APIs when the response must stream.
       </p>
