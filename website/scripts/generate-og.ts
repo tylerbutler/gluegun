@@ -52,7 +52,7 @@ const line = token("sl-color-gray-5"); // deep violet
 
 const wordmark = "gluegun";
 const headlinePlain = "HTTP without footguns.";
-const headlineAccent = "One typed API for HTTP and WebSocket.";
+const headlineAccent = "One typed API for HTTP and WebSockets.";
 const command = "gleam add gluegun";
 const domain = "gluegun.tylerbutler.com";
 
