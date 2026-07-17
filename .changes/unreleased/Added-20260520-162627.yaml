@@ -1,9 +1,0 @@
-kind: Added
-body: |-
-    Consistent naming across the request/response API
-
-    Header helpers follow one convention throughout: `add_headers` appends,
-    `with_headers` replaces. Other names describe what they do:
-    `websocket.send_close_frame`, `gluegun.new_request`, `request.start_stream`,
-    and `client.request_options`.
-time: 2026-05-20T16:26:27.678891-07:00
