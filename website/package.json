@@ -2,7 +2,7 @@
 	"name": "gluegun-docs",
 	"version": "0.0.1",
 	"private": true,
-	"packageManager": "pnpm@10.33.4",
+	"packageManager": "pnpm@11.13.1",
 	"bugs": "https://github.com/tylerbutler/gluegun/issues",
 	"repository": {
 		"type": "git",
@@ -25,18 +25,18 @@
 		"test:reference": "node --test scripts/generate-reference.test.mjs"
 	},
 	"dependencies": {
-		"@astrojs/check": "^0.9.8",
-		"@astrojs/starlight": "^0.39.2",
+		"@astrojs/check": "^0.9.9",
+		"@astrojs/starlight": "^0.41.3",
 		"@fontsource-variable/atkinson-hyperlegible-next": "^5.2.6",
 		"@fontsource-variable/chivo": "^5.2.8",
 		"@fontsource-variable/jetbrains-mono": "^5.2.8",
-		"astro": "^6.1.4",
-		"sharp": "^0.34.5",
-		"starlight-heading-badges": "^0.7.0",
-		"starlight-links-validator": "^0.24.0",
-		"starlight-llms-txt": "^0.10.0",
+		"astro": "^7.1.0",
+		"sharp": "^0.35.3",
+		"starlight-heading-badges": "^0.8.0",
+		"starlight-links-validator": "^0.25.2",
+		"starlight-llms-txt": "^0.11.0",
 		"starlight-showcases": "^0.3.2",
-		"starlight-sidebar-topics": "^0.7.1",
+		"starlight-sidebar-topics": "^0.8.0",
 		"typescript": "~6.0.2"
 	},
 	"devDependencies": {
