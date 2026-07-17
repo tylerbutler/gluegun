@@ -1,0 +1,16 @@
+name = "webprobe"
+version = "0.1.0"
+description = "HTTP diagnostics CLI demo for gluegun"
+licences = ["MIT"]
+target = "erlang"
+
+[dependencies]
+argv = ">= 1.1.0 and < 2.0.0"
+clip = ">= 1.2.0 and < 2.0.0"
+gleam_erlang = ">= 1.0.0 and < 2.0.0"
+gleam_stdlib = ">= 0.48.0 and < 2.0.0"
+gluegun = { path = "../.." }
+
+[dev-dependencies]
+gleescript = ">= 1.5.2 and < 2.0.0"
+startest = ">= 0.8.0 and < 1.0.0"

@@ -3,26 +3,27 @@ title: gluegun/client
 description: High-level HTTP helpers for existing Gun connections.
 ---
 
-# `gluegun/client`
-
 High-level HTTP helpers for existing Gun connections.
 
- These helpers collect regular HTTP/1.1 and HTTP/2 responses into
- `response.Response`.
- Informational `1xx` responses are preserved and can be inspected with
- `response.informational`.
- Protocol messages for server push, upgrades, and WebSockets are rejected with
- `InvalidMessage`; use the lower-level `gluegun/message` API for those flows.
- Full response bodies are collected in memory; use the lower-level APIs for
- streaming or very large responses.
+ These helpers collect a full HTTP/1.1 or HTTP/2 response — status,
+ headers, body, trailers, and any informational `1xx` responses — into a
+ `response.Response`. The body is held fully in memory; use the lower-level
+ `gluegun/request` and `gluegun/message` APIs for streaming or very large
+ responses.
+
+ Protocol messages for server push, upgrades, and WebSockets are rejected
+ with `InvalidMessage`. Use the lower-level `gluegun/message` API for
+ those flows.
 
 ## Types
 
 ### `Request`
 
-A collected HTTP request command.
+A buildable HTTP request: method, path, headers, body, options, and timeout.
 
-
+```gleam
+pub type Request
+```
 
 ## Functions
 
@@ -31,7 +32,10 @@ A collected HTTP request command.
 Append request headers.
 
 ```gleam
-pub fn add_headers(gluegun/client.Request, headers: List(#(String, String))) -> gluegun/client.Request
+pub fn add_headers(
+  Request,
+  headers: List(#(String, String))
+) -> Request
 ```
 
 ### `delete`
@@ -39,7 +43,12 @@ pub fn add_headers(gluegun/client.Request, headers: List(#(String, String))) -> 
 Send DELETE on an open connection and collect the full response.
 
 ```gleam
-pub fn delete(gluegun/internal.Connection, String, List(#(String, String)), gluegun/connection.Timeout) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
+pub fn delete(
+  internal.Connection,
+  String,
+  List(#(String, String)),
+  connection.Timeout
+) -> Result(response.Response, error.GluegunError)
 ```
 
 ### `get`
@@ -47,7 +56,12 @@ pub fn delete(gluegun/internal.Connection, String, List(#(String, String)), glue
 Send GET on an open connection and collect the full response.
 
 ```gleam
-pub fn get(gluegun/internal.Connection, String, List(#(String, String)), gluegun/connection.Timeout) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
+pub fn get(
+  internal.Connection,
+  String,
+  List(#(String, String)),
+  connection.Timeout
+) -> Result(response.Response, error.GluegunError)
 ```
 
 ### `head`
@@ -55,15 +69,23 @@ pub fn get(gluegun/internal.Connection, String, List(#(String, String)), gluegun
 Send HEAD on an open connection and collect the full response.
 
 ```gleam
-pub fn head(gluegun/internal.Connection, String, List(#(String, String)), gluegun/connection.Timeout) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
+pub fn head(
+  internal.Connection,
+  String,
+  List(#(String, String)),
+  connection.Timeout
+) -> Result(response.Response, error.GluegunError)
 ```
 
 ### `new`
 
-Construct a collected HTTP request command.
+Start a new `Request` builder with the given method and path.
 
 ```gleam
-pub fn new(gluegun/request.Method, String) -> gluegun/client.Request
+pub fn new(
+  request.Method,
+  String
+) -> Request
 ```
 
 ### `patch`
@@ -71,7 +93,13 @@ pub fn new(gluegun/request.Method, String) -> gluegun/client.Request
 Send PATCH on an open connection and collect the full response.
 
 ```gleam
-pub fn patch(gluegun/internal.Connection, String, List(#(String, String)), BitArray, gluegun/connection.Timeout) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
+pub fn patch(
+  internal.Connection,
+  String,
+  List(#(String, String)),
+  BitArray,
+  connection.Timeout
+) -> Result(response.Response, error.GluegunError)
 ```
 
 ### `post`
@@ -79,7 +107,13 @@ pub fn patch(gluegun/internal.Connection, String, List(#(String, String)), BitAr
 Send POST on an open connection and collect the full response.
 
 ```gleam
-pub fn post(gluegun/internal.Connection, String, List(#(String, String)), BitArray, gluegun/connection.Timeout) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
+pub fn post(
+  internal.Connection,
+  String,
+  List(#(String, String)),
+  BitArray,
+  connection.Timeout
+) -> Result(response.Response, error.GluegunError)
 ```
 
 ### `put`
@@ -87,7 +121,13 @@ pub fn post(gluegun/internal.Connection, String, List(#(String, String)), BitArr
 Send PUT on an open connection and collect the full response.
 
 ```gleam
-pub fn put(gluegun/internal.Connection, String, List(#(String, String)), BitArray, gluegun/connection.Timeout) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
+pub fn put(
+  internal.Connection,
+  String,
+  List(#(String, String)),
+  BitArray,
+  connection.Timeout
+) -> Result(response.Response, error.GluegunError)
 ```
 
 ### `request_options`
@@ -95,15 +135,23 @@ pub fn put(gluegun/internal.Connection, String, List(#(String, String)), BitArra
 Send OPTIONS on an open connection and collect the full response.
 
 ```gleam
-pub fn request_options(gluegun/internal.Connection, String, List(#(String, String)), gluegun/connection.Timeout) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
+pub fn request_options(
+  internal.Connection,
+  String,
+  List(#(String, String)),
+  connection.Timeout
+) -> Result(response.Response, error.GluegunError)
 ```
 
 ### `send`
 
-Send a collected HTTP request command on an open connection.
+Send a built `Request` on an open connection and collect the response.
 
 ```gleam
-pub fn send(gluegun/client.Request, connection: gluegun/internal.Connection) -> Result(gluegun/response.Response, gluegun/error.GluegunError)
+pub fn send(
+  Request,
+  connection: internal.Connection
+) -> Result(response.Response, error.GluegunError)
 ```
 
 ### `with_body`
@@ -111,7 +159,10 @@ pub fn send(gluegun/client.Request, connection: gluegun/internal.Connection) -> 
 Replace the request body.
 
 ```gleam
-pub fn with_body(gluegun/client.Request, body: BitArray) -> gluegun/client.Request
+pub fn with_body(
+  Request,
+  body: BitArray
+) -> Request
 ```
 
 ### `with_header`
@@ -119,7 +170,11 @@ pub fn with_body(gluegun/client.Request, body: BitArray) -> gluegun/client.Reque
 Append a single request header.
 
 ```gleam
-pub fn with_header(gluegun/client.Request, name: String, value: String) -> gluegun/client.Request
+pub fn with_header(
+  Request,
+  name: String,
+  value: String
+) -> Request
 ```
 
 ### `with_headers`
@@ -127,7 +182,10 @@ pub fn with_header(gluegun/client.Request, name: String, value: String) -> glueg
 Replace request headers.
 
 ```gleam
-pub fn with_headers(gluegun/client.Request, headers: List(#(String, String))) -> gluegun/client.Request
+pub fn with_headers(
+  Request,
+  headers: List(#(String, String))
+) -> Request
 ```
 
 ### `with_options`
@@ -135,7 +193,10 @@ pub fn with_headers(gluegun/client.Request, headers: List(#(String, String))) ->
 Replace low-level request options.
 
 ```gleam
-pub fn with_options(gluegun/client.Request, options: gluegun/request.RequestOptions) -> gluegun/client.Request
+pub fn with_options(
+  Request,
+  options: request.RequestOptions
+) -> Request
 ```
 
 ### `with_timeout`
@@ -143,5 +204,8 @@ pub fn with_options(gluegun/client.Request, options: gluegun/request.RequestOpti
 Replace the request timeout.
 
 ```gleam
-pub fn with_timeout(gluegun/client.Request, timeout: gluegun/connection.Timeout) -> gluegun/client.Request
+pub fn with_timeout(
+  Request,
+  timeout: connection.Timeout
+) -> Request
 ```

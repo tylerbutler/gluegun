@@ -9,34 +9,35 @@ Start with `request.start_stream`, send zero or more chunks with `fin.NoFin`, an
 
 ```gleam
 import gluegun/connection
+import gluegun/error
 import gluegun/fin
 import gluegun/message
 import gluegun/request
+import gleam/result
 
 pub fn upload_chunks(conn) {
   let timeout = connection.Milliseconds(5000)
 
-  let assert Ok(stream) =
+  use stream <- result.try(
     request.start_stream(
       conn,
       request.Post,
       "/upload",
       [#("content-type", "text/plain")],
       request.options(),
-    )
+    ),
+  )
 
-  let assert Ok(Nil) = request.data(conn, stream, fin.NoFin, <<"first ":utf8>>)
-  let assert Ok(Nil) = request.data(conn, stream, fin.Fin, <<"last":utf8>>)
+  use _ <- result.try(request.data(conn, stream, fin.NoFin, <<"first ":utf8>>))
+  use _ <- result.try(request.data(conn, stream, fin.Fin, <<"last":utf8>>))
 
-  let assert Ok(message.Response(response_fin, _status, _headers)) =
-    await_final_response(conn, stream, timeout)
+  use response <- result.try(await_final_response(conn, stream, timeout))
 
-  case response_fin {
-    fin.Fin -> <<>>
-    fin.NoFin -> {
-      let assert Ok(body) = message.await_body(conn, stream, timeout)
-      body
-    }
+  case response {
+    message.Response(fin.NoFin, _status, _headers) ->
+      message.await_body(conn, stream, timeout)
+    message.Response(fin.Fin, _status, _headers) -> Ok(<<>>)
+    _ -> Error(error.InvalidMessage("expected a final response message"))
   }
 }
 
@@ -49,11 +50,22 @@ fn await_final_response(conn, stream, timeout) {
 }
 ```
 
+## Message sequencing
+
+Gun delivers stream messages in a defined order. A typical HTTP request stream produces:
+
+1. Zero or more `message.Inform(status, headers)` — 1xx informational responses.
+2. Exactly one `message.Response(fin, status, headers)` — the final status line and headers. If `fin` is `Fin`, the body is empty and no further messages arrive (other than optional trailers).
+3. Zero or more `message.Data(fin, bytes)` — body chunks. The last chunk carries `fin.Fin`.
+4. Optionally one `message.Trailers(headers)` — HTTP/1.1 trailers or HTTP/2 trailer frames.
+
+HTTP/2 server push appears as `message.Push(stream, …)` carrying a new stream you can await or cancel. Protocol upgrade flows produce `message.Upgrade(...)`. After a successful WebSocket upgrade, frames are delivered as `message.WebSocket(frame)`. The high-level `client` helpers reject `Push`, `Upgrade`, and `WebSocket` with `InvalidMessage` — handle them with the low-level loop instead.
+
 ## Consuming response chunks
 
 If you need response chunks or trailers as they arrive, continue awaiting `message.Data` and `message.Trailers` with `message.await` instead of collecting the full body with `message.await_body`.
 
-Servers may send one or more `message.Inform` values before the final `message.Response`. Skip or record those informational responses before collecting the response body. HTTP/2 servers can also send `message.Push` values, and upgrade flows can produce `message.Upgrade` or `message.WebSocket` values that the high-level client helpers intentionally reject.
+`message.await_body` is a convenience that drains body chunks into a single `BitArray` in memory. It must be called *after* the `Response` message has been received (e.g. via a prior `message.await`). For very large or unbounded responses, write your own loop using `message.await` so you can apply backpressure or stream the body elsewhere.
 
 ## Stream control
 

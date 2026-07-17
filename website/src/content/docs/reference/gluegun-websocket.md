@@ -3,8 +3,6 @@ title: gluegun/websocket
 description: WebSocket helpers for Gun connections.
 ---
 
-# `gluegun/websocket`
-
 WebSocket helpers for Gun connections.
 
  ## Protocol limitations
@@ -20,20 +18,29 @@ WebSocket helpers for Gun connections.
  ## Typical usage
 
  ```gleam
+ import gleam/result
  import gluegun/connection
- import gluegun/websocket
+ import gluegun/error
  import gluegun/message
+ import gluegun/websocket
 
- let assert Ok(conn) =
+ use conn <- result.try(
    connection.options()
-   |> connection.open(host: "echo.example.com", port: 80)
- let assert Ok(protocol) = connection.await_up(conn, connection.Milliseconds(5000))
+   |> connection.open(host: "echo.example.com", port: 80),
+ )
 
- let assert Ok(stream) = websocket.upgrade_with_protocol(conn, protocol, "/ws", [])
- let assert Ok(Nil) = websocket.await_upgrade(conn, stream, connection.Milliseconds(5000))
+ use protocol <- result.try(connection.await_up(conn, connection.Milliseconds(5000)))
 
- let assert Ok(Nil) = websocket.send(conn, stream, message.Text("hello"))
- let assert Ok(message.Text(reply)) = websocket.receive(conn, stream, connection.Milliseconds(5000))
+ use stream <- result.try(websocket.upgrade_with_protocol(conn, protocol, "/ws", []))
+ use _ <- result.try(websocket.await_upgrade(conn, stream, connection.Milliseconds(5000)))
+
+ use _ <- result.try(websocket.send(conn, stream, message.Text("hello")))
+
+ case websocket.receive(conn, stream, connection.Milliseconds(5000)) {
+   Ok(message.Text(reply)) -> Ok(reply)
+   Ok(_) -> Error(error.InvalidMessage("expected a text frame"))
+   Error(err) -> Error(err)
+ }
  ```
 
 ## Types
@@ -42,7 +49,13 @@ WebSocket helpers for Gun connections.
 
 High-level options for opening and upgrading a WebSocket connection.
 
+ Build with `options()` then chain `with_headers`, `with_connect_options`,
+ `with_upgrade_options`, and `with_timeout`. Defaults to HTTP/1.1; Gun's
+ HTTP/2 protocol is rejected before upgrade.
 
+```gleam
+pub type Options
+```
 
 ### `Socket`
 
@@ -51,13 +64,21 @@ A reusable WebSocket handle.
  Wraps the upgraded Gun connection, WebSocket stream, and receive timeout so
  higher-level helpers can send and receive frames without repeating them.
 
-
+```gleam
+pub type Socket
+```
 
 ### `UpgradeOptions`
 
 Typed options for Gun WebSocket upgrades.
 
+ Build with `upgrade_options()` then chain `with_closing_timeout`,
+ `with_compress`, `with_default_protocol`, `with_flow`, `with_keepalive`,
+ `with_protocols`, `with_silence_pings`, etc.
 
+```gleam
+pub type UpgradeOptions
+```
 
 ## Functions
 
@@ -70,15 +91,34 @@ Wait for the WebSocket upgrade confirmation (`101 Switching Protocols`).
  or if a non-upgrade message arrives first.
 
 ```gleam
-pub fn await_upgrade(gluegun/internal.Connection, gluegun/internal.Stream, gluegun/connection.Timeout) -> Result(Nil, gluegun/error.GluegunError)
+pub fn await_upgrade(
+  internal.Connection,
+  internal.Stream,
+  connection.Timeout
+) -> Result(Nil, error.GluegunError)
 ```
 
 ### `connect`
 
-Open a connection, perform a WebSocket upgrade, and return a reusable socket.
+Open a Gun connection, perform a WebSocket upgrade, and return a reusable
+ socket.
+
+ The connection is opened with the configured connect options, awaited up
+ to readiness, then upgraded. If any step fails the underlying Gun
+ connection is closed automatically. On success the caller owns the
+ returned `Socket` and must eventually `send_close_frame` + `connection.close`
+ (or use `with_socket` for scoped cleanup).
+
+ Defaults to HTTP/1.1; HTTP/2 is rejected with `UnsupportedFeature`
+ because Gun does not support WebSocket over HTTP/2.
 
 ```gleam
-pub fn connect(host: String, port: Int, path: String, options: gluegun/websocket.Options) -> Result(gluegun/websocket.Socket, gluegun/error.GluegunError)
+pub fn connect(
+  host: String,
+  port: Int,
+  path: String,
+  options: Options
+) -> Result(Socket, error.GluegunError)
 ```
 
 ### `options`
@@ -86,7 +126,7 @@ pub fn connect(host: String, port: Int, path: String, options: gluegun/websocket
 Construct default high-level WebSocket connection options.
 
 ```gleam
-pub fn options() -> gluegun/websocket.Options
+pub fn options() -> Options
 ```
 
 ### `ping`
@@ -94,7 +134,10 @@ pub fn options() -> gluegun/websocket.Options
 Send a ping WebSocket frame using a reusable socket.
 
 ```gleam
-pub fn ping(gluegun/websocket.Socket, BitArray) -> Result(Nil, gluegun/error.GluegunError)
+pub fn ping(
+  Socket,
+  BitArray
+) -> Result(Nil, error.GluegunError)
 ```
 
 ### `pong`
@@ -102,7 +145,10 @@ pub fn ping(gluegun/websocket.Socket, BitArray) -> Result(Nil, gluegun/error.Glu
 Send a pong WebSocket frame using a reusable socket.
 
 ```gleam
-pub fn pong(gluegun/websocket.Socket, BitArray) -> Result(Nil, gluegun/error.GluegunError)
+pub fn pong(
+  Socket,
+  BitArray
+) -> Result(Nil, error.GluegunError)
 ```
 
 ### `receive`
@@ -118,7 +164,11 @@ Receive the next WebSocket frame from the stream.
  `await_upgrade/3` before calling `receive`.
 
 ```gleam
-pub fn receive(gluegun/internal.Connection, gluegun/internal.Stream, gluegun/connection.Timeout) -> Result(gluegun/message.Frame, gluegun/error.GluegunError)
+pub fn receive(
+  internal.Connection,
+  internal.Stream,
+  connection.Timeout
+) -> Result(message.Frame, error.GluegunError)
 ```
 
 ### `receive_app_frame`
@@ -130,7 +180,7 @@ Receive the next application frame, handling ping/pong control frames.
  returned to the caller.
 
 ```gleam
-pub fn receive_app_frame(gluegun/websocket.Socket) -> Result(gluegun/message.Frame, gluegun/error.GluegunError)
+pub fn receive_app_frame(Socket) -> Result(message.Frame, error.GluegunError)
 ```
 
 ### `receive_frame`
@@ -138,7 +188,7 @@ pub fn receive_app_frame(gluegun/websocket.Socket) -> Result(gluegun/message.Fra
 Receive the next WebSocket frame using a reusable socket.
 
 ```gleam
-pub fn receive_frame(gluegun/websocket.Socket) -> Result(gluegun/message.Frame, gluegun/error.GluegunError)
+pub fn receive_frame(Socket) -> Result(message.Frame, error.GluegunError)
 ```
 
 ### `send`
@@ -149,7 +199,11 @@ Send a single WebSocket frame on the stream.
  `CloseWithReason`. The frame is forwarded directly to Gun's `ws_send`.
 
 ```gleam
-pub fn send(gluegun/internal.Connection, gluegun/internal.Stream, gluegun/message.Frame) -> Result(Nil, gluegun/error.GluegunError)
+pub fn send(
+  internal.Connection,
+  internal.Stream,
+  message.Frame
+) -> Result(Nil, error.GluegunError)
 ```
 
 ### `send_binary`
@@ -157,7 +211,10 @@ pub fn send(gluegun/internal.Connection, gluegun/internal.Stream, gluegun/messag
 Send a binary WebSocket frame using a reusable socket.
 
 ```gleam
-pub fn send_binary(gluegun/websocket.Socket, BitArray) -> Result(Nil, gluegun/error.GluegunError)
+pub fn send_binary(
+  Socket,
+  BitArray
+) -> Result(Nil, error.GluegunError)
 ```
 
 ### `send_close_frame`
@@ -165,10 +222,11 @@ pub fn send_binary(gluegun/websocket.Socket, BitArray) -> Result(Nil, gluegun/er
 Send a close WebSocket frame using a reusable socket.
 
  This only sends the close frame; it does not close the underlying Gun
- connection.
+ connection. Follow with `connection.close(socket.connection)` or use
+ `with_socket` for automatic teardown.
 
 ```gleam
-pub fn send_close_frame(gluegun/websocket.Socket) -> Result(Nil, gluegun/error.GluegunError)
+pub fn send_close_frame(Socket) -> Result(Nil, error.GluegunError)
 ```
 
 ### `send_frame`
@@ -176,7 +234,10 @@ pub fn send_close_frame(gluegun/websocket.Socket) -> Result(Nil, gluegun/error.G
 Send a single WebSocket frame using a reusable socket.
 
 ```gleam
-pub fn send_frame(gluegun/websocket.Socket, gluegun/message.Frame) -> Result(Nil, gluegun/error.GluegunError)
+pub fn send_frame(
+  Socket,
+  message.Frame
+) -> Result(Nil, error.GluegunError)
 ```
 
 ### `send_many`
@@ -187,7 +248,11 @@ Send one or more WebSocket frames on the stream.
  this function with a one-element list.
 
 ```gleam
-pub fn send_many(gluegun/internal.Connection, gluegun/internal.Stream, List(gluegun/message.Frame)) -> Result(Nil, gluegun/error.GluegunError)
+pub fn send_many(
+  internal.Connection,
+  internal.Stream,
+  List(message.Frame)
+) -> Result(Nil, error.GluegunError)
 ```
 
 ### `send_text`
@@ -195,7 +260,10 @@ pub fn send_many(gluegun/internal.Connection, gluegun/internal.Stream, List(glue
 Send a text WebSocket frame using a reusable socket.
 
 ```gleam
-pub fn send_text(gluegun/websocket.Socket, String) -> Result(Nil, gluegun/error.GluegunError)
+pub fn send_text(
+  Socket,
+  String
+) -> Result(Nil, error.GluegunError)
 ```
 
 ### `upgrade`
@@ -207,7 +275,11 @@ Initiate a WebSocket upgrade on an assumed HTTP/1.1 connection.
  default path for callers that constrain the connection to HTTP/1.1.
 
 ```gleam
-pub fn upgrade(gluegun/internal.Connection, String, List(#(String, String))) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)
+pub fn upgrade(
+  internal.Connection,
+  String,
+  List(#(String, String))
+) -> Result(internal.Stream, error.GluegunError)
 ```
 
 ### `upgrade_options`
@@ -215,7 +287,7 @@ pub fn upgrade(gluegun/internal.Connection, String, List(#(String, String))) -> 
 Construct default WebSocket upgrade options.
 
 ```gleam
-pub fn upgrade_options() -> gluegun/websocket.UpgradeOptions
+pub fn upgrade_options() -> UpgradeOptions
 ```
 
 ### `upgrade_with_options`
@@ -223,7 +295,12 @@ pub fn upgrade_options() -> gluegun/websocket.UpgradeOptions
 Initiate a WebSocket upgrade on an assumed HTTP/1.1 connection with options.
 
 ```gleam
-pub fn upgrade_with_options(gluegun/internal.Connection, String, List(#(String, String)), gluegun/websocket.UpgradeOptions) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)
+pub fn upgrade_with_options(
+  internal.Connection,
+  String,
+  List(#(String, String)),
+  UpgradeOptions
+) -> Result(internal.Stream, error.GluegunError)
 ```
 
 ### `upgrade_with_protocol`
@@ -238,7 +315,12 @@ Initiate a WebSocket upgrade when the negotiated protocol is known.
  negotiation may choose HTTP/2.
 
 ```gleam
-pub fn upgrade_with_protocol(gluegun/internal.Connection, gluegun/connection.Protocol, String, List(#(String, String))) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)
+pub fn upgrade_with_protocol(
+  internal.Connection,
+  connection.Protocol,
+  String,
+  List(#(String, String))
+) -> Result(internal.Stream, error.GluegunError)
 ```
 
 ### `upgrade_with_protocol_and_options`
@@ -249,7 +331,13 @@ Initiate a WebSocket upgrade with options when the negotiated protocol is known.
  WebSocket over HTTP/2.
 
 ```gleam
-pub fn upgrade_with_protocol_and_options(gluegun/internal.Connection, gluegun/connection.Protocol, String, List(#(String, String)), gluegun/websocket.UpgradeOptions) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)
+pub fn upgrade_with_protocol_and_options(
+  internal.Connection,
+  connection.Protocol,
+  String,
+  List(#(String, String)),
+  UpgradeOptions
+) -> Result(internal.Stream, error.GluegunError)
 ```
 
 ### `with_closing_timeout`
@@ -257,7 +345,10 @@ pub fn upgrade_with_protocol_and_options(gluegun/internal.Connection, gluegun/co
 Set Gun's WebSocket closing timeout.
 
 ```gleam
-pub fn with_closing_timeout(gluegun/websocket.UpgradeOptions, gluegun/connection.Timeout) -> gluegun/websocket.UpgradeOptions
+pub fn with_closing_timeout(
+  UpgradeOptions,
+  connection.Timeout
+) -> UpgradeOptions
 ```
 
 ### `with_compress`
@@ -265,7 +356,10 @@ pub fn with_closing_timeout(gluegun/websocket.UpgradeOptions, gluegun/connection
 Enable or disable WebSocket compression.
 
 ```gleam
-pub fn with_compress(gluegun/websocket.UpgradeOptions, Bool) -> gluegun/websocket.UpgradeOptions
+pub fn with_compress(
+  UpgradeOptions,
+  Bool
+) -> UpgradeOptions
 ```
 
 ### `with_connect_options`
@@ -273,7 +367,10 @@ pub fn with_compress(gluegun/websocket.UpgradeOptions, Bool) -> gluegun/websocke
 Set Gun connection options used when opening the connection.
 
 ```gleam
-pub fn with_connect_options(gluegun/websocket.Options, gluegun/connection.ConnectOptions) -> gluegun/websocket.Options
+pub fn with_connect_options(
+  Options,
+  connection.ConnectOptions
+) -> Options
 ```
 
 ### `with_default_protocol_module`
@@ -281,7 +378,10 @@ pub fn with_connect_options(gluegun/websocket.Options, gluegun/connection.Connec
 Set the default WebSocket protocol callback module.
 
 ```gleam
-pub fn with_default_protocol_module(gluegun/websocket.UpgradeOptions, String) -> gluegun/websocket.UpgradeOptions
+pub fn with_default_protocol_module(
+  UpgradeOptions,
+  String
+) -> UpgradeOptions
 ```
 
 ### `with_flow`
@@ -289,7 +389,10 @@ pub fn with_default_protocol_module(gluegun/websocket.UpgradeOptions, String) ->
 Set the initial WebSocket flow-control allowance.
 
 ```gleam
-pub fn with_flow(gluegun/websocket.UpgradeOptions, Int) -> gluegun/websocket.UpgradeOptions
+pub fn with_flow(
+  UpgradeOptions,
+  Int
+) -> UpgradeOptions
 ```
 
 ### `with_headers`
@@ -297,7 +400,10 @@ pub fn with_flow(gluegun/websocket.UpgradeOptions, Int) -> gluegun/websocket.Upg
 Set headers sent with the WebSocket upgrade request.
 
 ```gleam
-pub fn with_headers(gluegun/websocket.Options, List(#(String, String))) -> gluegun/websocket.Options
+pub fn with_headers(
+  Options,
+  List(#(String, String))
+) -> Options
 ```
 
 ### `with_keepalive`
@@ -305,7 +411,10 @@ pub fn with_headers(gluegun/websocket.Options, List(#(String, String))) -> glueg
 Set Gun's WebSocket keepalive timeout.
 
 ```gleam
-pub fn with_keepalive(gluegun/websocket.UpgradeOptions, gluegun/connection.Timeout) -> gluegun/websocket.UpgradeOptions
+pub fn with_keepalive(
+  UpgradeOptions,
+  connection.Timeout
+) -> UpgradeOptions
 ```
 
 ### `with_protocol_module`
@@ -313,7 +422,11 @@ pub fn with_keepalive(gluegun/websocket.UpgradeOptions, gluegun/connection.Timeo
 Add a WebSocket subprotocol callback module.
 
 ```gleam
-pub fn with_protocol_module(gluegun/websocket.UpgradeOptions, String, String) -> gluegun/websocket.UpgradeOptions
+pub fn with_protocol_module(
+  UpgradeOptions,
+  String,
+  String
+) -> UpgradeOptions
 ```
 
 ### `with_silence_pings`
@@ -321,15 +434,30 @@ pub fn with_protocol_module(gluegun/websocket.UpgradeOptions, String, String) ->
 Enable or disable silencing automatic ping frames.
 
 ```gleam
-pub fn with_silence_pings(gluegun/websocket.UpgradeOptions, Bool) -> gluegun/websocket.UpgradeOptions
+pub fn with_silence_pings(
+  UpgradeOptions,
+  Bool
+) -> UpgradeOptions
 ```
 
 ### `with_socket`
 
-Open a WebSocket, run a callback, then close the WebSocket and connection.
+Open a WebSocket, run a callback, then send the close frame and close
+ the underlying connection.
+
+ Scoped lifecycle helper. Use this when the WebSocket session is
+ self-contained. The callback receives a reusable `Socket`. Errors from
+ the callback take precedence over cleanup errors; cleanup is attempted
+ even when the callback fails.
 
 ```gleam
-pub fn with_socket(host: String, port: Int, path: String, options: gluegun/websocket.Options, callback: fn(gluegun/websocket.Socket) -> Result(a, gluegun/error.GluegunError)) -> Result(a, gluegun/error.GluegunError)
+pub fn with_socket(
+  host: String,
+  port: Int,
+  path: String,
+  options: Options,
+  callback: fn(Socket) -> Result(a, error.GluegunError)
+) -> Result(a, error.GluegunError)
 ```
 
 ### `with_timeout`
@@ -337,7 +465,10 @@ pub fn with_socket(host: String, port: Int, path: String, options: gluegun/webso
 Set the timeout used when awaiting connection readiness, upgrade, and frames.
 
 ```gleam
-pub fn with_timeout(gluegun/websocket.Options, gluegun/connection.Timeout) -> gluegun/websocket.Options
+pub fn with_timeout(
+  Options,
+  connection.Timeout
+) -> Options
 ```
 
 ### `with_upgrade_options`
@@ -345,5 +476,8 @@ pub fn with_timeout(gluegun/websocket.Options, gluegun/connection.Timeout) -> gl
 Set Gun WebSocket upgrade options used for the upgrade request.
 
 ```gleam
-pub fn with_upgrade_options(gluegun/websocket.Options, gluegun/websocket.UpgradeOptions) -> gluegun/websocket.Options
+pub fn with_upgrade_options(
+  Options,
+  UpgradeOptions
+) -> Options
 ```

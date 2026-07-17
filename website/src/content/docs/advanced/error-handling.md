@@ -3,7 +3,7 @@ title: Error Handling
 description: Work with GluegunError values returned from public operations.
 ---
 
-Effectful operations that open connections, send requests, await messages, decode response bodies, or send WebSocket frames return `Result(_, error.GluegunError)`. Pure builders and accessors return plain values.
+Effectful operations that open connections, send requests, await messages, or send WebSocket frames return `Result(_, error.GluegunError)`. Pure builders and accessors return plain values. Among effectful operations, only `response.body_text` performs body decoding (UTF-8); raw bytes always come back via `response.body`.
 
 Pattern match on variants that matter to your application and keep a fallback for unexpected Erlang or decode errors.
 
@@ -44,6 +44,7 @@ Gluegun normalizes FFI errors at the API boundary so Erlang failures become `Glu
 | `StreamError(String)` | A stream-specific failure occurred. | A stream was canceled, reset, or rejected. |
 | `InvalidOptions(String)` | Gluegun rejected invalid typed options. | A non-positive flow-control increment or unsupported option shape. |
 | `InvalidMessage(String)` | A protocol message did not match the API being used. | Using high-level client helpers for upgrades, push, WebSocket messages, or receiving WebSocket frames before upgrade completion. |
+| `UnsupportedFeature(String)` | The requested feature is not supported. | Attempting a WebSocket upgrade on an HTTP/2 connection (Gun does not support RFC 8441). Choose `Http1`. |
 | `ErlangError(String)` | An unclassified Erlang or FFI failure occurred. | An unexpected Gun or BEAM error crossed the FFI boundary. |
 | `DecodeError(String)` | Decoding failed. | Invalid FFI message shape or a non-UTF-8 response body passed to `response.body_text`. |
 

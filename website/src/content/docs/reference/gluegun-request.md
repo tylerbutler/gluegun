@@ -3,8 +3,6 @@ title: gluegun/request
 description: Low-level HTTP request and stream operations.
 ---
 
-# `gluegun/request`
-
 Low-level HTTP request and stream operations.
 
  Use this module when you need Gun stream references, chunked request
@@ -20,22 +18,73 @@ HTTP request method constructors.
  Use canonical constructors such as `Get`, `Post`, and `Put`, or `Custom`
  for extension methods.
 
-- `Get()`
-- `Head()`
-- `Post()`
-- `Put()`
-- `Patch()`
-- `Delete()`
-- `Options()`
-- `Trace()`
-- `Connect()`
-- `Custom(String)`
+```gleam
+pub type Method {
+  Get
+  Head
+  Post
+  Put
+  Patch
+  Delete
+  Options
+  Trace
+  Connect
+  Custom(String)
+}
+```
+
+#### Constructors
+
+##### `Get`
+
+HTTP `GET`. Safe and idempotent.
+
+##### `Head`
+
+HTTP `HEAD`. Same as `Get` but the response has no body.
+
+##### `Post`
+
+HTTP `POST`. Create or submit data; not idempotent.
+
+##### `Put`
+
+HTTP `PUT`. Replace the target resource; idempotent.
+
+##### `Patch`
+
+HTTP `PATCH`. Apply a partial modification.
+
+##### `Delete`
+
+HTTP `DELETE`. Remove the target resource; idempotent.
+
+##### `Options`
+
+HTTP `OPTIONS`. Describe communication options for the target.
+
+##### `Trace`
+
+HTTP `TRACE`. Loop-back diagnostics; rarely used.
+
+##### `Connect`
+
+HTTP `CONNECT`. Establish a tunnel through a proxy.
+
+##### `Custom(String)`
+
+An extension or non-standard method. The wrapped string is sent verbatim.
 
 ### `RequestOptions`
 
 Request options passed through the low-level request API.
 
+ Build with `options()` then chain `with_headers` or `add_headers` for
+ option-level headers that apply to every call.
 
+```gleam
+pub type RequestOptions
+```
 
 ## Type aliases
 
@@ -44,7 +93,7 @@ Request options passed through the low-level request API.
 HTTP header represented as `#(name, value)`.
 
 ```gleam
-pub type Header = Unknown
+pub type Header = #(String, String)
 ```
 
 ### `Stream`
@@ -52,7 +101,7 @@ pub type Header = Unknown
 Opaque handle for a Gun request stream.
 
 ```gleam
-pub type Stream = Unknown
+pub type Stream = internal.Stream
 ```
 
 ## Functions
@@ -62,31 +111,53 @@ pub type Stream = Unknown
 Add option-level headers that are appended to per-call headers.
 
 ```gleam
-pub fn add_headers(gluegun/request.RequestOptions, headers: List(#(String, String))) -> gluegun/request.RequestOptions
+pub fn add_headers(
+  RequestOptions,
+  headers: List(#(String, String))
+) -> RequestOptions
 ```
 
 ### `cancel`
 
-Cancel a request stream.
+Cancel an in-flight request stream.
+
+ Sends a reset/cancel to Gun. The connection remains usable for new
+ streams. Pending response messages for the cancelled stream may still
+ arrive briefly and should be drained.
 
 ```gleam
-pub fn cancel(gluegun/internal.Connection, gluegun/internal.Stream) -> Result(Nil, gluegun/error.GluegunError)
+pub fn cancel(
+  internal.Connection,
+  internal.Stream
+) -> Result(Nil, error.GluegunError)
 ```
 
 ### `data`
 
-Stream request body data for a request.
+Send a chunk of request body data on an open stream.
+
+ Pass `fin.NoFin` for intermediate chunks and `fin.Fin` for the last
+ chunk. After sending the final chunk the request body is closed, but the
+ stream remains open for response messages.
 
 ```gleam
-pub fn data(gluegun/internal.Connection, gluegun/internal.Stream, gluegun/fin.Fin, BitArray) -> Result(Nil, gluegun/error.GluegunError)
+pub fn data(
+  internal.Connection,
+  internal.Stream,
+  fin.Fin,
+  BitArray
+) -> Result(Nil, error.GluegunError)
 ```
 
 ### `flush`
 
-Flush Gun messages for a connection.
+Discard buffered Gun messages currently queued for the calling process.
+
+ Useful after `cancel` or when recovering from an aborted flow. Returns
+ `Ok(Nil)` even when no messages were buffered.
 
 ```gleam
-pub fn flush(gluegun/internal.Connection) -> Result(Nil, gluegun/error.GluegunError)
+pub fn flush(internal.Connection) -> Result(Nil, error.GluegunError)
 ```
 
 ### `method_to_string`
@@ -94,7 +165,7 @@ pub fn flush(gluegun/internal.Connection) -> Result(Nil, gluegun/error.GluegunEr
 Convert a method constructor to its HTTP method string.
 
 ```gleam
-pub fn method_to_string(gluegun/request.Method) -> String
+pub fn method_to_string(Method) -> String
 ```
 
 ### `options`
@@ -102,30 +173,54 @@ pub fn method_to_string(gluegun/request.Method) -> String
 Construct default request options.
 
 ```gleam
-pub fn options() -> gluegun/request.RequestOptions
+pub fn options() -> RequestOptions
 ```
 
 ### `request`
 
 Send a low-level HTTP request on an open Gun connection.
 
- This returns a stream reference. Use `gluegun/client` helpers to collect a
- regular HTTP response into a `Response`.
+ Returns a stream reference; response messages are delivered asynchronously
+ to the calling process (unless Gun options redirect replies). Use
+ `gluegun/message.await` / `await_body` to consume them, or use
+ `gluegun/client` helpers to collect a regular response.
+
+ Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.
 
 ```gleam
-pub fn request(gluegun/internal.Connection, gluegun/request.Method, String, List(#(String, String)), BitArray, gluegun/request.RequestOptions) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)
+pub fn request(
+  internal.Connection,
+  Method,
+  String,
+  List(#(String, String)),
+  BitArray,
+  RequestOptions
+) -> Result(internal.Stream, error.GluegunError)
 ```
 
 ### `start_stream`
 
-Start a low-level HTTP request whose body will be streamed later.
+Start a low-level HTTP request whose body will be streamed in chunks.
 
- The caller must send request body chunks with `data(..., fin.NoFin, ...)` and
- complete the request with `data(..., fin.Fin, ...)`. Gun response messages go to
- the calling process by default unless Gun request options redirect replies.
+ Send zero or more body chunks with `data(..., fin.NoFin, ...)`, then
+ terminate the request with a final `data(..., fin.Fin, ...)` (which may
+ carry an empty `BitArray` if there is no trailing payload). The stream
+ remains open for response messages either way.
+
+ Gun response messages are delivered to the calling process by default;
+ pass an option to redirect via Gun's `reply_to` if you need another
+ process to consume them.
+
+ Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.
 
 ```gleam
-pub fn start_stream(gluegun/internal.Connection, gluegun/request.Method, String, List(#(String, String)), gluegun/request.RequestOptions) -> Result(gluegun/internal.Stream, gluegun/error.GluegunError)
+pub fn start_stream(
+  internal.Connection,
+  Method,
+  String,
+  List(#(String, String)),
+  RequestOptions
+) -> Result(internal.Stream, error.GluegunError)
 ```
 
 ### `update_flow`
@@ -137,7 +232,11 @@ Update HTTP/1.1 or HTTP/2 stream flow control by the given increment.
  boundary and returns `InvalidOptions` for zero or negative increments.
 
 ```gleam
-pub fn update_flow(gluegun/internal.Connection, gluegun/internal.Stream, Int) -> Result(Nil, gluegun/error.GluegunError)
+pub fn update_flow(
+  internal.Connection,
+  internal.Stream,
+  Int
+) -> Result(Nil, error.GluegunError)
 ```
 
 ### `with_headers`
@@ -145,5 +244,8 @@ pub fn update_flow(gluegun/internal.Connection, gluegun/internal.Stream, Int) ->
 Replace option-level headers.
 
 ```gleam
-pub fn with_headers(gluegun/request.RequestOptions, headers: List(#(String, String))) -> gluegun/request.RequestOptions
+pub fn with_headers(
+  RequestOptions,
+  headers: List(#(String, String))
+) -> RequestOptions
 ```

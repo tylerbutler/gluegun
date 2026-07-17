@@ -13,6 +13,7 @@ import gleam/result
 import gluegun/error
 import gluegun/internal
 import gluegun/internal/ffi_result
+import gluegun/tls
 
 /// Transport selection for a Gun connection.
 ///
@@ -21,9 +22,9 @@ import gluegun/internal/ffi_result
 pub type Transport {
   /// Let Gun choose TLS for TLS ports and TCP otherwise.
   Auto
-  /// Force a plain TCP connection without TLS.
+  /// Force plain TCP (no TLS). Use for `http://` endpoints.
   Tcp
-  /// Force a TLS connection and allow ALPN protocol negotiation.
+  /// Force TLS. Combine with `tls.with_*` builders for verification settings.
   Tls
 }
 
@@ -36,15 +37,17 @@ pub type Transport {
 /// before `Http1` when TLS + ALPN should prefer HTTP/2 and fall back to
 /// HTTP/1.1.
 pub type Protocol {
+  /// HTTP/1.1. Required for WebSocket upgrades.
   Http1
+  /// HTTP/2. Negotiated via ALPN when paired with TLS.
   Http2
 }
 
 /// Timeout or retry duration in milliseconds, or no limit.
 pub type Timeout {
-  /// Wait or retry for a fixed number of milliseconds.
+  /// A finite duration in milliseconds. Must be non-negative.
   Milliseconds(Int)
-  /// Wait or retry without a time limit.
+  /// No upper bound. Wait indefinitely.
   Infinity
 }
 
@@ -53,12 +56,17 @@ pub type Connection =
   internal.Connection
 
 /// Pure representation of connection options before FFI conversion.
+///
+/// Build with `options()` then chain `with_transport`, `with_protocols`,
+/// `with_retry`, `with_connect_timeout`, and `with_tls_opts`. Pass the
+/// result to `open(host:, port:)`.
 pub opaque type ConnectOptions {
   ConnectOptions(
     transport: Transport,
     protocols: Option(List(Protocol)),
     retry: Timeout,
     connect_timeout: Timeout,
+    tls_opts: Option(tls.TlsOptions),
   )
 }
 
@@ -69,6 +77,7 @@ pub fn options() -> ConnectOptions {
     protocols: None,
     retry: Milliseconds(5000),
     connect_timeout: Milliseconds(5000),
+    tls_opts: None,
   )
 }
 
@@ -106,6 +115,14 @@ pub fn with_connect_timeout(
   ConnectOptions(..options, connect_timeout: timeout)
 }
 
+/// Set TLS options for TLS or auto-transport connections.
+pub fn with_tls_opts(
+  options: ConnectOptions,
+  tls_opts tls_opts: tls.TlsOptions,
+) -> ConnectOptions {
+  ConnectOptions(..options, tls_opts: Some(tls_opts))
+}
+
 /// Inspect configured transport. Intended for tests and later FFI conversion.
 pub fn transport(options: ConnectOptions) -> Transport {
   options.transport
@@ -126,7 +143,20 @@ pub fn connect_timeout(options: ConnectOptions) -> Timeout {
   options.connect_timeout
 }
 
-/// Open a Gun connection.
+/// Inspect explicitly configured TLS options, if any.
+pub fn tls_opts(options: ConnectOptions) -> Option(tls.TlsOptions) {
+  options.tls_opts
+}
+
+/// Open a Gun connection to `host:port`.
+///
+/// Returns immediately with a `Connection` handle; the underlying TCP/TLS
+/// handshake completes asynchronously. Call `await_up` before sending any
+/// request or WebSocket upgrade.
+///
+/// Errors:
+/// - `InvalidOptions` — Gun rejected the converted options.
+/// - `ErlangError` — Gun could not spawn the connection process.
 pub fn open(
   options: ConnectOptions,
   host host: String,
@@ -137,7 +167,15 @@ pub fn open(
   |> result.map_error(error.decode_ffi_error)
 }
 
-/// Wait until a Gun connection is up.
+/// Wait until a Gun connection is up and return the negotiated protocol.
+///
+/// Call after `open` and before any request, WebSocket upgrade, or close.
+/// Blocks the caller process until Gun reports readiness or `timeout` elapses.
+///
+/// Errors:
+/// - `Timeout` — Gun did not report ready within `timeout`.
+/// - `ConnectionDown` / `ConnectionError` — handshake failed.
+/// - `DecodeError` — Gun returned an unrecognized protocol atom.
 pub fn await_up(
   connection: Connection,
   timeout: Timeout,
@@ -160,13 +198,20 @@ pub fn decode_await_up_result(
   })
 }
 
-/// Close a Gun connection.
+/// Close a Gun connection cleanly.
+///
+/// Sends Gun's shutdown signal and waits for the process to exit. Safe to
+/// call once per connection. Outstanding streams are cancelled.
 pub fn close(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_close(internal.connection_raw(connection))
   |> ffi_result.decode_nil_result
 }
 
-/// Shut down a Gun connection.
+/// Shut down a Gun connection immediately.
+///
+/// Terminates the Gun process without waiting for graceful close. Prefer
+/// `close` for normal teardown; use `shutdown` when the connection is
+/// suspected stuck.
 pub fn shutdown(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_shutdown(internal.connection_raw(connection))
   |> ffi_result.decode_nil_result
@@ -185,15 +230,34 @@ pub fn options_to_ffi(options: ConnectOptions) -> dynamic.Dynamic {
     None -> []
   }
 
-  dynamic.properties([
-    #(dynamic.string("transport"), transport_to_ffi(options.transport)),
-    #(dynamic.string("retry"), timeout_to_ffi(options.retry)),
-    #(
-      dynamic.string("connect_timeout"),
-      timeout_to_ffi(options.connect_timeout),
-    ),
-    ..protocol_entries
-  ])
+  let transport_entries = case options.transport, options.tls_opts {
+    Tcp, _ -> []
+    _, Some(tls_opts) -> [
+      #(
+        dynamic.string("transport_opts"),
+        dynamic.properties([
+          #(dynamic.string("tls_opts"), tls.to_ffi(tls_opts)),
+        ]),
+      ),
+    ]
+    _, _ -> []
+  }
+
+  let fields =
+    list.append(
+      [
+        #(dynamic.string("transport"), transport_to_ffi(options.transport)),
+        #(dynamic.string("retry"), timeout_to_ffi(options.retry)),
+        #(
+          dynamic.string("connect_timeout"),
+          timeout_to_ffi(options.connect_timeout),
+        ),
+        ..protocol_entries
+      ],
+      transport_entries,
+    )
+
+  dynamic.properties(fields)
 }
 
 /// Convert a timeout to the Erlang FFI shape.

@@ -15,6 +15,13 @@ The main flow is:
 
 High-level `gluegun/client` helpers use this flow internally for ordinary request/response work. They deliberately collect the full response in memory and reject protocol-specific messages such as push, upgrades, and WebSocket frames.
 
+## `message.await` versus `message.await_body`
+
+- `message.await(conn, stream, timeout)` returns the *next* message for a stream as a typed `Message`. Use it in a loop to handle `Inform`, `Response`, `Data`, `Trailers`, `Push`, `Upgrade`, and `WebSocket` values explicitly. This is the right choice for streaming, server push, upgrade flows, or any case where you want to apply backpressure.
+- `message.await_body(conn, stream, timeout)` is a convenience that drains body chunks until `Fin` and returns the concatenated bytes. It must be called *after* the `Response` message has been received (e.g. via a prior `await`). The whole body is held in memory.
+
+For chunked bodies, see the [streaming guide](/guides/streaming/). For WebSocket upgrade flows, see the [websockets guide](/guides/websockets/).
+
 ## `await_up` and negotiated protocol
 
 Gun's `open/2` returns immediately after starting the connection process. The actual socket connect and protocol negotiation happen asynchronously. `connection.await_up` waits for Gun's `up` message and returns the negotiated `Protocol`.

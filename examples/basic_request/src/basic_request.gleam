@@ -1,7 +1,6 @@
 /// Basic HTTP GET example using Gluegun.
 ///
-/// This source file is documentation-only in this repository. Copy it into a
-/// Gleam project that depends on Gluegun to run it.
+/// Buildable basic HTTP request example.
 import gleam/int
 import gleam/io
 import gluegun/client
@@ -20,7 +19,8 @@ pub fn main() {
 
   case connection.options() |> connection.open(host: host, port: port) {
     Ok(conn) -> {
-      let assert Ok(_protocol) = connection.await_up(conn, timeout)
+      let assert Ok(protocol) = connection.await_up(conn, timeout)
+      io.println("protocol: " <> protocol_to_string(protocol))
 
       case client.get(conn, path, [], timeout) {
         Ok(res) -> print_response(res)
@@ -28,6 +28,7 @@ pub fn main() {
       }
 
       let assert Ok(Nil) = connection.close(conn)
+      Nil
     }
 
     Error(err) -> io.println("connection failed: " <> error_to_string(err))
@@ -40,6 +41,13 @@ fn print_response(res) {
   case response.body_text(res) {
     Ok(text) -> io.println(text)
     Error(_) -> io.println("response body was not valid UTF-8")
+  }
+}
+
+fn protocol_to_string(protocol: connection.Protocol) -> String {
+  case protocol {
+    connection.Http1 -> "HTTP/1.1"
+    connection.Http2 -> "HTTP/2"
   }
 }
 

@@ -18,17 +18,25 @@ import gluegun/internal/ffi_result
 /// Use canonical constructors such as `Get`, `Post`, and `Put`, or `Custom`
 /// for extension methods.
 pub type Method {
+  /// HTTP `GET`. Safe and idempotent.
   Get
+  /// HTTP `HEAD`. Same as `Get` but the response has no body.
   Head
+  /// HTTP `POST`. Create or submit data; not idempotent.
   Post
+  /// HTTP `PUT`. Replace the target resource; idempotent.
   Put
+  /// HTTP `PATCH`. Apply a partial modification.
   Patch
+  /// HTTP `DELETE`. Remove the target resource; idempotent.
   Delete
+  /// HTTP `OPTIONS`. Describe communication options for the target.
   Options
+  /// HTTP `TRACE`. Loop-back diagnostics; rarely used.
   Trace
-  /// CONNECT tunnel request method.
+  /// HTTP `CONNECT`. Establish a tunnel through a proxy.
   Connect
-  /// Extension method not covered by the built-in constructors.
+  /// An extension or non-standard method. The wrapped string is sent verbatim.
   Custom(String)
 }
 
@@ -41,6 +49,9 @@ pub type Stream =
   internal.Stream
 
 /// Request options passed through the low-level request API.
+///
+/// Build with `options()` then chain `with_headers` or `add_headers` for
+/// option-level headers that apply to every call.
 pub opaque type RequestOptions {
   RequestOptions(headers: List(Header))
 }
@@ -99,8 +110,12 @@ pub fn normalize_headers(headers: List(Header)) -> List(Header) {
 
 /// Send a low-level HTTP request on an open Gun connection.
 ///
-/// This returns a stream reference. Use `gluegun/client` helpers to collect a
-/// regular HTTP response into a `Response`.
+/// Returns a stream reference; response messages are delivered asynchronously
+/// to the calling process (unless Gun options redirect replies). Use
+/// `gluegun/message.await` / `await_body` to consume them, or use
+/// `gluegun/client` helpers to collect a regular response.
+///
+/// Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.
 pub fn request(
   connection: Connection,
   method: Method,
@@ -120,11 +135,18 @@ pub fn request(
   |> ffi_result.decode_request_result
 }
 
-/// Start a low-level HTTP request whose body will be streamed later.
+/// Start a low-level HTTP request whose body will be streamed in chunks.
 ///
-/// The caller must send request body chunks with `data(..., fin.NoFin, ...)` and
-/// complete the request with `data(..., fin.Fin, ...)`. Gun response messages go to
-/// the calling process by default unless Gun request options redirect replies.
+/// Send zero or more body chunks with `data(..., fin.NoFin, ...)`, then
+/// terminate the request with a final `data(..., fin.Fin, ...)` (which may
+/// carry an empty `BitArray` if there is no trailing payload). The stream
+/// remains open for response messages either way.
+///
+/// Gun response messages are delivered to the calling process by default;
+/// pass an option to redirect via Gun's `reply_to` if you need another
+/// process to consume them.
+///
+/// Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.
 pub fn start_stream(
   connection: Connection,
   method: Method,
@@ -145,7 +167,11 @@ pub fn start_stream(
   |> ffi_result.decode_request_result
 }
 
-/// Stream request body data for a request.
+/// Send a chunk of request body data on an open stream.
+///
+/// Pass `fin.NoFin` for intermediate chunks and `fin.Fin` for the last
+/// chunk. After sending the final chunk the request body is closed, but the
+/// stream remains open for response messages.
 pub fn data(
   connection: Connection,
   stream: Stream,
@@ -161,7 +187,11 @@ pub fn data(
   |> ffi_result.decode_nil_result
 }
 
-/// Cancel a request stream.
+/// Cancel an in-flight request stream.
+///
+/// Sends a reset/cancel to Gun. The connection remains usable for new
+/// streams. Pending response messages for the cancelled stream may still
+/// arrive briefly and should be drained.
 pub fn cancel(
   connection: Connection,
   stream: Stream,
@@ -193,7 +223,10 @@ pub fn update_flow(
   }
 }
 
-/// Flush Gun messages for a connection.
+/// Discard buffered Gun messages currently queued for the calling process.
+///
+/// Useful after `cancel` or when recovering from an aborted flow. Returns
+/// `Ok(Nil)` even when no messages were buffered.
 pub fn flush(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_flush(internal.connection_raw(connection))
   |> ffi_result.decode_nil_result

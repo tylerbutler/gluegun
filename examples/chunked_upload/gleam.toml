@@ -1,0 +1,9 @@
+name = "chunked_upload"
+version = "0.1.0"
+description = "Buildable chunked upload example for Gluegun"
+licences = ["MIT"]
+target = "erlang"
+
+[dependencies]
+gleam_stdlib = ">= 0.48.0 and < 2.0.0"
+gluegun = { path = "../.." }

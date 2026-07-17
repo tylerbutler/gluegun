@@ -28,3 +28,81 @@
 --sl-color-gray-7: #fff7fa;
 --sl-color-black: #ffffff;
 }
+
+/* Deliberate 1.25 modular type scale (overrides Starlight's flatter ~1.2). */
+:root {
+	--sl-text-h1: 2.75rem;
+	--sl-text-h2: 2.1875rem;
+	--sl-text-h3: 1.75rem;
+	--sl-text-h4: 1.4rem;
+	--sl-text-h5: 1.125rem;
+	--sl-line-height-headings: 1.15;
+}
+
+/* Display headings — Chivo, tracked tight for a sturdy retro-manual voice. */
+.content-panel h1,
+.sl-markdown-content :is(h1, h2, h3),
+.gluegun-lab__intro h2,
+.gluegun-map h2,
+.gluegun-module-list h2 {
+	font-family: var(--gg-font-display);
+	font-weight: 700;
+	letter-spacing: -0.02em;
+	text-wrap: balance;
+}
+
+.sl-markdown-content :is(h4, h5, h6) {
+	font-family: var(--gg-font-display);
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
+
+.site-title {
+	font-family: var(--gg-font-display);
+	font-weight: 700;
+	letter-spacing: -0.01em;
+}
+
+/* Dark theme: the primary CTA carries Charged Magenta (DESIGN.md button-primary)
+   instead of Starlight's pale accent-high default. Gunmetal ink text on #ff1070
+   measures 5.1:1. */
+:root[data-theme='dark'] .sl-link-button.primary {
+	background: var(--sl-color-accent);
+	border-color: var(--sl-color-accent);
+	color: var(--sl-color-black);
+}
+
+:root[data-theme='dark'] .sl-link-button.primary:hover {
+	background: color-mix(in srgb, var(--sl-color-accent) 82%, var(--sl-color-white));
+	border-color: color-mix(in srgb, var(--sl-color-accent) 82%, var(--sl-color-white));
+}
+
+/* Cap prose measure; code blocks and tables keep the full column.
+   Atkinson's ch unit runs wide of its average glyph (7.15px at 16px),
+   so 58ch (~600px) lands rendered lines in the mid-to-high 70s. */
+.sl-markdown-content :is(p, ul, ol, blockquote, dl) {
+	max-width: 58ch;
+}
+
+/* Scroll shadows on code blocks: the local-attachment covers slide away from
+   the edges only when the block can scroll, revealing the edge shadows. */
+.sl-markdown-content .expressive-code pre {
+	--gg-code-bg: var(--code-background);
+	--gg-scroll-shadow: rgb(0 0 0 / 0.55);
+	background:
+		linear-gradient(to right, var(--gg-code-bg) 40%, transparent) left center / 2.5rem 100% no-repeat local,
+		linear-gradient(to left, var(--gg-code-bg) 40%, transparent) right center / 2.5rem 100% no-repeat local,
+		radial-gradient(farthest-side at 0 50%, var(--gg-scroll-shadow), transparent) left center / 1.125rem 100% no-repeat,
+		radial-gradient(farthest-side at 100% 50%, var(--gg-scroll-shadow), transparent) right center / 1.125rem 100% no-repeat,
+		var(--gg-code-bg);
+}
+
+:root[data-theme='light'] .sl-markdown-content .expressive-code pre {
+	--gg-scroll-shadow: rgb(80 16 96 / 0.25);
+}
+
+/* Sidebar nav labels need reading-text leading, not the heading scale. */
+nav.sidebar a,
+nav.sidebar a > span {
+	line-height: 1.4;
+}

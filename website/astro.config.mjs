@@ -1,7 +1,6 @@
 import starlight from "@astrojs/starlight";
 import a11yEmoji from "@fec/remark-a11y-emoji";
 import { defineConfig } from "astro/config";
-import starlightAnnouncement from "starlight-announcement";
 import starlightHeadingBadges from "starlight-heading-badges";
 import starlightLinksValidator from "starlight-links-validator";
 import starlightLlmsTxt from "starlight-llms-txt";
@@ -20,9 +19,11 @@ const sidebar = [
 		label: "Guides",
 		items: [
 			{ label: "Basic Requests", slug: "guides/basic-requests" },
+			{ label: "Production Checklist", slug: "guides/production-checklist" },
 			{ label: "Streaming", slug: "guides/streaming" },
 			{ label: "WebSockets", slug: "guides/websockets" },
 			{ label: "HTTP/2", slug: "guides/http2" },
+			{ label: "TLS", slug: "guides/tls" },
 		],
 	},
 	{
@@ -47,6 +48,7 @@ const sidebar = [
 			{ label: "message", slug: "reference/gluegun-message" },
 			{ label: "request", slug: "reference/gluegun-request" },
 			{ label: "response", slug: "reference/gluegun-response" },
+			{ label: "tls", slug: "reference/gluegun-tls" },
 			{ label: "websocket", slug: "reference/gluegun-websocket" },
 			{
 				label: "API Reference (HexDocs)",
@@ -79,9 +81,36 @@ export default defineConfig({
 				// height: 48,
 			},
 			favicon: "./src/assets/gluegun-dark.png",
+			head: [
+				// Social sharing card. Starlight emits og:*/twitter:card but not the
+				// image; point both at the generated public/og.png (run `pnpm og`).
+				{
+					tag: "meta",
+					attrs: {
+						property: "og:image",
+						content: "https://gluegun.tylerbutler.com/og.png",
+					},
+				},
+				{
+					tag: "meta",
+					attrs: { property: "og:image:width", content: "1200" },
+				},
+				{
+					tag: "meta",
+					attrs: { property: "og:image:height", content: "630" },
+				},
+				{
+					tag: "meta",
+					attrs: {
+						name: "twitter:image",
+						content: "https://gluegun.tylerbutler.com/og.png",
+					},
+				},
+			],
 			customCss: [
-				"@fontsource/metropolis/400.css",
-				"@fontsource/metropolis/600.css",
+				"@fontsource-variable/chivo/index.css",
+				"@fontsource-variable/atkinson-hyperlegible-next/index.css",
+				"@fontsource-variable/jetbrains-mono/index.css",
 				"./src/styles/fonts.css",
 				"./src/styles/custom.css",
 			],
@@ -110,15 +139,6 @@ export default defineConfig({
 						items: [sidebar[3]],
 					},
 				]),
-				starlightAnnouncement({
-					announcements: [
-						{
-							id: "welcome",
-							content: "Welcome to the Gluegun documentation!",
-							variant: "tip",
-						},
-					],
-				}),
 				starlightLinksValidator(),
 			],
 			social: [

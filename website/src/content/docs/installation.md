@@ -3,11 +3,15 @@ title: Installation
 description: Add Gluegun to a Gleam project and understand runtime compatibility.
 ---
 
-Install Gluegun with Gleam:
+Gluegun is distributed as a Git dependency until `1.0`. Add it to your
+`gleam.toml`:
 
-```sh
-gleam add gluegun
+```toml
+[dependencies]
+gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "main" }
 ```
+
+For reproducible builds, replace `main` with a release tag or commit SHA.
 
 ## Compatibility
 
@@ -32,6 +36,6 @@ Gluegun depends on:
 - `gleam_otp`
 - `gun`
 
-The package manages these through `gleam.toml`; applications usually only need to run `gleam add gluegun`.
+The package manages these through `gleam.toml`; applications only need to add the Git dependency above.
 
 See the [API reference](/reference/) for the complete public API.
