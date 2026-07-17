@@ -3,3 +3,7 @@ packages:
 allowBuilds:
   esbuild: true
   sharp: true
+minimumReleaseAgeExclude:
+  - astro@7.1.0
+  - yaml@2.8.3
+  - js-yaml@4.1.2
