@@ -1,3 +1,0 @@
-kind: Changed
-body: 'Internal refactors: deduplicate FFI normalization, split client.step, flatten WebSocket connect, etc. No API changes.'
-time: 2026-05-20T16:31:15.145462-07:00
