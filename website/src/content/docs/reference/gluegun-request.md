@@ -3,8 +3,6 @@ title: gluegun/request
 description: Low-level HTTP request and stream operations.
 ---
 
-# `gluegun/request`
-
 Low-level HTTP request and stream operations.
 
  Use this module when you need Gun stream references, chunked request

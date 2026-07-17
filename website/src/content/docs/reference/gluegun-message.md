@@ -3,8 +3,6 @@ title: gluegun/message
 description: Decoding and awaiting asynchronous Gun stream messages.
 ---
 
-# `gluegun/message`
-
 Decoding and awaiting asynchronous Gun stream messages.
 
  Gun sends HTTP, HTTP/2 push, upgrade, and WebSocket events as Erlang

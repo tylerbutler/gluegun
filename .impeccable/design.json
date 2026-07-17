@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-20T13:03:52.950-07:00",
+  "title": "Design System: Gluegun",
+  "extensions": {
+    "colorMeta": {
+      "gunmetal-ink": {
+        "role": "neutral",
+        "displayName": "Gunmetal Ink",
+        "canonical": "#100b1d",
+        "tonalRamp": [
+          "oklch(15% 0.04 300)",
+          "oklch(25% 0.04 300)",
+          "oklch(35% 0.04 300)",
+          "oklch(45% 0.04 300)",
+          "oklch(55% 0.04 300)",
+          "oklch(70% 0.04 300)",
+          "oklch(85% 0.04 300)",
+          "oklch(95% 0.04 300)"
+        ]
+      },
+      "charged-magenta": {
+        "role": "primary",
+        "displayName": "Charged Magenta",
+        "canonical": "#ff1070",
+        "tonalRamp": [
+          "oklch(15% 0.22 350)",
+          "oklch(25% 0.22 350)",
+          "oklch(35% 0.22 350)",
+          "oklch(45% 0.22 350)",
+          "oklch(55% 0.22 350)",
+          "oklch(70% 0.22 350)",
+          "oklch(85% 0.14 350)",
+          "oklch(95% 0.06 350)"
+        ]
+      },
+      "deep-violet": {
+        "role": "secondary",
+        "displayName": "Deep Violet",
+        "canonical": "#501060",
+        "tonalRamp": [
+          "oklch(15% 0.12 315)",
+          "oklch(25% 0.12 315)",
+          "oklch(35% 0.12 315)",
+          "oklch(45% 0.12 315)",
+          "oklch(55% 0.12 315)",
+          "oklch(70% 0.10 315)",
+          "oklch(85% 0.07 315)",
+          "oklch(95% 0.03 315)"
+        ]
+      },
+      "blush-panel": {
+        "role": "neutral",
+        "displayName": "Blush Panel",
+        "canonical": "#ffe1ec",
+        "tonalRamp": [
+          "oklch(15% 0.06 350)",
+          "oklch(25% 0.06 350)",
+          "oklch(35% 0.06 350)",
+          "oklch(45% 0.06 350)",
+          "oklch(55% 0.06 350)",
+          "oklch(70% 0.05 350)",
+          "oklch(85% 0.04 350)",
+          "oklch(95% 0.03 350)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Splash-page headlines and one dominant idea per landing surface."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Guide and reference section headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Long-form documentation and API guidance."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons, nav labels, badges, and compact interface labels."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "state-ease",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Default ease-out for hover, focus, and small state transitions."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "card-grid-min",
+        "value": "280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "High-energy primary action for docs splash and guide entry points.",
+      "html": "<button class=\"ds-btn-primary\">Get started</button>",
+      "css": ".ds-btn-primary { background: #ff1070; color: #ffffff; border: 0; border-radius: 999px; padding: 0.75rem 1rem; font-family: Metropolis, system-ui, sans-serif; font-weight: 600; transition: background-color 160ms cubic-bezier(0.22, 1, 0.36, 1), transform 160ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-btn-primary:hover { background: #c00050; transform: translateY(-1px); } .ds-btn-primary:focus-visible { outline: 3px solid #ffd0e0; outline-offset: 3px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Same-hue secondary action for guide and reference navigation.",
+      "html": "<button class=\"ds-btn-secondary\">What is Gluegun?</button>",
+      "css": ".ds-btn-secondary { background: #ffe1ec; color: #501060; border: 1px solid #ffc0d8; border-radius: 999px; padding: 0.75rem 1rem; font-family: Metropolis, system-ui, sans-serif; font-weight: 600; transition: border-color 160ms cubic-bezier(0.22, 1, 0.36, 1), color 160ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-btn-secondary:hover { border-color: #c00050; color: #c00050; } .ds-btn-secondary:focus-visible { outline: 3px solid #ff1070; outline-offset: 3px; }"
+    },
+    {
+      "name": "Docs Card",
+      "kind": "card",
+      "refersTo": "docs-card",
+      "description": "Compact Starlight-style feature card using tonal separation instead of decorative shadow.",
+      "html": "<article class=\"ds-docs-card\"><h3>Streaming First</h3><p>Use low-level request and message helpers for chunks, trailers, cancellation, and flow control.</p></article>",
+      "css": ".ds-docs-card { background: #241024; color: #ffe8f0; border: 1px solid #501060; border-radius: 0.75rem; padding: 1rem; font-family: Metropolis, system-ui, sans-serif; } .ds-docs-card h3 { margin: 0 0 0.5rem; color: #ffffff; font-size: 1rem; line-height: 1.2; } .ds-docs-card p { margin: 0; color: #ffc0d8; line-height: 1.6; }"
+    },
+    {
+      "name": "Splash Lab Panel",
+      "kind": "custom",
+      "refersTo": "splash-lab-panel",
+      "description": "Signature splash pattern: bold claim, real Gleam code, and a compact reading path.",
+      "html": "<section class=\"ds-lab-panel\"><div><h2>Typed HTTP without hiding Gun.</h2><p>Connections, stream messages, response bodies, TLS options, and WebSocket frames stay explicit.</p></div><pre><code>client.new(request.Get, \"/\")\\n|> client.send(connection: conn)</code></pre></section>",
+      "css": ".ds-lab-panel { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(16rem, 1.1fr); gap: 1.5rem; background: #100b1d; color: #ffe8f0; border: 1px solid #501060; border-radius: 1rem; padding: 1.5rem; font-family: Metropolis, system-ui, sans-serif; } .ds-lab-panel h2 { margin: 0 0 0.75rem; color: #ffffff; font-size: clamp(2rem, 7vw, 4.75rem); line-height: 0.98; letter-spacing: -0.03em; } .ds-lab-panel p { margin: 0; color: #ffc0d8; line-height: 1.65; } .ds-lab-panel pre { margin: 0; overflow: auto; background: #241024; color: #ffe8f0; border: 1px solid #501060; border-radius: 0.75rem; padding: 1rem; line-height: 1.65; }"
+    },
+    {
+      "name": "Nav Pill",
+      "kind": "nav",
+      "refersTo": "nav-active",
+      "description": "Active-state navigation treatment that stays in the magenta/violet family.",
+      "html": "<a class=\"ds-nav-pill\" href=\"#\">Guides</a>",
+      "css": ".ds-nav-pill { display: inline-flex; align-items: center; color: #501060; background: #ffe1ec; border-radius: 999px; padding: 0.375rem 0.625rem; font-family: Metropolis, system-ui, sans-serif; font-weight: 600; text-decoration: none; } .ds-nav-pill:hover { color: #c00050; } .ds-nav-pill:focus-visible { outline: 3px solid #ff1070; outline-offset: 3px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Charged Lab Manual",
+    "overview": "Gluegun's visual system should feel like technical documentation with live current running through it: precise enough for production developers, vivid enough to be remembered after a quick package evaluation. The existing Astro/Starlight site already commits to a magenta-and-purple identity with Metropolis as the single family; future work should deepen that identity rather than replacing it with generic developer-docs gray.\n\nThe system rejects toy-like candy branding that undercuts technical trust. Energy should come from saturated accent, confident contrast, direct copy, and strong examples, not novelty shapes or decorative gimmicks.",
+    "keyCharacteristics": [
+      "Saturated magenta and violet are identity colors, not occasional decoration.",
+      "Single-family Metropolis typography keeps the voice direct, friendly, and technical.",
+      "Documentation density should stay scannable: short sections, explicit examples, and clear module mapping.",
+      "Framework defaults are acceptable only when they preserve the bold Gluegun palette."
+    ],
+    "rules": [
+      {
+        "name": "The Same-Hue Neutral Rule",
+        "body": "Neutral UI should remain in the purple/magenta family. Do not introduce default slate or blue-gray ramps unless a third-party component forces it and the values are overridden at the boundary.",
+        "section": "colors"
+      },
+      {
+        "name": "The No Gradient Text Rule",
+        "body": "Do not use gradient text, even for hero headings. The brand already has enough charge in solid magenta and violet.",
+        "section": "colors"
+      },
+      {
+        "name": "The One-Family Commitment Rule",
+        "body": "Keep Metropolis as the system voice unless a future redesign deliberately introduces a contrasting family. Do not add monospace as lazy shorthand for \"developer.\"",
+        "section": "typography"
+      },
+      {
+        "name": "The Tonal-First Rule",
+        "body": "Use magenta/violet surface shifts for depth before adding drop shadows.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do preserve the magenta/purple identity from `website/src/styles/custom.css`.",
+      "Do use solid Charged Magenta or Command Magenta for emphasis instead of gradient text.",
+      "Do keep examples and API claims concrete; the brand is playful, but the docs should stay precise.",
+      "Do verify AA contrast whenever using Soft Plum, Light Pink, or Blush Panel for text.",
+      "Do provide reduced-motion fallbacks for any future animated landing or docs interactions."
+    ],
+    "donts": [
+      "Don't make the site feel like toy-like candy branding that undercuts technical trust.",
+      "Don't use gradient text (`background-clip: text` with a gradient background).",
+      "Don't introduce generic slate/blue-gray developer-docs defaults where same-hue purple neutrals can do the job.",
+      "Don't use side-stripe borders, glassmorphism, or identical card grids as default decoration.",
+      "Don't use monospace as lazy shorthand for technical credibility."
+    ]
+  }
+}

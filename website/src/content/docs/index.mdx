@@ -16,48 +16,410 @@ hero:
     - text: What is Gluegun?
       link: /introduction/
       variant: secondary
-    - text: Guides
-      link: /guides/basic-requests/
-      variant: minimal
-    - text: API reference
-      link: /reference/
-      variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Code } from "@astrojs/starlight/components";
 
-## Features
+export const gleamExample = `use conn <- result.try(
+  connection.options()
+  |> connection.open(host: "example.com", port: 443),
+)
+
+use _ <- result.try(
+  connection.await_up(conn, connection.Milliseconds(5000)),
+)
+
+use res <- result.try(
+  client.new(request.Get, "/")
+  |> client.with_timeout(timeout: connection.Milliseconds(5000))
+  |> client.send(connection: conn),
+)
+
+io.println("status: " <> int.to_string(response.status(res)))
+connection.close(conn)`;
 
 <style lang="css">{`
-  #_top {
-    background: linear-gradient(90deg, var(--sl-color-gray-2), var(--sl-color-accent));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+  .gluegun-splash {
+    display: grid;
+    gap: clamp(1.5rem, 4vw, 3rem);
+    margin-block: clamp(2rem, 7vw, 5rem);
+  }
+
+  .gluegun-lab {
+    display: grid;
+    grid-template-columns: minmax(0, 0.78fr) minmax(19rem, 1.22fr);
+    grid-template-areas:
+      "intro code"
+      "path code";
+    gap: clamp(1rem, 4vw, 2.25rem);
+    align-items: stretch;
+    padding: clamp(1rem, 4vw, 2.25rem);
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 1rem;
+    background:
+      radial-gradient(circle at 8% 0, var(--sl-color-accent), transparent 12rem),
+      radial-gradient(circle at 100% 100%, var(--sl-color-accent-low), transparent 28rem),
+      var(--sl-color-black);
+  }
+
+  :root[data-theme='light'] .gluegun-lab {
+    border-color: var(--sl-color-gray-6);
+    /* Softened glow: full-strength Command Magenta under the ink heading
+       measures ~3.4:1; a 42% mix keeps the hue and clears 4.5:1. */
+    background:
+      radial-gradient(circle at 8% 0, color-mix(in srgb, var(--sl-color-accent) 42%, var(--sl-color-black)), transparent 12rem),
+      radial-gradient(circle at 100% 100%, var(--sl-color-accent-low), transparent 28rem),
+      var(--sl-color-black);
+  }
+
+  .gluegun-lab__intro {
+    grid-area: intro;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: clamp(1rem, 3vw, 1.5rem);
+  }
+
+  .gluegun-lab__intro h2 {
+    max-width: 11ch;
+    margin: 0;
+    color: var(--sl-color-white);
+    font-size: clamp(2.25rem, 7vw, 5.25rem);
+    line-height: 1.04;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+
+  .gluegun-lab__intro p {
+    max-width: 58ch;
+    margin: 0;
+    color: var(--sl-color-gray-2);
+    font-size: clamp(1rem, 1.5vw, 1.125rem);
+    line-height: 1.65;
+    text-wrap: pretty;
+  }
+
+  .gluegun-lab__proof {
+    grid-area: code;
+    display: grid;
+    align-content: start;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  /* Expressive Code owns the frame, syntax highlighting, and scroll
+     behaviour; keep the block from stretching the grid column. */
+  .gluegun-lab__code {
+    min-width: 0;
+    margin: 0;
+    font-size: clamp(0.8125rem, 1.5vw, 0.9375rem);
+  }
+
+  .gluegun-lab__code :is(pre, code) {
+    line-height: 1.65;
+  }
+
+  .gluegun-lab__caption {
+    max-width: 62ch;
+    margin: 0;
+    color: var(--sl-color-gray-2);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  .gluegun-paths {
+    grid-area: path;
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding-block-start: 1rem;
+    border-block-start: 1px solid var(--sl-color-gray-5);
+  }
+
+  .gluegun-paths__label {
+    margin: 0;
+    color: var(--sl-color-accent-high);
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+
+  .gluegun-paths ol {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .gluegun-paths li {
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: start;
+  }
+
+  .gluegun-paths__step {
+    color: var(--sl-color-accent);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    line-height: 1.6;
+  }
+
+  .gluegun-paths__item {
+    display: grid;
+    gap: 0.125rem;
+  }
+
+  .gluegun-paths a {
+    color: var(--sl-color-accent-high);
+    font-weight: 700;
+    text-decoration-color: color-mix(in srgb, currentColor 48%, transparent);
+    text-underline-offset: 0.18em;
+    transition:
+      color 160ms cubic-bezier(0.22, 1, 0.36, 1),
+      text-decoration-color 160ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .gluegun-paths a:hover {
+    color: var(--sl-color-white);
+    text-decoration-color: currentColor;
+  }
+
+  .gluegun-paths a:focus-visible {
+    outline: 3px solid var(--sl-color-accent);
+    outline-offset: 0.2rem;
+  }
+
+  .gluegun-paths__item > span {
+    color: var(--sl-color-gray-2);
+    line-height: 1.45;
+  }
+
+  .gluegun-map {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(18rem, 1.15fr);
+    grid-template-areas:
+      "heading map"
+      "ship ship";
+    gap: clamp(1rem, 4vw, 2rem);
+    align-items: start;
+  }
+
+  .gluegun-map__heading {
+    grid-area: heading;
+    max-width: 58ch;
+  }
+
+  .gluegun-map__heading h2,
+  .gluegun-module-list h2 {
+    margin-block-start: 0;
+    color: var(--sl-color-white);
+    text-wrap: balance;
+  }
+
+  .gluegun-map__heading p {
+    color: var(--sl-color-gray-2);
+    text-wrap: pretty;
+  }
+
+  .gluegun-production {
+    grid-area: ship;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.625rem;
+    padding-block-start: 1rem;
+    border-block-start: 1px solid var(--sl-color-gray-5);
+  }
+
+  .gluegun-production h3 {
+    margin: 0 0.5rem 0 0;
+    color: var(--sl-color-accent-high);
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  .gluegun-production a {
+    min-height: 2.75rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 999px;
+    color: var(--sl-color-accent-high);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .gluegun-production a:hover,
+  .gluegun-production a:focus-visible {
+    border-color: var(--sl-color-accent);
+    color: var(--sl-color-white);
+  }
+
+  .gluegun-production a:focus-visible {
+    outline: 3px solid var(--sl-color-accent);
+    outline-offset: 3px;
+  }
+
+  .gluegun-module-list {
+    grid-area: map;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+    padding: 1rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.875rem;
+    background: var(--sl-color-black);
+  }
+
+  .gluegun-module-list h2 {
+    grid-column: 1 / -1;
+    font-size: 1rem;
+  }
+
+  .gluegun-module-list a {
+    display: grid;
+    gap: 0.125rem;
+    padding: 0.75rem;
+    border-radius: 0.625rem;
+    color: var(--sl-color-white);
+    text-decoration: none;
+  }
+
+  .gluegun-module-list a:hover,
+  .gluegun-module-list a:focus-visible {
+    background: var(--sl-color-accent-low);
+  }
+
+  .gluegun-module-list a:focus-visible {
+    outline: 3px solid var(--sl-color-accent);
+    outline-offset: 2px;
+  }
+
+  .gluegun-module-list strong {
+    color: var(--sl-color-accent-high);
+  }
+
+  .gluegun-module-list span {
+    color: var(--sl-color-gray-2);
+    line-height: 1.5;
+  }
+
+  @media (max-width: 52rem) {
+    .gluegun-lab {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "intro"
+        "code"
+        "path";
+    }
+
+    .gluegun-map {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "heading"
+        "map"
+        "ship";
+    }
+
+    .gluegun-lab__intro h2 {
+      max-width: 15ch;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gluegun-paths a {
+      transition: none;
+    }
   }
 `}
 </style>
 
-<CardGrid>
-	<Card title="Typed Gun Wrapper" icon="rocket">
-		Work with Gun connections, streams, responses, and WebSocket frames through Gleam types instead of raw Erlang messages.
-	</Card>
-	<Card title="HTTP/1.1 and HTTP/2" icon="seti:config">
-		Prefer HTTP/2 when available while keeping HTTP/1.1 fallback behavior explicit in your connection options.
-	</Card>
-	<Card title="Streaming First" icon="document">
-		Use low-level request and message helpers for chunked request bodies, response chunks, trailers, cancellation, and flow control.
-	</Card>
-	<Card title="High-level Requests" icon="approve-check-circle">
-		Send one-shot requests on an existing connection and collect regular responses with the `gluegun/client` helpers.
-	</Card>
-	<Card title="WebSocket Support" icon="puzzle">
-		Open, send, receive, and close WebSocket connections with a lifecycle-explicit API over HTTP/1.1.
-	</Card>
-	<Card title="Result-based Errors" icon="setting">
-		Effectful operations return `Result(_, GluegunError)` so connection failures, timeouts, protocol mismatches, and decode errors stay visible.
-	</Card>
-	<Card title="API Reference" icon="document">
-		Use the [generated API reference](/reference/) for complete module, type, and function documentation, or jump to the canonical [HexDocs reference](https://hexdocs.pm/gluegun/).
-	</Card>
-</CardGrid>
+<section class="gluegun-splash" aria-labelledby="gluegun-lab-title">
+  <div class="gluegun-lab">
+    <div class="gluegun-lab__intro">
+      <div>
+        <h2 id="gluegun-lab-title">HTTP without footguns.</h2>
+        <p>
+          Gluegun keeps the BEAM-native Gun model visible: open a connection, wait for the negotiated protocol, send the request, then collect a typed response or drop into streams when the body cannot fit in memory.
+        </p>
+      </div>
+    </div>
+    <div class="gluegun-lab__proof">
+      <Code class="gluegun-lab__code" lang="gleam" code={gleamExample} />
+      <p class="gluegun-lab__caption">
+        `client.send` collects status, headers, body, trailers, and informational `1xx` responses into one typed value. Use the lower-level request and message APIs when the response must stream.
+      </p>
+    </div>
+    <nav class="gluegun-paths" aria-labelledby="gluegun-paths-title">
+      <p id="gluegun-paths-title" class="gluegun-paths__label">Recommended reading path</p>
+      <ol>
+        <li>
+          <span class="gluegun-paths__step">01</span>
+          <span class="gluegun-paths__item">
+            <a href="/quick-start/">Send a GET</a>
+            <span>Open a connection, await readiness, collect a typed response.</span>
+          </span>
+        </li>
+        <li>
+          <span class="gluegun-paths__step">02</span>
+          <span class="gluegun-paths__item">
+            <a href="/guides/streaming/">Stream bodies</a>
+            <span>Switch to request/message helpers when memory matters.</span>
+          </span>
+        </li>
+        <li>
+          <span class="gluegun-paths__step">03</span>
+          <span class="gluegun-paths__item">
+            <a href="/guides/websockets/">Open sockets</a>
+            <span>Upgrade HTTP/1.1 connections and handle frames explicitly.</span>
+          </span>
+        </li>
+      </ol>
+    </nav>
+  </div>
+</section>
+
+<section class="gluegun-map" aria-labelledby="gluegun-map-title">
+  <div class="gluegun-map__heading">
+    <h2 id="gluegun-map-title">Choose the layer that matches the job.</h2>
+    <p>
+      Use the high-level client when collecting one regular response is enough. Drop to request and message helpers when streaming, cancellation, HTTP/2 push, upgrades, trailers, or WebSocket frames need to stay explicit.
+    </p>
+  </div>
+
+  <nav class="gluegun-module-list" aria-label="Gluegun lifecycle module map">
+    <h2>Lifecycle map</h2>
+    <a href="/reference/gluegun-connection/">
+      <strong>connection</strong>
+      <span>Open Gun, await protocol negotiation, close cleanly.</span>
+    </a>
+    <a href="/reference/gluegun-client/">
+      <strong>client</strong>
+      <span>One regular request, collected response, visible errors.</span>
+    </a>
+    <a href="/reference/gluegun-request/">
+      <strong>request</strong>
+      <span>Streams, chunks, cancellation, flow control.</span>
+    </a>
+    <a href="/reference/gluegun-message/">
+      <strong>message</strong>
+      <span>Typed decoding for Gun's asynchronous stream events.</span>
+    </a>
+    <a href="/reference/gluegun-websocket/">
+      <strong>websocket</strong>
+      <span>HTTP/1.1 upgrades, reusable sockets, frames, and closes.</span>
+    </a>
+  </nav>
+
+  <nav class="gluegun-production" aria-labelledby="gluegun-production-title">
+    <h3 id="gluegun-production-title">Before you ship</h3>
+    <a href="/guides/production-checklist/">Production checklist</a>
+    <a href="/guides/tls/">TLS setup</a>
+    <a href="/advanced/error-handling/">Error handling</a>
+    <a href="/advanced/limitations/">Limits</a>
+    <a href="/advanced/troubleshooting/">Troubleshooting</a>
+  </nav>
+</section>

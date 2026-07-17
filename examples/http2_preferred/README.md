@@ -15,5 +15,5 @@ gleam run
 
 - `https://nghttp2.org/` is a public HTTP/2 demo service. Treat this example as a manual check, not a CI dependency, because it requires external network and TLS availability.
 - `client.get` collects the full response body in memory. Use `gluegun/request` and `gluegun/message` for streaming or advanced flows.
-- Gluegun does not parse URLs. Open the connection with a host and port, then request a path.
+- Gluegun does not parse URLs. Open the connection with a host and port, then request a path. If your input is a full URL, parse it first with `gleam/uri`.
 - Gun is Erlang-only, so this example targets Erlang.

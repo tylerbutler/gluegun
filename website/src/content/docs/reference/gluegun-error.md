@@ -3,8 +3,6 @@ title: gluegun/error
 description: Error types returned by Gluegun effectful APIs.
 ---
 
-# `gluegun/error`
-
 Error types returned by Gluegun effectful APIs.
 
  Match variants such as `Timeout`, `ConnectionDown`, and `InvalidMessage`

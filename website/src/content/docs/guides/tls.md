@@ -24,12 +24,10 @@ The minimal HTTPS setup is therefore just:
 ```gleam
 import gluegun/connection
 
-pub fn main() {
-  let assert Ok(conn) =
-    connection.options()
-    |> connection.with_transport(transport: connection.Tls)
-    |> connection.open(host: "example.com", port: 443)
-  // …
+pub fn open_secure() {
+  connection.options()
+  |> connection.with_transport(transport: connection.Tls)
+  |> connection.open(host: "example.com", port: 443)
 }
 ```
 

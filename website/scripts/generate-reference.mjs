@@ -263,8 +263,6 @@ title: Reference
 description: Generated Gluegun API reference from Gleam docs metadata.
 ---
 
-# Reference
-
 This reference is generated from Gleam's docs metadata for ${code(packageInterface.name)} ${code(packageInterface.version)}.
 
 For the canonical HexDocs rendering, see [hexdocs.pm/gluegun](https://hexdocs.pm/gluegun/).
@@ -298,8 +296,6 @@ function renderModulePage(moduleName, moduleInterface) {
 title: ${title}
 description: ${description}
 ---
-
-# ${code(moduleName)}
 
 ${normalizeDoc(moduleInterface.documentation) || description}
 

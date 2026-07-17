@@ -12,6 +12,7 @@ Protocol selection happens through TLS ALPN (Application-Layer Protocol Negotiat
 Plain TCP (`connection.Tcp`) does not negotiate; Gun uses the first protocol in the list.
 
 ```gleam
+import gleam/result
 import gluegun/client
 import gluegun/connection
 
@@ -21,11 +22,13 @@ pub fn get_over_http2() {
     |> connection.with_transport(transport: connection.Tls)
     |> connection.with_protocols(protocols: [connection.Http2, connection.Http1])
 
-  let assert Ok(conn) =
+  use conn <- result.try(
     options
-    |> connection.open(host: "example.com", port: 443)
-  let assert Ok(protocol) =
-    connection.await_up(conn, connection.Milliseconds(5000))
+    |> connection.open(host: "example.com", port: 443),
+  )
+  use protocol <- result.try(
+    connection.await_up(conn, connection.Milliseconds(5000)),
+  )
 
   case protocol {
     connection.Http2 -> Nil

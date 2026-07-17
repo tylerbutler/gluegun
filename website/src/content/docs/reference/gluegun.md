@@ -3,8 +3,6 @@ title: gluegun
 description: Minimal common-path facade for the Gluegun HTTP client wrapper.
 ---
 
-# `gluegun`
-
 Minimal common-path facade for the Gluegun HTTP client wrapper.
 
  For full functionality import the submodules (`gluegun/connection`,

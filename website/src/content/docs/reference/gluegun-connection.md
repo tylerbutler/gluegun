@@ -3,8 +3,6 @@ title: gluegun/connection
 description: Connection management for Erlang Gun.
 ---
 
-# `gluegun/connection`
-
 Connection management for Erlang Gun.
 
  Open a Gun process, wait for it to be ready, choose transport and HTTP

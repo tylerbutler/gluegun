@@ -9,34 +9,35 @@ Start with `request.start_stream`, send zero or more chunks with `fin.NoFin`, an
 
 ```gleam
 import gluegun/connection
+import gluegun/error
 import gluegun/fin
 import gluegun/message
 import gluegun/request
+import gleam/result
 
 pub fn upload_chunks(conn) {
   let timeout = connection.Milliseconds(5000)
 
-  let assert Ok(stream) =
+  use stream <- result.try(
     request.start_stream(
       conn,
       request.Post,
       "/upload",
       [#("content-type", "text/plain")],
       request.options(),
-    )
+    ),
+  )
 
-  let assert Ok(Nil) = request.data(conn, stream, fin.NoFin, <<"first ":utf8>>)
-  let assert Ok(Nil) = request.data(conn, stream, fin.Fin, <<"last":utf8>>)
+  use _ <- result.try(request.data(conn, stream, fin.NoFin, <<"first ":utf8>>))
+  use _ <- result.try(request.data(conn, stream, fin.Fin, <<"last":utf8>>))
 
-  let assert Ok(message.Response(response_fin, _status, _headers)) =
-    await_final_response(conn, stream, timeout)
+  use response <- result.try(await_final_response(conn, stream, timeout))
 
-  case response_fin {
-    fin.Fin -> <<>>
-    fin.NoFin -> {
-      let assert Ok(body) = message.await_body(conn, stream, timeout)
-      body
-    }
+  case response {
+    message.Response(fin.NoFin, _status, _headers) ->
+      message.await_body(conn, stream, timeout)
+    message.Response(fin.Fin, _status, _headers) -> Ok(<<>>)
+    _ -> Error(error.InvalidMessage("expected a final response message"))
   }
 }
 

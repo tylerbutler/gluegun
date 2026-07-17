@@ -3,8 +3,6 @@ title: gluegun/tls
 description: Typed TLS client options for Gun and Erlang SSL.
 ---
 
-# `gluegun/tls`
-
 Typed TLS client options for Gun and Erlang SSL.
 
  Gluegun applies a secure baseline whenever a connection uses TLS
