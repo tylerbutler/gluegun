@@ -80,6 +80,32 @@ export default defineConfig({
 				// height: 48,
 			},
 			favicon: "./src/assets/gluegun-dark.png",
+			head: [
+				// Social sharing card. Starlight emits og:*/twitter:card but not the
+				// image; point both at the generated public/og.png (run `pnpm og`).
+				{
+					tag: "meta",
+					attrs: {
+						property: "og:image",
+						content: "https://gluegun.tylerbutler.com/og.png",
+					},
+				},
+				{
+					tag: "meta",
+					attrs: { property: "og:image:width", content: "1200" },
+				},
+				{
+					tag: "meta",
+					attrs: { property: "og:image:height", content: "630" },
+				},
+				{
+					tag: "meta",
+					attrs: {
+						name: "twitter:image",
+						content: "https://gluegun.tylerbutler.com/og.png",
+					},
+				},
+			],
 			customCss: [
 				"@fontsource-variable/chivo/index.css",
 				"@fontsource-variable/atkinson-hyperlegible-next/index.css",

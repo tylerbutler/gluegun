@@ -19,6 +19,7 @@
 		"clean": "rimraf dist *.tsbuildinfo *.done.build.log .astro",
 		"dev": "astro dev",
 		"generate:reference": "node scripts/generate-reference.mjs",
+		"og": "node scripts/generate-og.ts",
 		"preview": "astro preview",
 		"start": "astro dev",
 		"test:reference": "node --test scripts/generate-reference.test.mjs"
@@ -40,6 +41,9 @@
 	},
 	"devDependencies": {
 		"@fec/remark-a11y-emoji": "^4.0.2",
-		"rimraf": "^6.1.3"
+		"culori": "^4.0.2",
+		"rimraf": "^6.1.3",
+		"satori": "^0.28.0",
+		"subset-font": "^2.5.0"
 	}
 }
