@@ -20,6 +20,24 @@ hero:
 
 import { Code } from "@astrojs/starlight/components";
 
+export const gleamExample = `use conn <- result.try(
+  connection.options()
+  |> connection.open(host: "example.com", port: 443),
+)
+
+use _ <- result.try(
+  connection.await_up(conn, connection.Milliseconds(5000)),
+)
+
+use res <- result.try(
+  client.new(request.Get, "/")
+  |> client.with_timeout(timeout: connection.Milliseconds(5000))
+  |> client.send(connection: conn),
+)
+
+io.println("status: " <> int.to_string(response.status(res)))
+connection.close(conn)`;
+
 <style lang="css">{`
   .gluegun-splash {
     display: grid;
@@ -330,27 +348,7 @@ import { Code } from "@astrojs/starlight/components";
       </div>
     </div>
     <div class="gluegun-lab__proof">
-      <Code
-        class="gluegun-lab__code"
-        lang="gleam"
-        code={`use conn <- result.try(
-  connection.options()
-  |> connection.open(host: "example.com", port: 443),
-)
-
-use _ <- result.try(
-  connection.await_up(conn, connection.Milliseconds(5000)),
-)
-
-use res <- result.try(
-  client.new(request.Get, "/")
-  |> client.with_timeout(timeout: connection.Milliseconds(5000))
-  |> client.send(connection: conn),
-)
-
-io.println("status: " <> int.to_string(response.status(res)))
-connection.close(conn)`}
-      />
+      <Code class="gluegun-lab__code" lang="gleam" code={gleamExample} />
       <p class="gluegun-lab__caption">
         `client.send` collects status, headers, body, trailers, and informational `1xx` responses into one typed value. Use the lower-level request and message APIs when the response must stream.
       </p>
