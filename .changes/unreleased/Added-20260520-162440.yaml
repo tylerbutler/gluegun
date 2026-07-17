@@ -1,0 +1,9 @@
+kind: Added
+body: |-
+    Error and informational response types
+
+    `error.UnsupportedFeature(String)` reports preflight capability checks,
+    such as rejecting WebSocket upgrades on HTTP/2. `response.Informational`
+    is a named record (`Informational(status:, headers:)`) for constructing
+    and pattern-matching `1xx` responses.
+time: 2026-05-20T16:24:40.09157-07:00
