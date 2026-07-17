@@ -51,6 +51,9 @@ importers:
       '@fec/remark-a11y-emoji':
         specifier: ^4.0.2
         version: 4.0.2
+      '@types/culori':
+        specifier: ^4.0.1
+        version: 4.0.1
       culori:
         specifier: ^4.0.2
         version: 4.0.2
@@ -753,6 +756,9 @@ packages:
 
   '@types/braces@3.0.5':
     resolution: {integrity: sha512-SQFof9H+LXeWNz8wDe7oN5zu7ket0qwMu5vZubW4GCJ8Kkeh6nBWUz87+KTz/G3Kqsrp0j/W253XJb3KMEeg3w==}
+
+  '@types/culori@4.0.1':
+    resolution: {integrity: sha512-43M51r/22CjhbOXyGT361GZ9vncSVQ39u62x5eJdBQFviI8zWp2X5jzqg7k4M6PVgDQAClpy2bUe2dtwEgEDVQ==}
 
   '@types/debug@4.1.13':
     resolution: {integrity: sha512-KSVgmQmzMwPlmtljOomayoR89W4FynCAi3E8PPs7vmDVPe84hT+vGPKkJfThkmXs0x0jAaa9U8uW8bbfyS2fWw==}
@@ -3025,6 +3031,8 @@ snapshots:
       string.prototype.codepointat: 0.2.1
 
   '@types/braces@3.0.5': {}
+
+  '@types/culori@4.0.1': {}
 
   '@types/debug@4.1.13':
     dependencies:

@@ -34,7 +34,7 @@ const darkRoot = customCss.slice(
 
 function token(name: string): string {
   const match = darkRoot.match(new RegExp(`--${name}:\\s*([^;]+);`));
-  if (!match) throw new Error(`token --${name} not found in custom.css`);
+  if (!match?.[1]) throw new Error(`token --${name} not found in custom.css`);
   const color = parse(match[1].trim());
   if (!color) throw new Error(`token --${name} is not a parsable color`);
   return formatHex(color);
@@ -100,7 +100,8 @@ function h(
   style: Record<string, unknown>,
   children?: Node[] | string,
 ): Node {
-  return { type, props: { style, children } };
+  // exactOptionalPropertyTypes: only set `children` when we actually have some.
+  return { type, props: children === undefined ? { style } : { style, children } };
 }
 
 const width = 1200;
