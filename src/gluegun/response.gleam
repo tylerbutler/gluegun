@@ -69,13 +69,15 @@ pub fn new(
   )
 }
 
-/// Return a response with a replaced body.
+/// Return a response with a replaced body. Primarily used by `gluegun/client`
+/// while collecting a response and by tests that build deterministic values.
 @internal
 pub fn with_body(response: Response, body body: BitArray) -> Response {
   Response(..response, body: body)
 }
 
-/// Return a response with replaced trailers.
+/// Return a response with replaced trailers. Primarily used by
+/// `gluegun/client` when a collected response ends with trailer fields.
 @internal
 pub fn with_trailers(
   response: Response,
@@ -84,7 +86,8 @@ pub fn with_trailers(
   Response(..response, trailers: trailers)
 }
 
-/// Return a response with replaced informational responses.
+/// Return a response with replaced informational responses. Primarily used by
+/// `gluegun/client` to preserve `1xx` responses seen before the final response.
 @internal
 pub fn with_informational(
   response: Response,

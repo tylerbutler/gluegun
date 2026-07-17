@@ -17,6 +17,7 @@ For reproducible builds, replace `main` with a release tag or commit SHA.
 
 - Gluegun targets Erlang only.
 - Gluegun wraps the Erlang Gun client and does not support the JavaScript target.
+- Gluegun supports Erlang/OTP `>= 27`.
 - Gluegun supports Gleam `>= 1.7.0`.
 - Gluegun supports Gun `>= 2.1.0 and < 3.0.0`.
 

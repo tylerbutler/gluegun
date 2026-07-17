@@ -1,4 +1,4 @@
-kind: Changed
+kind: Breaking
 body: |-
     Renamed public API helpers for naming consistency
 

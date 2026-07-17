@@ -1,4 +1,4 @@
-/// Basic HTTP GET example using gluegun.
+/// Basic HTTP GET example using Gluegun.
 ///
 /// Buildable basic HTTP request example.
 import gleam/int

@@ -1,4 +1,4 @@
-/// WebSocket echo example using gluegun's high-level Socket API.
+/// WebSocket echo example using Gluegun's high-level Socket API.
 ///
 /// Connects to a local echo server at ws://localhost:8080/echo, sends one
 /// text frame, receives the echoed reply, then sends a close frame.
