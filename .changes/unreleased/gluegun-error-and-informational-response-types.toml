@@ -1,0 +1,6 @@
+package = "gluegun"
+kind = "Added"
+body = """
+Error and informational response types
+
+`error.UnsupportedFeature(String)` reports preflight capability checks, such as rejecting WebSocket upgrades on HTTP/2. `response.Informational` is a named record (`Informational(status:, headers:)`) for constructing and pattern-matching `1xx` responses."""

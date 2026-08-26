@@ -7,7 +7,7 @@ on:
 
 jobs:
   auto-tag:
-    if: github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release')
+    if: github.event.pull_request.merged && github.event.pull_request.head.ref == 'release/pending'
     runs-on: ubuntu-latest
     steps:
       - name: Generate app token
@@ -19,10 +19,15 @@ jobs:
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
         with:
+          fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
-      - uses: tylerbutler/actions/changie-auto-tag@77f80621309fc7443b628802e08a815d41dd4b47 # ratchet:tylerbutler/actions/changie-auto-tag@main
-        id: auto-tag
-        with:
-          create-release: true
-          token: ${{ steps.app-token.outputs.token }}
+      - name: Install Trellis
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            https://github.com/tylerbutler/trellis/releases/download/v0.11.2/trellis-gleam-installer.sh | sh
+
+      - name: Create tags and GitHub release
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: trellis tag create --github-release

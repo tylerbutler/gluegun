@@ -1,9 +1,0 @@
-kind: Added
-body: |-
-    TLS configuration builders for connection options
-
-    The typed `gluegun/tls` module and `connection.with_tls_opts` let callers
-    configure peer verification, CA sources, TLS versions, SNI, and client
-    certificate files, rather than relying on Gun's insecure `verify_none`
-    default.
-time: 2026-05-20T16:32:49.422392-07:00
