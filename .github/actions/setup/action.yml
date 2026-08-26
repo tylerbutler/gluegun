@@ -13,6 +13,10 @@ runs:
     - name: Setup tools
       uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # ratchet:jdx/mise-action@v4
 
+    - name: Enable Corepack
+      shell: bash
+      run: corepack enable
+
     - name: Cache Gleam dependencies
       if: inputs.dependencies == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # ratchet:actions/cache@v6
