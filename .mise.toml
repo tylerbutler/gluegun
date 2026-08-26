@@ -1,5 +1,5 @@
 [tools]
-changie = "latest"
+"github:tylerbutler/trellis" = "0.11.2"
 
 [env]
 LC_ALL = "en_US.UTF-8"

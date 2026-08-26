@@ -10,6 +10,7 @@ alias sd := site-deps
 alias sb := site-build
 alias sc := site-check
 alias cl := change
+alias td := trellis-doctor
 alias eb := examples-build
 alias ef := examples-format
 alias efc := examples-format-check
@@ -115,16 +116,20 @@ site-clean:
 # === CHANGELOG ===
 
 # Create a new changelog entry
-change:
-    changie new
+change *ARGS:
+    trellis changelog new {{ARGS}}
 
 # Preview unreleased changelog
-changelog-preview:
-    changie batch auto --dry-run
+changelog-preview *ARGS:
+    trellis version plan {{ARGS}}
 
-# Generate CHANGELOG.md
-changelog:
-    changie merge
+# Apply pending versions and regenerate CHANGELOG.md
+changelog *ARGS:
+    trellis version apply {{ARGS}}
+
+# Validate the Trellis workspace
+trellis-doctor:
+    trellis doctor
 
 # === MAINTENANCE ===
 
@@ -134,8 +139,8 @@ clean:
 
 # === CI ===
 
-# Run all CI checks (format, check, test, build)
-ci: format-check check test build-strict
+# Run all CI checks (format, check, test, build, workspace)
+ci: format-check check test build-strict trellis-doctor
 
 # Alias for PR checks
 alias pr := ci

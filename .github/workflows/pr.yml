@@ -16,9 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
 
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # ratchet:actions/setup-node@v6
+      - name: Setup tools
+        uses: ./.github/actions/setup
         with:
-          node-version: "22"
+          dependencies: "false"
 
       - name: Install commitlint
         run: npm install --save-dev @commitlint/cli @commitlint/config-conventional
@@ -28,7 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: echo "$PR_TITLE" | npx commitlint
 
-  # Changelog entry check
   changelog:
     name: Changelog
     runs-on: ubuntu-latest
@@ -37,40 +37,41 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: tylerbutler/actions/changie-check@77f80621309fc7443b628802e08a815d41dd4b47 # ratchet:tylerbutler/actions/changie-check@main
+
+      - name: Setup tools
+        uses: ./.github/actions/setup
+        with:
+          dependencies: "false"
+
+      - name: Check changelog
         id: changelog
-        with:
-          base-sha: ${{ github.event.pull_request.base.sha }}
-          head-sha: ${{ github.event.pull_request.head.sha }}
+        continue-on-error: true
+        run: |
+          trellis changelog check \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.event.pull_request.head.sha }}" \
+            --format github >> "$GITHUB_OUTPUT"
+
       - name: Comment with changelog preview
-        if: steps.changelog.outputs.has-entries == 'true'
+        if: >-
+          steps.changelog.outputs.has_entries == 'true'
+          || steps.changelog.outputs.needs_entry == 'true'
+          || steps.changelog.outputs.invalid_fragments != '[]'
         uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # ratchet:marocchino/sticky-pull-request-comment@v2
         with:
           header: changelog
-          message: |
-            ## Changelog Preview
+          message: ${{ steps.changelog.outputs.preview }}
 
-            This PR adds the following changelog entries:
-
-            ${{ steps.changelog.outputs.preview }}
-      - name: Comment about missing changelog
-        if: steps.changelog.outputs.has-entries == 'false' && steps.changelog.outputs.needs-entry == 'true'
-        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # ratchet:marocchino/sticky-pull-request-comment@v2
-        with:
-          header: changelog
-          message: |
-            ## Missing Changelog Entry
-
-            This PR includes commits with types that typically require a changelog entry (`${{ steps.changelog.outputs.commit-types-found }}`), but no changie fragment was found.
-
-            To add one, run:
-
-            ```
-            changie new
-            ```
       - name: Remove changelog comment
-        if: steps.changelog.outputs.has-entries == 'false' && steps.changelog.outputs.needs-entry == 'false'
+        if: >-
+          steps.changelog.outputs.has_entries == 'false'
+          && steps.changelog.outputs.needs_entry == 'false'
+          && steps.changelog.outputs.invalid_fragments == '[]'
         uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # ratchet:marocchino/sticky-pull-request-comment@v2
         with:
           header: changelog
           delete: true
+
+      - name: Fail on changelog errors
+        if: steps.changelog.outputs.ok != 'true'
+        run: exit 1

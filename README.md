@@ -320,9 +320,18 @@ just check        # Type check
 just docs         # Build documentation
 just ci           # Run all CI checks
 just main         # Run CI checks and build docs
+just td           # Validate the Trellis workspace
 ```
 
-Before publishing a release, run `just ci`, `gleam docs build`, and `gleam publish --dry-run` when supported by your installed Gleam version.
+Add an unreleased change with:
+
+```sh
+just change --kind Added --body "Describe the change"
+```
+
+Preview the next release with `just changelog-preview`. Trellis creates release
+pull requests from pending fragments on `main`, then tags and publishes merged
+releases.
 
 ## License
 
