@@ -22,10 +22,10 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
-      - name: Install Trellis
-        run: |
-          curl --proto '=https' --tlsv1.2 -LsSf \
-            https://github.com/tylerbutler/trellis/releases/download/v0.11.2/trellis-gleam-installer.sh | sh
+      - name: Setup tools
+        uses: ./.github/actions/setup
+        with:
+          dependencies: "false"
 
       - name: Create tags and GitHub release
         env:

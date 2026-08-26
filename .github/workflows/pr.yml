@@ -16,9 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
 
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # ratchet:actions/setup-node@v6
+      - name: Setup tools
+        uses: ./.github/actions/setup
         with:
-          node-version: "22"
+          dependencies: "false"
 
       - name: Install commitlint
         run: npm install --save-dev @commitlint/cli @commitlint/config-conventional
@@ -37,10 +38,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Trellis
-        run: |
-          curl --proto '=https' --tlsv1.2 -LsSf \
-            https://github.com/tylerbutler/trellis/releases/download/v0.11.2/trellis-gleam-installer.sh | sh
+      - name: Setup tools
+        uses: ./.github/actions/setup
+        with:
+          dependencies: "false"
 
       - name: Check changelog
         id: changelog
