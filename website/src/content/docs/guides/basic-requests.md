@@ -3,7 +3,7 @@ title: Basic Requests
 description: Use gluegun/client to send one request and collect one response.
 ---
 
-Use `gluegun/client` when you want to send one regular HTTP request on an existing connection and collect the full response — status, headers, body, trailers, and any informational `1xx` responses — in memory.
+Use `gluegun/client` to send one usual HTTP request on an open connection. The client collects the full response in memory: status, headers, body, trailers, and all `1xx` informational responses.
 
 ## Builder API
 
@@ -19,11 +19,11 @@ fn fetch_json(conn, path, timeout) {
 }
 ```
 
-## One-shot helpers
+## One-shot functions
 
-For requests that do not need extra header chaining, `gluegun/client` ships
-per-method helpers. Each takes `connection`, `path`, `headers`, and a
-`Timeout`; methods with bodies also take a `BitArray` body.
+`gluegun/client` has one function for each HTTP method. Use these when you do
+not add headers one by one. Each function accepts `connection`, `path`,
+`headers`, and a `Timeout`. Methods with bodies also accept a `BitArray` body.
 
 ```gleam
 import gluegun/client
@@ -45,11 +45,11 @@ pub fn examples(conn) {
 }
 ```
 
-`client.request_options` covers `OPTIONS`. See the [client reference](/reference/gluegun-client/) for the full list.
+`client.request_options` sends `OPTIONS`. See the [client reference](/reference/gluegun-client/) for the full list.
 
-## Inspecting responses
+## Examine responses
 
-`client.send` returns a `response.Response` that carries the final status, headers, body, trailers, and any `1xx` informational responses seen before the final response:
+`client.send` returns a `response.Response`. It holds the final status, headers, body, trailers, and all `1xx` informational responses that came before the final response:
 
 ```gleam
 import gluegun/response
@@ -66,17 +66,17 @@ pub fn handle(res) {
 }
 ```
 
-Use `response.body_text` for UTF-8 responses or `response.body` for raw bytes.
+Use `response.body_text` for UTF-8 responses. Use `response.body` for raw bytes.
 
-## When to use the client helpers
+## When to use the client functions
 
 Use `gluegun/client` for:
 
-- GET, POST, PUT, PATCH, DELETE, HEAD, and OPTIONS requests with regular responses.
-- Responses where collecting the body in memory is acceptable.
-- Applications that already manage a Gun connection lifecycle.
+- GET, POST, PUT, PATCH, DELETE, HEAD, and OPTIONS requests with usual responses.
+- Responses that can be collected in memory.
+- Applications that already control the Gun connection lifecycle.
 
-Use `gluegun/request` and `gluegun/message` instead when you need streamed response chunks, trailers as they arrive, cancellation, flow control, upgrades, or HTTP/2 push.
+Use `gluegun/request` and `gluegun/message` for streamed response chunks, trailers as they arrive, cancellation, flow control, upgrades, or HTTP/2 push.
 
 ## Headers
 
@@ -89,6 +89,6 @@ client.new(request.Get, "/api/items")
 |> client.send(connection: conn)
 ```
 
-Header names are normalized before crossing the Gun boundary. Header values are preserved.
+Gluegun normalizes header names before it sends them to Gun. Header values do not change.
 
-See the [client reference](/reference/gluegun-client/) for all high-level client helpers.
+See the [client reference](/reference/gluegun-client/) for all high-level client functions.

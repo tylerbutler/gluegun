@@ -343,14 +343,14 @@ connection.close(conn)`;
       <div>
         <h2 id="gluegun-lab-title">HTTP without footguns.</h2>
         <p>
-          Gluegun keeps the BEAM-native Gun model visible: open a connection, wait for the negotiated protocol, send the request, then collect a typed response or drop into streams when the body cannot fit in memory.
+          Gluegun keeps the BEAM-native Gun model visible. Open a connection. Wait for the negotiated protocol. Send the request. Then collect a typed response, or use streams when the body does not fit in memory.
         </p>
       </div>
     </div>
     <div class="gluegun-lab__proof">
       <Code class="gluegun-lab__code" lang="gleam" code={gleamExample} />
       <p class="gluegun-lab__caption">
-        `client.send` collects status, headers, body, trailers, and informational `1xx` responses into one typed value. Use the lower-level request and message APIs when the response must stream.
+        `client.send` collects status, headers, body, trailers, and informational `1xx` responses into one typed value. Use the lower-level request and message APIs when you must stream the response.
       </p>
     </div>
     <nav class="gluegun-paths" aria-labelledby="gluegun-paths-title">
@@ -360,21 +360,21 @@ connection.close(conn)`;
           <span class="gluegun-paths__step">01</span>
           <span class="gluegun-paths__item">
             <a href="/quick-start/">Send a GET</a>
-            <span>Open a connection, await readiness, collect a typed response.</span>
+            <span>Open a connection. Wait until it is ready. Collect a typed response.</span>
           </span>
         </li>
         <li>
           <span class="gluegun-paths__step">02</span>
           <span class="gluegun-paths__item">
             <a href="/guides/streaming/">Stream bodies</a>
-            <span>Switch to request/message helpers when memory matters.</span>
+            <span>Use the request and message functions when memory is limited.</span>
           </span>
         </li>
         <li>
           <span class="gluegun-paths__step">03</span>
           <span class="gluegun-paths__item">
             <a href="/guides/websockets/">Open sockets</a>
-            <span>Upgrade HTTP/1.1 connections and handle frames explicitly.</span>
+            <span>Upgrade HTTP/1.1 connections and process frames explicitly.</span>
           </span>
         </li>
       </ol>
@@ -384,9 +384,9 @@ connection.close(conn)`;
 
 <section class="gluegun-map" aria-labelledby="gluegun-map-title">
   <div class="gluegun-map__heading">
-    <h2 id="gluegun-map-title">Choose the layer that matches the job.</h2>
+    <h2 id="gluegun-map-title">Select the layer that agrees with the task.</h2>
     <p>
-      Use the high-level client when collecting one regular response is enough. Drop to request and message helpers when streaming, cancellation, HTTP/2 push, upgrades, trailers, or WebSocket frames need to stay explicit.
+      Use the high-level client when one collected response is sufficient. Use the request and message functions when streams, cancellation, HTTP/2 push, upgrades, trailers, or WebSocket frames must stay explicit.
     </p>
   </div>
 
@@ -394,11 +394,11 @@ connection.close(conn)`;
     <h2>Lifecycle map</h2>
     <a href="/reference/gluegun-connection/">
       <strong>connection</strong>
-      <span>Open Gun, await protocol negotiation, close cleanly.</span>
+      <span>Open Gun. Wait for protocol negotiation. Close cleanly.</span>
     </a>
     <a href="/reference/gluegun-client/">
       <strong>client</strong>
-      <span>One regular request, collected response, visible errors.</span>
+      <span>One usual request, one collected response, visible errors.</span>
     </a>
     <a href="/reference/gluegun-request/">
       <strong>request</strong>
@@ -406,7 +406,7 @@ connection.close(conn)`;
     </a>
     <a href="/reference/gluegun-message/">
       <strong>message</strong>
-      <span>Typed decoding for Gun's asynchronous stream events.</span>
+      <span>Typed decoding for the asynchronous stream events of Gun.</span>
     </a>
     <a href="/reference/gluegun-websocket/">
       <strong>websocket</strong>

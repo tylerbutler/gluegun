@@ -3,7 +3,7 @@ title: Quick Start
 description: Send a basic GET request with Gluegun.
 ---
 
-Open a Gun connection, wait for it to be ready, send a GET request, and collect the full response in memory.
+Open a Gun connection. Wait until it is ready. Send a GET request. Collect the full response in memory.
 
 ```gleam
 import gleam/int
@@ -42,17 +42,17 @@ pub fn main() {
 
 ## Key idea
 
-Gluegun separates connection setup from requests:
+Gluegun keeps connection setup and requests separate:
 
 1. Open a connection to a host and port.
-2. Wait for Gun to report the negotiated protocol.
-3. Send requests using paths such as `/`, `/api/items`, or `/health`.
+2. Wait until Gun reports the negotiated protocol.
+3. Send requests with paths such as `/`, `/api/items`, or `/health`.
 4. Close or shut down the connection when you are finished.
 
-If you have a full URL instead of separate connection pieces, parse it with `gleam/uri` before calling Gluegun. Gluegun intentionally expects the already-separated host, port, transport, path, and query values.
+If you have a full URL, parse it with `gleam/uri` before you call Gluegun. Gluegun accepts only the separate host, port, transport, path, and query values.
 
-`connection.Milliseconds(Int)` constructs a finite `Timeout`; use `connection.Infinity` when you want to wait without bound. The same `Timeout` value is reused for connection readiness, request bodies, and message receives.
+`connection.Milliseconds(Int)` makes a finite `Timeout`. Use `connection.Infinity` to wait without a limit. The same `Timeout` value applies to connection readiness, request bodies, and message receives.
 
-Use `connection.close` for normal teardown. Use `connection.shutdown` only when a connection appears stuck — it terminates the Gun process immediately without graceful close.
+Use `connection.close` for usual teardown. Use `connection.shutdown` only when a connection seems stuck. `shutdown` stops the Gun process immediately, without a graceful close.
 
-For complete module, type, and function details, use the [API reference](/reference/).
+For full module, type, and function details, see the [API reference](/reference/).

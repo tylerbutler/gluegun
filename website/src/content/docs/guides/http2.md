@@ -1,15 +1,15 @@
 ---
 title: HTTP/2
-description: Prefer HTTP/2 while keeping HTTP/1.1 fallback explicit.
+description: Select HTTP/2 first and keep the HTTP/1.1 fallback explicit.
 ---
 
-Use TLS and put `Http2` before `Http1` to prefer HTTP/2 while allowing Gun to fall back to HTTP/1.1 when needed.
+Use TLS and put `Http2` before `Http1`. Gun then selects HTTP/2 when possible and falls back to HTTP/1.1 when necessary.
 
 ## How fallback works
 
-Protocol selection happens through TLS ALPN (Application-Layer Protocol Negotiation). When you list `[Http2, Http1]`, Gun advertises both `h2` and `http/1.1` in the TLS ClientHello. The server picks one and the chosen protocol is returned by `connection.await_up`. If the server only advertises HTTP/1.1, Gun negotiates HTTP/1.1 and `await_up` returns `Http1`.
+TLS ALPN (Application-Layer Protocol Negotiation) selects the protocol. When you list `[Http2, Http1]`, Gun advertises `h2` and `http/1.1` in the TLS ClientHello. The server selects one. `connection.await_up` returns the selected protocol. If the server advertises only HTTP/1.1, Gun negotiates HTTP/1.1 and `await_up` returns `Http1`.
 
-Plain TCP (`connection.Tcp`) does not negotiate; Gun uses the first protocol in the list.
+Plain TCP (`connection.Tcp`) does not negotiate. Gun uses the first protocol in the list.
 
 ```gleam
 import gleam/result
@@ -41,6 +41,6 @@ pub fn get_over_http2() {
 
 ## WebSocket note
 
-WebSocket support is HTTP/1.1 only. Use HTTP/2 for regular HTTP requests and keep WebSocket connections on HTTP/1.1. Calling `websocket.upgrade_with_protocol` on an HTTP/2 connection returns `UnsupportedFeature` before reaching Gun.
+WebSocket works only on HTTP/1.1. Use HTTP/2 for usual HTTP requests. Keep WebSocket connections on HTTP/1.1. If you call `websocket.upgrade_with_protocol` on an HTTP/2 connection, it returns `UnsupportedFeature` and does not call Gun.
 
-See the [connection reference](/reference/gluegun-connection/) for the complete connection option API.
+See the [connection reference](/reference/gluegun-connection/) for the full connection option API.

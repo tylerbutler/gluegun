@@ -3,13 +3,13 @@ title: WebSockets
 description: Open, use, and close WebSocket connections with Gluegun.
 ---
 
-Gun supports WebSocket over HTTP/1.1 only. Gluegun's high-level WebSocket options default to HTTP/1.1, and low-level upgrade helpers reject HTTP/2 before calling Gun.
+Gun supports WebSocket over HTTP/1.1 only. The high-level WebSocket options in Gluegun use HTTP/1.1 by default. The low-level upgrade functions reject HTTP/2 before they call Gun.
 
 :::caution[HTTP/2 not supported]
-WebSocket over HTTP/2 (RFC 8441) is not supported by Gun. `websocket.connect`, `websocket.with_socket`, and `websocket.upgrade_with_protocol` all return `UnsupportedFeature` when the negotiated protocol is `Http2`. Constrain `connection.with_protocols` to `[Http1]` (the default for `websocket.options()`) or check the protocol returned by `connection.await_up` before upgrading.
+Gun does not support WebSocket over HTTP/2 (RFC 8441). `websocket.connect`, `websocket.with_socket`, and `websocket.upgrade_with_protocol` return `UnsupportedFeature` when the negotiated protocol is `Http2`. Set `connection.with_protocols` to `[Http1]` (the default for `websocket.options()`), or check the protocol that `connection.await_up` returns before you upgrade.
 :::
 
-Use the reusable `Socket` API when you want explicit lifecycle control.
+Use the reusable `Socket` API when you control the lifecycle yourself.
 
 ```gleam
 import gleam/io
@@ -39,11 +39,11 @@ pub fn ws_echo() {
 }
 ```
 
-`websocket.send_close_frame(socket)` sends a WebSocket close frame. It does not close the underlying Gun connection. Use `websocket.with_socket` for scoped cleanup, or close the connection yourself when using the reusable `Socket` API.
+`websocket.send_close_frame(socket)` sends a WebSocket close frame. It does not close the Gun connection below it. Use `websocket.with_socket` for scoped cleanup. With the reusable `Socket` API, close the connection yourself.
 
 ## Scoped sockets
 
-For shorter one-shot flows, `with_socket` opens the socket, runs a callback, then closes the WebSocket and connection.
+For short one-shot flows, `with_socket` opens the socket, runs a callback, then closes the WebSocket and the connection.
 
 ```gleam
 import gleam/io
@@ -76,11 +76,11 @@ pub fn echo_once() {
 }
 ```
 
-`Socket` is reusable and lifecycle-explicit. `with_socket` is convenience-only for scoped use.
+`Socket` is reusable and you control its lifecycle. `with_socket` is only for scoped use.
 
 ## Low-level upgrade flow
 
-Use the low-level helpers when you already own the connection lifecycle or need to inspect the negotiated protocol before upgrading.
+Use the low-level functions when you already control the connection lifecycle, or when you must check the negotiated protocol before the upgrade.
 
 ```gleam
 import gleam/result
@@ -108,6 +108,6 @@ pub fn low_level_echo(conn) {
 }
 ```
 
-Call `websocket.await_upgrade` before `websocket.receive`; otherwise the upgrade acknowledgement may arrive where a WebSocket frame is expected.
+Call `websocket.await_upgrade` before `websocket.receive`. If you do not, the upgrade acknowledgement can arrive where your code waits for a WebSocket frame.
 
-See the [WebSocket reference](/reference/gluegun-websocket/) for upgrade options, low-level helpers, and reusable socket helpers.
+See the [WebSocket reference](/reference/gluegun-websocket/) for upgrade options, low-level functions, and reusable socket functions.

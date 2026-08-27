@@ -1,13 +1,13 @@
 ---
 title: Stability
-description: Understand Gluegun's semantic versioning policy and compatibility guarantees.
+description: Learn the semantic versioning policy and compatibility guarantees of Gluegun.
 ---
 
-Gluegun 1.0 follows semantic versioning.
+Gluegun 1.0 uses semantic versioning.
 
 ## Stable public API
 
-The following modules are stable public API and follow semver compatibility guarantees:
+These modules are stable public API. They follow the semver compatibility guarantees:
 
 - `gluegun`
 - `gluegun/connection`
@@ -19,29 +19,29 @@ The following modules are stable public API and follow semver compatibility guar
 - `gluegun/error`
 - `gluegun/fin`
 
-Within those modules:
+In those modules:
 
-- Adding new functions or options is a minor release.
+- New functions or options are a minor release.
 - Bug fixes and documentation-only changes are patch releases.
-- Removing or changing existing public APIs is a major release.
+- Removal or change of an existing public API is a major release.
 
 ## What is not stable
 
-Items marked `@internal` are not part of the stable API surface, even if generated reference docs mention them for deterministic tests or FFI plumbing. They may change or disappear in any release.
+Items marked `@internal` are not part of the stable API. This applies even when the generated reference docs show them for deterministic tests or FFI plumbing. They can change or disappear in any release.
 
-Opaque public types are stable at their documented boundary, but not in their hidden representation.
+Opaque public types are stable at their documented boundary. Their hidden representation is not stable.
 
 ## Closed ADTs
 
-Gluegun treats these ADTs as closed for compatibility purposes:
+For compatibility, Gluegun treats these ADTs as closed:
 
 - `gluegun/connection.Protocol`
 - `gluegun/connection.Transport`
 - `gluegun/message.Message`
 
-Adding a new variant to one of those types is a breaking change and requires a major release, because existing caller pattern matches may need to change.
+A new variant in one of those types is a breaking change and requires a major release. Existing pattern matches in caller code can then require changes.
 
-## Runtime compatibility floors
+## Minimum runtime versions
 
 Gluegun currently supports:
 
@@ -49,4 +49,4 @@ Gluegun currently supports:
 - Gleam `>= 1.7.0`
 - Gun `>= 2.1.0 and < 3.0.0`
 
-The OTP floor matches the pinned toolchain and CI baseline. The Gun range comes from `gleam.toml` and is the compatibility range the package is released against.
+The OTP minimum agrees with the pinned toolchain and the CI baseline. The Gun range comes from `gleam.toml`. It is the compatibility range that the package is released against.

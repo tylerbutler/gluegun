@@ -1,25 +1,26 @@
 ---
 title: TLS
-description: Secure-by-default TLS, and how to override or opt out.
+description: Secure TLS defaults, and how to change or disable them.
 ---
 
-Gluegun exposes Erlang SSL client options through `gluegun/tls`.
+Gluegun gives access to Erlang SSL client options through `gluegun/tls`.
 
 ## Secure by default
 
-Whenever a connection uses TLS (`connection.Tls`, or `connection.Auto`
-resolving to TLS), Gluegun applies a secure baseline at connection time:
+When a connection uses TLS (`connection.Tls`, or `connection.Auto` that
+resolves to TLS), Gluegun applies a secure baseline when it opens the
+connection:
 
 | Default | Value |
 |---|---|
-| `verify` | `verify_peer` (chain + hostname verification) |
-| `cacerts` | OS trust store via `public_key:cacerts_get/0` |
+| `verify` | `verify_peer` (chain and hostname verification) |
+| `cacerts` | OS trust store through `public_key:cacerts_get/0` |
 | `versions` | `[tlsv1.3, tlsv1.2]` |
 | `depth` | `10` |
-| `server_name_indication` | host passed to `connection.open` (skipped for IP literals) |
+| `server_name_indication` | The host given to `connection.open` (not set for IP literals) |
 | `customize_hostname_check` | HTTPS match function from `public_key:pkix_verify_hostname_match_fun(https)` |
 
-The minimal HTTPS setup is therefore just:
+Thus the minimum HTTPS setup is:
 
 ```gleam
 import gluegun/connection
@@ -31,25 +32,25 @@ pub fn open_secure() {
 }
 ```
 
-User-supplied fields on `tls.TlsOptions` always win over the defaults. Any
-field you leave unset is filled in by the baseline.
+Fields that you set on `tls.TlsOptions` always replace the defaults. The
+baseline fills each field that you do not set.
 
 `public_key:cacerts_get/0` is available on OTP 25 and newer. Gluegun
 currently pins OTP 27 in CI. If no system trust store is available (for
 example, in a minimal container), `connection.open` returns an
-`InvalidOptions` TLS error whose reason includes `no_system_cacerts`.
-Supply your own CA bundle with `tls.with_cacertfile` or `tls.with_cacerts`
-in that case.
+`InvalidOptions` TLS error. The reason includes `no_system_cacerts`. In that
+case, supply your own CA bundle with `tls.with_cacertfile` or
+`tls.with_cacerts`.
 
-## Auto transport never silently drops configured TLS options
+## Auto transport keeps configured TLS options
 
-`connection.Auto` (the default transport) normally lets Gun choose TLS on
-port 443 and plain TCP everywhere else. If you configure TLS options with
-`with_tls_options` while `Auto` is active, that is treated as explicit TLS
-intent: the connection uses TLS on every port, not only 443. This keeps a
-misconfigured or non-standard TLS port (for example a proxy that terminates
-TLS on port 8443) from silently falling back to plaintext and discarding
-your TLS settings.
+`connection.Auto` (the default transport) usually lets Gun select TLS on
+port 443 and plain TCP on all other ports. If you set TLS options with
+`with_tls_options` when `Auto` is active, Gluegun reads this as explicit TLS
+intent. The connection then uses TLS on each port, not only on 443. This
+prevents a fallback to plaintext on an incorrect or non-standard TLS port
+(for example, a proxy that terminates TLS on port 8443). Your TLS settings
+are not discarded.
 
 ```gleam
 import gluegun/connection
@@ -64,10 +65,10 @@ pub fn open_secure_on_custom_port() {
 }
 ```
 
-Auto connections that never configure TLS options are unaffected: Gun still
-chooses transport purely from the port number.
+`Auto` connections without TLS options do not change: Gun selects the
+transport only from the port number.
 
-## Overriding the baseline
+## Change the baseline
 
 ```gleam
 import gluegun/connection
@@ -86,23 +87,23 @@ pub fn secure_options() {
 }
 ```
 
-Setting `with_versions` overrides the `tlsv1.3 + tlsv1.2` default;
-`with_cacertfile` (or `with_cacerts`) replaces the system trust store;
-`with_depth` overrides `10`. Leaving the rest unset keeps the secure
-defaults (peer verification, SNI from host, hostname match function).
+`with_versions` replaces the default `tlsv1.3 + tlsv1.2`. `with_cacertfile`
+(or `with_cacerts`) replaces the system trust store. `with_depth` replaces
+`10`. The other fields keep the secure defaults (peer verification, SNI from
+the host, hostname match function).
 
-## Full typed option surface
+## Full typed option list
 
-`gluegun/tls` exposes the following typed builders:
+`gluegun/tls` has these typed builders:
 
 | Builder | Effect |
 |---|---|
-| `with_verify(VerifyPeer\|VerifyNone)` | Peer chain + hostname verification |
-| `with_versions([TlsV12, TlsV13])` | Pin allowed TLS versions |
-| `with_ciphers([...])` | Set allowed cipher suite names |
+| `with_verify(VerifyPeer\|VerifyNone)` | Peer chain and hostname verification |
+| `with_versions([TlsV12, TlsV13])` | Set the permitted TLS versions |
+| `with_ciphers([...])` | Set the permitted cipher suite names |
 | `with_cacerts([DER...])` | DER-encoded trusted CAs |
-| `with_cacertfile("/path/ca.pem")` | PEM CA bundle path |
-| `with_certfile("/path/client.pem")` | Client cert (mTLS) |
+| `with_cacertfile("/path/ca.pem")` | Path to a PEM CA bundle |
+| `with_certfile("/path/client.pem")` | Client certificate (mTLS) |
 | `with_keyfile("/path/client.key")` | Client private key (mTLS) |
 | `with_server_name_indication(ServerName\|Disable)` | SNI value |
 | `with_depth(N)` | Maximum certificate chain depth |
@@ -110,7 +111,7 @@ defaults (peer verification, SNI from host, hostname match function).
 ## Client certificate authentication
 
 Use `certfile` and `keyfile` when the server requires mTLS. Verification
-and SNI are still defaulted:
+and SNI keep their defaults:
 
 ```gleam
 let tls_options =
@@ -119,9 +120,9 @@ let tls_options =
   |> tls.with_keyfile(keyfile: "./certs/client-key.pem")
 ```
 
-## Development-only insecure mode
+## Insecure mode for development only
 
-For testing against self-signed endpoints, use `tls.insecure()`:
+For tests against self-signed endpoints, use `tls.insecure()`:
 
 ```gleam
 connection.options()
@@ -130,11 +131,10 @@ connection.options()
 |> connection.open(host: "localhost", port: 8443)
 ```
 
-`tls.insecure()` sets `verify_none` and disables SNI, which suppresses the
-rest of the secure baseline (no system trust store lookup, no hostname
-match function). **Never** ship this against untrusted networks or
-production endpoints — it bypasses every protection that makes HTTPS
-trustworthy.
+`tls.insecure()` sets `verify_none` and disables SNI. This also disables
+the rest of the secure baseline (no system trust store lookup, no hostname
+match function). **Do not** use this on untrusted networks or production
+endpoints. It removes each protection that makes HTTPS safe.
 
 See the [connection reference](/reference/gluegun-connection/) and
 [tls reference](/reference/gluegun-tls/) for the full API.

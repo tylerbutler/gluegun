@@ -1,11 +1,11 @@
 ---
 title: Error Handling
-description: Work with GluegunError values returned from public operations.
+description: Use the GluegunError values that public operations return.
 ---
 
-Effectful operations that open connections, send requests, await messages, or send WebSocket frames return `Result(_, error.GluegunError)`. Pure builders and accessors return plain values. Among effectful operations, only `response.body_text` performs body decoding (UTF-8); raw bytes always come back via `response.body`.
+Effectful operations open connections, send requests, wait for messages, or send WebSocket frames. They return `Result(_, error.GluegunError)`. Pure builders and accessors return plain values. Only `response.body_text` decodes the body (UTF-8). `response.body` always returns the raw bytes.
 
-Pattern match on variants that matter to your application and keep a fallback for unexpected Erlang or decode errors.
+Pattern match on the variants that are important to your application. Keep a fallback for unexpected Erlang or decode errors.
 
 ```gleam
 import gleam/io
@@ -32,20 +32,20 @@ fn safe_get(conn) {
 }
 ```
 
-Gluegun normalizes FFI errors at the API boundary so Erlang failures become `GluegunError` values instead of leaking raw Erlang terms.
+Gluegun normalizes FFI errors at the API boundary. Erlang failures become `GluegunError` values. Raw Erlang terms do not leak.
 
 ## Error variants
 
 | Variant | Meaning | Common cause |
 | --- | --- | --- |
-| `Timeout` | An operation timed out. | The server was slow, unreachable, or the timeout was too short. |
-| `ConnectionDown(String)` | The Gun connection went down. | The remote closed the connection or the network failed. |
-| `ConnectionError(String)` | Connection setup or use failed. | Bad host, port, transport, TLS, or Gun connection state. |
-| `StreamError(String)` | A stream-specific failure occurred. | A stream was canceled, reset, or rejected. |
-| `InvalidOptions(String)` | Gluegun rejected invalid typed options. | A non-positive flow-control increment or unsupported option shape. |
-| `InvalidMessage(String)` | A protocol message did not match the API being used. | Using high-level client helpers for upgrades, push, WebSocket messages, or receiving WebSocket frames before upgrade completion. |
-| `UnsupportedFeature(String)` | The requested feature is not supported. | Attempting a WebSocket upgrade on an HTTP/2 connection (Gun does not support RFC 8441). Choose `Http1`. |
-| `ErlangError(String)` | An unclassified Erlang or FFI failure occurred. | An unexpected Gun or BEAM error crossed the FFI boundary. |
-| `DecodeError(String)` | Decoding failed. | Invalid FFI message shape or a non-UTF-8 response body passed to `response.body_text`. |
+| `Timeout` | An operation timed out. | The server was slow or not reachable, or the timeout was too short. |
+| `ConnectionDown(String)` | The Gun connection went down. | The remote closed the connection, or the network failed. |
+| `ConnectionError(String)` | Connection setup or use failed. | Incorrect host, port, transport, TLS, or Gun connection state. |
+| `StreamError(String)` | A stream failure occurred. | A stream was canceled, reset, or rejected. |
+| `InvalidOptions(String)` | Gluegun rejected the typed options. | A flow-control increment that is not positive, or an unsupported option shape. |
+| `InvalidMessage(String)` | A protocol message did not agree with the API in use. | High-level client functions got an upgrade, push, or WebSocket message. Or the code received WebSocket frames before the upgrade was complete. |
+| `UnsupportedFeature(String)` | The feature is not supported. | A WebSocket upgrade on an HTTP/2 connection (Gun does not support RFC 8441). Select `Http1`. |
+| `ErlangError(String)` | An Erlang or FFI failure occurred that has no category. | An unexpected Gun or BEAM error crossed the FFI boundary. |
+| `DecodeError(String)` | Decode failed. | An invalid FFI message shape, or a response body that is not UTF-8 given to `response.body_text`. |
 
 See the [error reference](/reference/gluegun-error/) for the current error type definition.
