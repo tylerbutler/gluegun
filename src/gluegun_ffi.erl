@@ -246,9 +246,25 @@ normalize_host(Host) -> Host.
 %% `Options` is a Gleam `List(gluegun/connection.ConnectOption)`.
 
 connect_options_to_gun(Options) when is_list(Options) ->
-    lists:foldl(fun connect_option_to_gun/2, #{}, Options);
+    resolve_auto_transport(lists:foldl(fun connect_option_to_gun/2, #{}, Options));
 connect_options_to_gun(Options) ->
     error({invalid_options, Options}).
+
+%% Auto transport (`transport_option, auto`) leaves the `transport` key out of
+%% `GunOptions` on purpose, so Gun falls back to its own port-based default:
+%% TLS on port 443, plain TCP everywhere else. That default silently drops
+%% any `tls_opts` the caller configured whenever the port is not 443.
+%%
+%% When TLS options were explicitly configured (`tls_opts` present) and the
+%% transport is still unresolved, the caller has stated TLS intent, so force
+%% `transport => tls` regardless of port. Auto connections without TLS
+%% options are untouched: `transport` stays unset and Gun keeps choosing by
+%% port, preserving ordinary Auto behavior.
+resolve_auto_transport(GunOptions) ->
+    case {maps:is_key(transport, GunOptions), maps:is_key(tls_opts, GunOptions)} of
+        {false, true} -> GunOptions#{transport => tls};
+        _ -> GunOptions
+    end.
 
 connect_option_to_gun({transport_option, auto}, GunOptions) -> GunOptions;
 connect_option_to_gun({transport_option, tcp}, GunOptions) -> GunOptions#{transport => tcp};
