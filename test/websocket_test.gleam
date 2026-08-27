@@ -95,12 +95,6 @@ pub fn websocket_tests() -> test_tree.TestTree {
           ]),
         )
       }),
-      startest.it("surfaces invalid frame errors", fn() {
-        invalid_ws_send_frame_result()
-        |> expect.to_equal(
-          Error(error.InvalidMessage("InvalidFrame(BadFrame)")),
-        )
-      }),
       startest.it("surfaces invalid frame list errors", fn() {
         invalid_ws_send_frame_list_result()
         |> expect.to_equal(
@@ -883,9 +877,6 @@ fn capture_ws_send_frames() -> Result(List(#(String, BitArray)), Nil)
 fn capture_ws_upgrade_options(
   options: List(websocket.UpgradeOption),
 ) -> Result(CapturedWebSocketOptions, error.GluegunError)
-
-@external(erlang, "gluegun_ws_test", "invalid_ws_send_frame_result")
-fn invalid_ws_send_frame_result() -> Result(Nil, error.GluegunError)
 
 @external(erlang, "gluegun_ws_test", "invalid_ws_send_frame_list_result")
 fn invalid_ws_send_frame_list_result() -> Result(Nil, error.GluegunError)

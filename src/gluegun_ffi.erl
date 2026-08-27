@@ -153,7 +153,7 @@ ws_upgrade(ConnPid, Path, Headers, WsOptions) ->
 
 ws_send(ConnPid, StreamRef, Frames) ->
     try
-        GunFrames = gleam_frame_or_frames_to_gun(Frames),
+        GunFrames = [gleam_frame_to_gun(Frame) || Frame <- Frames],
         with_normalize(stream_erlang, fun() ->
             gun:ws_send(ConnPid, StreamRef, GunFrames)
         end)
@@ -217,11 +217,6 @@ inspect(Reason) -> gleam@string:inspect(Reason).
 %%   CloseWithReason(C, R) -> {close_with_reason, C, R}
 %%   Ping(B)               -> {ping, B}
 %%   Pong(B)               -> {pong, B}
-gleam_frame_or_frames_to_gun(Frames) when is_list(Frames) ->
-    [gleam_frame_to_gun(Frame) || Frame <- Frames];
-gleam_frame_or_frames_to_gun(Frame) ->
-    gleam_frame_to_gun(Frame).
-
 gleam_frame_to_gun({text, Data}) -> {text, validate_text_frame_data(Data)};
 gleam_frame_to_gun({binary, Data}) -> {binary, Data};
 gleam_frame_to_gun(close) -> close;
@@ -446,14 +441,7 @@ unicode_value_to_list(Value) -> Value.
 %% `WsOptions` is a Gleam `List(gluegun/websocket.UpgradeOption)`.
 
 ws_options_to_gun(WsOptions) when is_list(WsOptions) ->
-    lists:foldl(
-        fun(Option, Acc) ->
-            {Key, Value} = ws_option_to_gun(Option),
-            Acc#{Key => Value}
-        end,
-        #{},
-        WsOptions
-    ).
+    maps:from_list([ws_option_to_gun(Option) || Option <- WsOptions]).
 
 ws_option_to_gun({closing_timeout, Timeout}) -> {closing_timeout, timeout_to_gun(Timeout)};
 ws_option_to_gun({compress, Compress}) -> {compress, Compress};

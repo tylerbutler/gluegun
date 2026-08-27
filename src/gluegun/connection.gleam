@@ -216,12 +216,10 @@ pub fn options_to_ffi(options: ConnectOptions) -> List(ConnectOption) {
   }
 
   let tls_options = case options.transport, options.tls_options {
-    Tcp, None -> []
-    Tcp, Some(_) -> []
-    Auto, None -> []
-    Tls, None -> []
-    Auto, Some(tls_options) -> [TlsOption(tls.to_ffi(tls_options))]
-    Tls, Some(tls_options) -> [TlsOption(tls.to_ffi(tls_options))]
+    Auto, Some(tls_options) | Tls, Some(tls_options) -> [
+      TlsOption(tls.to_ffi(tls_options)),
+    ]
+    _, _ -> []
   }
 
   list.append(

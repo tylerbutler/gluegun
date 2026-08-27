@@ -8,7 +8,6 @@
     capture_ws_send_frames/0,
     capture_ws_upgrade_options/1,
     current_process/0,
-    invalid_ws_send_frame_result/0,
     invalid_ws_send_frame_list_result/0,
     invalid_ws_send_text_utf8_result/0,
     invalid_ws_upgrade_options_result/0,
@@ -20,10 +19,10 @@
 %% write and hand it back as a raw Gun message for `gluegun/message.decode`.
 capture_ws_send_frame(Frame) ->
     StreamRef = make_ref(),
-    case gluegun_ffi:ws_send(self(), StreamRef, Frame) of
+    case gluegun_ffi:ws_send(self(), StreamRef, [Frame]) of
         {ok, nil} ->
             receive
-                {'$gen_cast', {ws_send, _ReplyTo, StreamRef, GunFrame}} ->
+                {'$gen_cast', {ws_send, _ReplyTo, StreamRef, [GunFrame]}} ->
                     {ok, {ws, GunFrame}}
             after 0 ->
                 {error, {erlang_error, <<"no ws_send message"/utf8>>}}
@@ -58,14 +57,11 @@ capture_ws_upgrade_options(Options) ->
             Error
     end.
 
-invalid_ws_send_frame_result() ->
-    gluegun_ffi:ws_send(self(), make_ref(), bad_frame).
-
 invalid_ws_send_frame_list_result() ->
     gluegun_ffi:ws_send(self(), make_ref(), [{text, <<"ok">>}, bad_frame]).
 
 invalid_ws_send_text_utf8_result() ->
-    gluegun_ffi:ws_send(self(), make_ref(), {text, <<255>>}).
+    gluegun_ffi:ws_send(self(), make_ref(), [{text, <<255>>}]).
 
 %% Bypasses the Gleam `UpgradeOption` type on purpose: checks that Gun's own
 %% ws_opts validation is still surfaced as `InvalidOptions`.
