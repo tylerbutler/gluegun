@@ -114,10 +114,11 @@ pub fn normalize_headers(headers: List(Header)) -> List(Header) {
 /// `gluegun/client` helpers to collect a regular response.
 ///
 /// The method, path, and headers are validated before crossing to Gun: the
-/// method and path must not contain control bytes (including CR/LF), header
-/// names must be valid HTTP tokens, header values must not contain CR, LF,
-/// or NUL, and headers cannot include a caller-supplied `Transfer-Encoding`
-/// or a duplicate/malformed `Content-Length`. Invalid input returns
+/// method and path must be non-empty and must not contain a control byte,
+/// space, or DEL (including CR/LF); header names must be valid HTTP tokens;
+/// header values must not contain a control byte (other than HTAB) or DEL;
+/// and headers cannot include a caller-supplied `Transfer-Encoding` or a
+/// duplicate/malformed `Content-Length`. Invalid input returns
 /// `InvalidOptions` instead of reaching Gun.
 ///
 /// Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.

@@ -477,12 +477,12 @@ pub fn upgrade(
 /// Initiate a WebSocket upgrade on an assumed HTTP/1.1 connection with options.
 ///
 /// The path and headers are validated the same way as
-/// `gluegun/request.request`: the path must not contain control bytes
-/// (including CR/LF), header names must be valid HTTP tokens, header values
-/// must not contain CR, LF, or NUL, and headers cannot include a
-/// caller-supplied `Transfer-Encoding` or a duplicate/malformed
-/// `Content-Length`. Invalid input returns `InvalidOptions` instead of
-/// reaching Gun.
+/// `gluegun/request.request`: the path must be non-empty and must not
+/// contain a control byte, space, or DEL (including CR/LF); header names
+/// must be valid HTTP tokens; header values must not contain a control byte
+/// (other than HTAB) or DEL; and headers cannot include a caller-supplied
+/// `Transfer-Encoding` or a duplicate/malformed `Content-Length`. Invalid
+/// input returns `InvalidOptions` instead of reaching Gun.
 pub fn upgrade_with_options(
   connection: Connection,
   path: String,

@@ -73,7 +73,8 @@ request(ConnPid, Method, Path, Headers, Body) ->
             {ok, gun:request(ConnPid, MethodBin, PathBin, HeadersOut, Body, #{})}
         end)
     catch
-        error:{invalid_options, Reason}:_Stack -> {error, gleam_error({invalid_options, Reason})}
+        error:{invalid_options, Reason}:_Stack -> {error, gleam_error({invalid_options, Reason})};
+        Class:Reason:_Stack -> {error, gleam_error({erlang_error, {Class, Reason}})}
     end.
 
 headers(ConnPid, Method, Path, Headers) ->
@@ -85,7 +86,8 @@ headers(ConnPid, Method, Path, Headers) ->
             {ok, gun:headers(ConnPid, MethodBin, PathBin, HeadersOut, #{})}
         end)
     catch
-        error:{invalid_options, Reason}:_Stack -> {error, gleam_error({invalid_options, Reason})}
+        error:{invalid_options, Reason}:_Stack -> {error, gleam_error({invalid_options, Reason})};
+        Class:Reason:_Stack -> {error, gleam_error({erlang_error, {Class, Reason}})}
     end.
 
 data(ConnPid, StreamRef, Fin, Data) ->
@@ -644,10 +646,11 @@ to_binary(Value) -> error({invalid_binary, Value}).
 %% `request/5`, `headers/4`, and `ws_upgrade/4` are the only places attacker-
 %% or caller-controlled bytes reach Gun's request-line and header encoder.
 %% Everything here rejects bytes that could split an HTTP/1.1 request into
-%% more than one request (CR, LF), truncate a header at a NUL, or let a
-%% caller override framing (`Transfer-Encoding`, conflicting
-%% `Content-Length`) that Gluegun itself is responsible for. Validation
-%% raises `error({invalid_options, {request, Reason}})`, caught by the
+%% more than one request (CR, LF), desync a header/request line with a SP or
+%% other C0 control byte, truncate a header at a NUL, or let a caller
+%% override framing (`Transfer-Encoding`, conflicting `Content-Length`) that
+%% Gluegun itself is responsible for. Validation raises
+%% `error({invalid_options, {request, Reason}})`, caught by the
 %% `try`/`catch` in each caller and turned into `{error, InvalidOptions}`.
 
 %% The HTTP method is sent verbatim on the request line, so it must be a
@@ -661,20 +664,28 @@ validate_request_method(Method) ->
 
 %% The path is sent verbatim on the request line. Gluegun does not parse or
 %% encode URLs, so this only rejects bytes that are never valid there: C0
-%% control characters (including CR/LF) and DEL. It does not validate
+%% control characters (including CR/LF), SP, and DEL. Gun's HTTP/1.1 encoder
+%% (cow_http) would otherwise happily emit `GET  HTTP/1.1` or a request line
+%% with an embedded literal space, either of which downstream servers can
+%% parse ambiguously. An empty path is also rejected; it does not validate
 %% percent-encoding or reserved characters.
 validate_request_path(Path) ->
     PathBin = to_binary(Path),
-    case has_control_byte(PathBin) of
-        true -> error({invalid_options, {request, invalid_path}});
-        false -> PathBin
+    case PathBin of
+        <<>> -> error({invalid_options, {request, invalid_path}});
+        _ ->
+            case has_invalid_path_byte(PathBin) of
+                true -> error({invalid_options, {request, invalid_path}});
+                false -> PathBin
+            end
     end.
 
 %% Validate and ASCII-normalize outgoing request headers. Names must be RFC
-%% 7230 tokens, values must not contain CR, LF, or NUL, and callers cannot
-%% supply framing headers (`Transfer-Encoding`, duplicate or malformed
-%% `Content-Length`) that would let a request be interpreted differently by
-%% Gluegun and a downstream proxy or origin server.
+%% 7230 tokens, values must not contain a C0 control byte (other than HTAB)
+%% or DEL, and callers cannot supply framing headers (`Transfer-Encoding`,
+%% duplicate or malformed `Content-Length`) that would let a request be
+%% interpreted differently by Gluegun and a downstream proxy or origin
+%% server.
 validate_request_headers(Headers) ->
     Normalized = [
         {ascii_lowercase(validate_header_name(Name)), validate_header_value(Value)}
@@ -732,16 +743,28 @@ is_token_byte(Byte) ->
         (Byte >= $0 andalso Byte =< $9) orelse
         lists:member(Byte, "!#$%&'*+-.^_`|~").
 
-%% C0 controls (0x00-0x1F) and DEL (0x7F). Covers CR/LF request-line and
-%% header-line splitting plus other bytes that have no valid meaning there.
-has_control_byte(Bin) ->
-    lists:any(fun(Byte) -> Byte < 16#20 orelse Byte =:= 16#7F end, binary_to_list(Bin)).
+%% C0 controls (0x00-0x1F), SP (0x20), and DEL (0x7F). A request path is
+%% sent verbatim between the method and the HTTP version on the request
+%% line, so besides CR/LF splitting, a literal space would let cow_http1
+%% (Gun's HTTP/1.1 encoder) emit a request line with more than the expected
+%% three space-separated fields, which some intermediaries parse
+%% ambiguously.
+has_invalid_path_byte(Bin) ->
+    lists:any(fun(Byte) -> Byte =< 16#20 orelse Byte =:= 16#7F end, binary_to_list(Bin)).
 
-%% CR, LF, and NUL specifically: the bytes that let a header value split a
-%% message into extra header/request lines or truncate a header early.
+%% Every C0 control byte (0x00-0x1F) except HTAB, plus DEL (0x7F). This
+%% matches the RFC 7230 `field-value` grammar: SP, HTAB, VCHAR, and
+%% obs-text (0x80-0xFF) are valid; every other control byte either splits
+%% a message into extra header/request lines (CR, LF), truncates a header
+%% early (NUL), or otherwise has no valid meaning in a header value (e.g.
+%% VT, FF).
 has_forbidden_value_byte(Bin) ->
-    lists:any(fun(Byte) -> Byte =:= 16#0D orelse Byte =:= 16#0A orelse Byte =:= 16#00 end,
-        binary_to_list(Bin)).
+    lists:any(fun is_forbidden_value_byte/1, binary_to_list(Bin)).
+
+is_forbidden_value_byte(16#09) -> false;
+is_forbidden_value_byte(Byte) when Byte < 16#20 -> true;
+is_forbidden_value_byte(16#7F) -> true;
+is_forbidden_value_byte(_Byte) -> false.
 
 %% Lowercase using the ASCII range only. Header names are already validated
 %% as HTTP tokens (ASCII-only) by the time this runs, so this avoids relying
