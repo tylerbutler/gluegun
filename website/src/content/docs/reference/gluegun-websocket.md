@@ -305,6 +305,9 @@ Initiate a WebSocket upgrade on an assumed HTTP/1.1 connection.
  connection may negotiate HTTP/2. This function keeps the original HTTP/1.1
  default path for callers that constrain the connection to HTTP/1.1.
 
+ The path and headers are validated before crossing to Gun; see
+ `upgrade_with_options` for the rejected shapes.
+
 ```gleam
 pub fn upgrade(
   internal.Connection,
@@ -324,6 +327,14 @@ pub fn upgrade_options() -> UpgradeOptions
 ### `upgrade_with_options`
 
 Initiate a WebSocket upgrade on an assumed HTTP/1.1 connection with options.
+
+ The path and headers are validated the same way as
+ `gluegun/request.request`: the path must not contain control bytes
+ (including CR/LF), header names must be valid HTTP tokens, header values
+ must not contain CR, LF, or NUL, and headers cannot include a
+ caller-supplied `Transfer-Encoding` or a duplicate/malformed
+ `Content-Length`. Invalid input returns `InvalidOptions` instead of
+ reaching Gun.
 
 ```gleam
 pub fn upgrade_with_options(

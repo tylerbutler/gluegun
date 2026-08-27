@@ -72,6 +72,146 @@ pub fn streaming_tests() -> test_tree.TestTree {
         |> expect.to_equal(Ok("nofin"))
       }),
     ]),
+    startest.describe("request injection guards", [
+      startest.it("rejects a CRLF-split request path", fn() {
+        request.request(
+          current_connection(),
+          request.Get,
+          "/upload HTTP/1.1\r\nX-Injected: evil",
+          [],
+          <<>>,
+          request.options(),
+        )
+        |> expect.to_equal(Error(error.InvalidOptions("Request(InvalidPath)")))
+      }),
+      startest.it("rejects a bare NUL byte in the request path", fn() {
+        request.request(
+          current_connection(),
+          request.Get,
+          "/upload\u{0000}.txt",
+          [],
+          <<>>,
+          request.options(),
+        )
+        |> expect.to_equal(Error(error.InvalidOptions("Request(InvalidPath)")))
+      }),
+      startest.it("rejects a CRLF-injected header value", fn() {
+        request.request(
+          current_connection(),
+          request.Post,
+          "/upload",
+          [#("X-Trace", "abc\r\nX-Injected: evil")],
+          <<>>,
+          request.options(),
+        )
+        |> expect.to_equal(
+          Error(error.InvalidOptions("Request(InvalidHeaderValue)")),
+        )
+      }),
+      startest.it("rejects a NUL byte in a header value", fn() {
+        request.request(
+          current_connection(),
+          request.Post,
+          "/upload",
+          [#("X-Trace", "abc\u{0000}def")],
+          <<>>,
+          request.options(),
+        )
+        |> expect.to_equal(
+          Error(error.InvalidOptions("Request(InvalidHeaderValue)")),
+        )
+      }),
+      startest.it("rejects a header name that is not an RFC 7230 token", fn() {
+        request.request(
+          current_connection(),
+          request.Post,
+          "/upload",
+          [#("X-Trace: evil", "abc")],
+          <<>>,
+          request.options(),
+        )
+        |> expect.to_equal(
+          Error(error.InvalidOptions("Request(InvalidHeaderName)")),
+        )
+      }),
+      startest.it("rejects a CRLF-injected header name", fn() {
+        request.request(
+          current_connection(),
+          request.Post,
+          "/upload",
+          [#("X-Trace\r\nX-Injected", "evil")],
+          <<>>,
+          request.options(),
+        )
+        |> expect.to_equal(
+          Error(error.InvalidOptions("Request(InvalidHeaderName)")),
+        )
+      }),
+      startest.it("rejects a caller-supplied Transfer-Encoding header", fn() {
+        request.request(
+          current_connection(),
+          request.Post,
+          "/upload",
+          [#("Transfer-Encoding", "chunked")],
+          <<>>,
+          request.options(),
+        )
+        |> expect.to_equal(
+          Error(error.InvalidOptions("Request(ForbiddenTransferEncodingHeader)")),
+        )
+      }),
+      startest.it("rejects duplicate Content-Length headers", fn() {
+        request.request(
+          current_connection(),
+          request.Post,
+          "/upload",
+          [#("Content-Length", "4"), #("Content-Length", "9999")],
+          <<"data":utf8>>,
+          request.options(),
+        )
+        |> expect.to_equal(
+          Error(error.InvalidOptions("Request(DuplicateContentLengthHeader)")),
+        )
+      }),
+      startest.it("rejects a non-numeric Content-Length header", fn() {
+        request.request(
+          current_connection(),
+          request.Post,
+          "/upload",
+          [#("Content-Length", "4 ; charset=evil")],
+          <<"data":utf8>>,
+          request.options(),
+        )
+        |> expect.to_equal(
+          Error(error.InvalidOptions("Request(InvalidContentLengthHeader)")),
+        )
+      }),
+      startest.it("rejects a CRLF-split custom request method", fn() {
+        request.request(
+          current_connection(),
+          request.Custom("GET /other HTTP/1.1\r\nHost: evil"),
+          "/upload",
+          [],
+          <<>>,
+          request.options(),
+        )
+        |> expect.to_equal(
+          Error(error.InvalidOptions("Request(InvalidMethod)")),
+        )
+      }),
+      startest.it("applies the same guards to start_stream", fn() {
+        request.start_stream(
+          current_connection(),
+          request.Post,
+          "/upload",
+          [#("X-Trace", "abc\r\nX-Injected: evil")],
+          request.options(),
+        )
+        |> expect.to_equal(
+          Error(error.InvalidOptions("Request(InvalidHeaderValue)")),
+        )
+      }),
+    ]),
     startest.describe("stream control", [
       startest.it("cancels streams on an open connection", fn() {
         request.cancel(current_connection(), stream_ref())

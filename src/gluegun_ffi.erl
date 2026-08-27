@@ -65,27 +65,28 @@ close(ConnPid) ->
 shutdown(ConnPid) -> with_normalize(connection_error, fun() -> gun:shutdown(ConnPid) end).
 
 request(ConnPid, Method, Path, Headers, Body) ->
-    with_normalize(stream_erlang, fun() ->
-        {ok, gun:request(
-            ConnPid,
-            to_binary(Method),
-            to_binary(Path),
-            normalize_headers(Headers),
-            Body,
-            #{}
-        )}
-    end).
+    try
+        MethodBin = validate_request_method(Method),
+        PathBin = validate_request_path(Path),
+        HeadersOut = validate_request_headers(Headers),
+        with_normalize(stream_erlang, fun() ->
+            {ok, gun:request(ConnPid, MethodBin, PathBin, HeadersOut, Body, #{})}
+        end)
+    catch
+        error:{invalid_options, Reason}:_Stack -> {error, gleam_error({invalid_options, Reason})}
+    end.
 
 headers(ConnPid, Method, Path, Headers) ->
-    with_normalize(stream_erlang, fun() ->
-        {ok, gun:headers(
-            ConnPid,
-            to_binary(Method),
-            to_binary(Path),
-            normalize_headers(Headers),
-            #{}
-        )}
-    end).
+    try
+        MethodBin = validate_request_method(Method),
+        PathBin = validate_request_path(Path),
+        HeadersOut = validate_request_headers(Headers),
+        with_normalize(stream_erlang, fun() ->
+            {ok, gun:headers(ConnPid, MethodBin, PathBin, HeadersOut, #{})}
+        end)
+    catch
+        error:{invalid_options, Reason}:_Stack -> {error, gleam_error({invalid_options, Reason})}
+    end.
 
 data(ConnPid, StreamRef, Fin, Data) ->
     with_normalize(stream, fun() ->
@@ -129,9 +130,11 @@ flush(ConnPid) -> with_normalize(connection_error, fun() -> gun:flush(ConnPid) e
 ws_upgrade(ConnPid, Path, Headers, WsOptions) ->
     try
         GunOpts = ws_options_to_gun(WsOptions),
+        PathBin = validate_request_path(Path),
+        HeadersOut = validate_request_headers(Headers),
         with_normalize(stream_erlang, fun() ->
             try
-                case gun:ws_upgrade(ConnPid, Path, normalize_headers(Headers), GunOpts) of
+                case gun:ws_upgrade(ConnPid, PathBin, HeadersOut, GunOpts) of
                     {error, {options, {ws, Opt}}} ->
                         {error, {invalid_options, {ws, invalid_ws_opt_name(Opt)}}};
                     {error, {options, Reason}} ->
@@ -607,7 +610,10 @@ method_from_gun(Method) ->
     end.
 
 %% Header names are lowercased on both directions of the boundary; values are
-%% preserved exactly.
+%% preserved exactly. This lenient form only decodes messages Gun already
+%% accepted from the wire (responses, pushes, trailers, upgrades); it must
+%% never be used to build an outgoing request. Use `validate_request_headers/1`
+%% for anything crossing the boundary in the request direction.
 normalize_headers(Headers) ->
     [{string:lowercase(to_binary(Name)), to_binary(Value)} || {Name, Value} <- Headers].
 
@@ -616,3 +622,116 @@ to_binary(Value) when is_atom(Value) -> atom_to_binary(Value, utf8);
 to_binary(Value) when is_list(Value) -> iolist_to_binary(Value);
 to_binary(Value) when is_integer(Value) -> integer_to_binary(Value);
 to_binary(Value) -> error({invalid_binary, Value}).
+
+%% --- Outgoing request validation --------------------------------------------
+%%
+%% `request/5`, `headers/4`, and `ws_upgrade/4` are the only places attacker-
+%% or caller-controlled bytes reach Gun's request-line and header encoder.
+%% Everything here rejects bytes that could split an HTTP/1.1 request into
+%% more than one request (CR, LF), truncate a header at a NUL, or let a
+%% caller override framing (`Transfer-Encoding`, conflicting
+%% `Content-Length`) that Gluegun itself is responsible for. Validation
+%% raises `error({invalid_options, {request, Reason}})`, caught by the
+%% `try`/`catch` in each caller and turned into `{error, InvalidOptions}`.
+
+%% The HTTP method is sent verbatim on the request line, so it must be a
+%% valid HTTP token just like a header name.
+validate_request_method(Method) ->
+    MethodBin = to_binary(Method),
+    case is_valid_token(MethodBin) of
+        true -> MethodBin;
+        false -> error({invalid_options, {request, invalid_method}})
+    end.
+
+%% The path is sent verbatim on the request line. Gluegun does not parse or
+%% encode URLs, so this only rejects bytes that are never valid there: C0
+%% control characters (including CR/LF) and DEL. It does not validate
+%% percent-encoding or reserved characters.
+validate_request_path(Path) ->
+    PathBin = to_binary(Path),
+    case has_control_byte(PathBin) of
+        true -> error({invalid_options, {request, invalid_path}});
+        false -> PathBin
+    end.
+
+%% Validate and ASCII-normalize outgoing request headers. Names must be RFC
+%% 7230 tokens, values must not contain CR, LF, or NUL, and callers cannot
+%% supply framing headers (`Transfer-Encoding`, duplicate or malformed
+%% `Content-Length`) that would let a request be interpreted differently by
+%% Gluegun and a downstream proxy or origin server.
+validate_request_headers(Headers) ->
+    Normalized = [
+        {ascii_lowercase(validate_header_name(Name)), validate_header_value(Value)}
+     || {Name, Value} <- Headers
+    ],
+    reject_transfer_encoding(Normalized),
+    validate_content_length(Normalized),
+    Normalized.
+
+validate_header_name(Name) ->
+    NameBin = to_binary(Name),
+    case is_valid_token(NameBin) of
+        true -> NameBin;
+        false -> error({invalid_options, {request, invalid_header_name}})
+    end.
+
+validate_header_value(Value) ->
+    ValueBin = to_binary(Value),
+    case has_forbidden_value_byte(ValueBin) of
+        true -> error({invalid_options, {request, invalid_header_value}});
+        false -> ValueBin
+    end.
+
+reject_transfer_encoding(Headers) ->
+    case lists:keymember(<<"transfer-encoding">>, 1, Headers) of
+        true -> error({invalid_options, {request, forbidden_transfer_encoding_header}});
+        false -> ok
+    end.
+
+validate_content_length(Headers) ->
+    case [Value || {<<"content-length">>, Value} <- Headers] of
+        [] ->
+            ok;
+        [Value] ->
+            case is_valid_content_length(Value) of
+                true -> ok;
+                false -> error({invalid_options, {request, invalid_content_length_header}})
+            end;
+        [_ | _] ->
+            error({invalid_options, {request, duplicate_content_length_header}})
+    end.
+
+is_valid_content_length(Value) ->
+    byte_size(Value) > 0 andalso
+        lists:all(fun(Byte) -> Byte >= $0 andalso Byte =< $9 end, binary_to_list(Value)).
+
+%% RFC 7230 `tchar`: DIGIT / ALPHA / one of "!#$%&'*+-.^_`|~". Method and
+%% header names are both HTTP tokens, so this is shared between the two.
+is_valid_token(Bin) ->
+    byte_size(Bin) > 0 andalso lists:all(fun is_token_byte/1, binary_to_list(Bin)).
+
+is_token_byte(Byte) ->
+    (Byte >= $A andalso Byte =< $Z) orelse
+        (Byte >= $a andalso Byte =< $z) orelse
+        (Byte >= $0 andalso Byte =< $9) orelse
+        lists:member(Byte, "!#$%&'*+-.^_`|~").
+
+%% C0 controls (0x00-0x1F) and DEL (0x7F). Covers CR/LF request-line and
+%% header-line splitting plus other bytes that have no valid meaning there.
+has_control_byte(Bin) ->
+    lists:any(fun(Byte) -> Byte < 16#20 orelse Byte =:= 16#7F end, binary_to_list(Bin)).
+
+%% CR, LF, and NUL specifically: the bytes that let a header value split a
+%% message into extra header/request lines or truncate a header early.
+has_forbidden_value_byte(Bin) ->
+    lists:any(fun(Byte) -> Byte =:= 16#0D orelse Byte =:= 16#0A orelse Byte =:= 16#00 end,
+        binary_to_list(Bin)).
+
+%% Lowercase using the ASCII range only. Header names are already validated
+%% as HTTP tokens (ASCII-only) by the time this runs, so this avoids relying
+%% on Unicode-aware case folding for a security-relevant comparison.
+ascii_lowercase(Bin) ->
+    <<<<(ascii_lower_byte(Byte))>> || <<Byte>> <= Bin>>.
+
+ascii_lower_byte(Byte) when Byte >= $A andalso Byte =< $Z -> Byte + 32;
+ascii_lower_byte(Byte) -> Byte.

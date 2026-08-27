@@ -113,6 +113,13 @@ pub fn normalize_headers(headers: List(Header)) -> List(Header) {
 /// `gluegun/message.await` / `await_body` to consume them, or use
 /// `gluegun/client` helpers to collect a regular response.
 ///
+/// The method, path, and headers are validated before crossing to Gun: the
+/// method and path must not contain control bytes (including CR/LF), header
+/// names must be valid HTTP tokens, header values must not contain CR, LF,
+/// or NUL, and headers cannot include a caller-supplied `Transfer-Encoding`
+/// or a duplicate/malformed `Content-Length`. Invalid input returns
+/// `InvalidOptions` instead of reaching Gun.
+///
 /// Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.
 pub fn request(
   connection: Connection,
@@ -141,6 +148,9 @@ pub fn request(
 /// Gun response messages are delivered to the calling process by default;
 /// pass an option to redirect via Gun's `reply_to` if you need another
 /// process to consume them.
+///
+/// The method, path, and headers are validated the same way as `request`;
+/// see its documentation for the rejected shapes.
 ///
 /// Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.
 pub fn start_stream(
