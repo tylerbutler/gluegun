@@ -24,13 +24,14 @@
     websocket_frame_message/1,
     unknown_message/0,
     unknown_websocket_frame_message/0,
-    mailbox_inform_message/2,
-    mailbox_response_message/3,
-    mailbox_data_message/2,
-    mailbox_trailers_message/1,
-    mailbox_push_message/4,
-    mailbox_upgrade_message/2,
-    mailbox_websocket_frame_message/1,
+    unknown_frame/0,
+    mailbox_inform_message/4,
+    mailbox_response_message/5,
+    mailbox_data_message/4,
+    mailbox_trailers_message/3,
+    mailbox_push_message/6,
+    mailbox_upgrade_message/4,
+    mailbox_websocket_frame_message/3,
     mailbox_stream_error_result/0,
     mailbox_connection_error_result/0,
     await_body_with_fin/1,
@@ -101,31 +102,39 @@ unknown_message() -> {mystery, <<"unknown">>}.
 
 unknown_websocket_frame_message() -> {ws, {mystery, <<"unknown">>}}.
 
+%% An unrecognized WebSocket frame term, for pairing with a real mailbox
+%% tuple (e.g. `mailbox_websocket_frame_message/3`) to prove a malformed
+%% payload inside an otherwise-recognized mailbox tuple still surfaces as a
+%% generic decode failure.
+unknown_frame() -> {mystery, <<"unknown">>}.
+
 %% --- Raw Gun mailbox messages -----------------------------------------------
 %%
 %% The tuples Gun sends to the process that owns the stream. They carry the
-%% connection pid and stream reference that `gun:await/3` strips.
+%% connection pid and stream reference that `gun:await/3` strips. Connection
+%% and stream are explicit parameters (rather than generated internally) so
+%% Gleam tests can assert the exact same handles come back out of `decode`.
 
-mailbox_inform_message(Status, Headers) ->
-    {gun_inform, current_connection(), stream_ref(), Status, Headers}.
+mailbox_inform_message(Connection, Stream, Status, Headers) ->
+    {gun_inform, Connection, Stream, Status, Headers}.
 
-mailbox_response_message(Fin, Status, Headers) ->
-    {gun_response, current_connection(), stream_ref(), gun_fin(Fin), Status, Headers}.
+mailbox_response_message(Connection, Stream, Fin, Status, Headers) ->
+    {gun_response, Connection, Stream, gun_fin(Fin), Status, Headers}.
 
-mailbox_data_message(Fin, Data) ->
-    {gun_data, current_connection(), stream_ref(), gun_fin(Fin), Data}.
+mailbox_data_message(Connection, Stream, Fin, Data) ->
+    {gun_data, Connection, Stream, gun_fin(Fin), Data}.
 
-mailbox_trailers_message(Headers) ->
-    {gun_trailers, current_connection(), stream_ref(), Headers}.
+mailbox_trailers_message(Connection, Stream, Headers) ->
+    {gun_trailers, Connection, Stream, Headers}.
 
-mailbox_push_message(NewStreamRef, Method, URI, Headers) ->
-    {gun_push, current_connection(), stream_ref(), NewStreamRef, Method, URI, Headers}.
+mailbox_push_message(Connection, Stream, NewStreamRef, Method, URI, Headers) ->
+    {gun_push, Connection, Stream, NewStreamRef, Method, URI, Headers}.
 
-mailbox_upgrade_message(Protocols, Headers) ->
-    {gun_upgrade, current_connection(), stream_ref(), Protocols, Headers}.
+mailbox_upgrade_message(Connection, Stream, Protocols, Headers) ->
+    {gun_upgrade, Connection, Stream, Protocols, Headers}.
 
-mailbox_websocket_frame_message(Frame) ->
-    {gun_ws, current_connection(), stream_ref(), Frame}.
+mailbox_websocket_frame_message(Connection, Stream, Frame) ->
+    {gun_ws, Connection, Stream, Frame}.
 
 mailbox_stream_error_result() ->
     gluegun_ffi:safe_decode_message({gun_error, current_connection(), stream_ref(), boom}).

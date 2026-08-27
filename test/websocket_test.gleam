@@ -111,38 +111,38 @@ pub fn websocket_tests() -> test_tree.TestTree {
     startest.describe("inbound frame decoding", [
       startest.it("decodes text frames", fn() {
         websocket_frame_message(text_frame(<<"hello world":utf8>>))
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(Ok(message.WebSocket(message.Text("hello world"))))
       }),
       startest.it("decodes binary frames", fn() {
         websocket_frame_message(binary_frame(<<0, 1, 2, 255>>))
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(
           Ok(message.WebSocket(message.Binary(<<0, 1, 2, 255>>))),
         )
       }),
       startest.it("decodes ping frames", fn() {
         websocket_frame_message(ping_frame(<<>>))
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(Ok(message.WebSocket(message.Ping(<<>>))))
       }),
       startest.it("decodes pong frames", fn() {
         websocket_frame_message(pong_frame(<<"keepalive":utf8>>))
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(
           Ok(message.WebSocket(message.Pong(<<"keepalive":utf8>>))),
         )
       }),
       startest.it("decodes plain close frames", fn() {
         websocket_frame_message(close_frame())
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(Ok(message.WebSocket(message.Close)))
       }),
       startest.it("decodes close-with-reason frames", fn() {
         websocket_frame_message(
           close_with_reason_frame(1001, <<"going away":utf8>>),
         )
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(
           Ok(
             message.WebSocket(
@@ -153,22 +153,6 @@ pub fn websocket_tests() -> test_tree.TestTree {
       }),
     ]),
     startest.describe("FFI close frame shapes", [
-      startest.it("decodes plain close messages", fn() {
-        ws_close_message()
-        |> message.decode
-        |> expect.to_equal(Ok(message.WebSocket(message.Close)))
-      }),
-      startest.it("decodes close-with-reason messages", fn() {
-        ws_close_with_reason_message()
-        |> message.decode
-        |> expect.to_equal(
-          Ok(
-            message.WebSocket(
-              message.CloseWithReason(1001, <<"going away":utf8>>),
-            ),
-          ),
-        )
-      }),
       startest.it("maps plain close messages safely", fn() {
         ws_close_message()
         |> safe_decode_message
@@ -819,7 +803,7 @@ fn decode_captured_frame(
   captured: Result(message.GunMessage, error.GluegunError),
 ) -> Result(message.Message, error.GluegunError) {
   case captured {
-    Ok(gun_message) -> message.decode(gun_message)
+    Ok(gun_message) -> safe_decode_message(gun_message)
     Error(error) -> Error(error)
   }
 }
