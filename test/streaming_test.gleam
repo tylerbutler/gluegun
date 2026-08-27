@@ -95,6 +95,28 @@ pub fn streaming_tests() -> test_tree.TestTree {
         )
         |> expect.to_equal(Error(error.InvalidOptions("Request(InvalidPath)")))
       }),
+      startest.it("rejects a literal space in the request path", fn() {
+        request.request(
+          current_connection(),
+          request.Get,
+          "/upload HTTP/1.1",
+          [],
+          <<>>,
+          request.options(),
+        )
+        |> expect.to_equal(Error(error.InvalidOptions("Request(InvalidPath)")))
+      }),
+      startest.it("rejects an empty request path", fn() {
+        request.request(
+          current_connection(),
+          request.Get,
+          "",
+          [],
+          <<>>,
+          request.options(),
+        )
+        |> expect.to_equal(Error(error.InvalidOptions("Request(InvalidPath)")))
+      }),
       startest.it("rejects a CRLF-injected header value", fn() {
         request.request(
           current_connection(),
@@ -120,6 +142,44 @@ pub fn streaming_tests() -> test_tree.TestTree {
         |> expect.to_equal(
           Error(error.InvalidOptions("Request(InvalidHeaderValue)")),
         )
+      }),
+      startest.it("rejects a vertical-tab byte in a header value", fn() {
+        request.request(
+          current_connection(),
+          request.Post,
+          "/upload",
+          [#("X-Trace", "abc\u{000B}def")],
+          <<>>,
+          request.options(),
+        )
+        |> expect.to_equal(
+          Error(error.InvalidOptions("Request(InvalidHeaderValue)")),
+        )
+      }),
+      startest.it("rejects a form-feed byte in a header value", fn() {
+        request.request(
+          current_connection(),
+          request.Post,
+          "/upload",
+          [#("X-Trace", "abc\u{000C}def")],
+          <<>>,
+          request.options(),
+        )
+        |> expect.to_equal(
+          Error(error.InvalidOptions("Request(InvalidHeaderValue)")),
+        )
+      }),
+      startest.it("accepts a horizontal tab byte in a header value", fn() {
+        let assert Ok(_stream) =
+          request.start_stream(
+            current_connection(),
+            request.Post,
+            "/upload",
+            [#("X-Trace", "abc\tdef")],
+            request.options(),
+          )
+        capture_stream_headers()
+        |> expect.to_equal(Ok(#("POST", "/upload", [#("x-trace", "abc\tdef")])))
       }),
       startest.it("rejects a header name that is not an RFC 7230 token", fn() {
         request.request(

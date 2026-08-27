@@ -68,6 +68,15 @@ pub fn ffi_shape_tests() -> test_tree.TestTree {
           |> expect.to_equal(Error(error.ErlangError("Error(FunctionClause)")))
         },
       ),
+      startest.it(
+        "surfaces non-binary request fields as ErlangError instead of crashing",
+        fn() {
+          gluegun_ffi_test_invalid_binary_method()
+          |> expect.to_equal(
+            Error(error.ErlangError("Error(InvalidBinary(3.14))")),
+          )
+        },
+      ),
       startest.it("keeps stream errors explicit", fn() {
         gluegun_ffi_test_stream_error()
         |> expect.to_equal(Error(error.StreamError("Boom")))
@@ -214,6 +223,12 @@ fn gluegun_ffi_test_invalid_connection() -> internal.Connection
 
 @external(erlang, "gluegun_ffi_test", "erlang_error_result")
 fn gluegun_ffi_test_erlang_error() -> Result(
+  internal.Stream,
+  error.GluegunError,
+)
+
+@external(erlang, "gluegun_ffi_test", "invalid_binary_method_result")
+fn gluegun_ffi_test_invalid_binary_method() -> Result(
   internal.Stream,
   error.GluegunError,
 )

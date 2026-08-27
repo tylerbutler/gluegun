@@ -653,6 +653,14 @@ pub fn websocket_tests() -> test_tree.TestTree {
         )
         |> expect.to_equal(Error(error.InvalidOptions("Request(InvalidPath)")))
       }),
+      startest.it("rejects a literal space in the upgrade path", fn() {
+        websocket.upgrade(current_connection(), "/ws HTTP/1.1", [])
+        |> expect.to_equal(Error(error.InvalidOptions("Request(InvalidPath)")))
+      }),
+      startest.it("rejects an empty upgrade path", fn() {
+        websocket.upgrade(current_connection(), "", [])
+        |> expect.to_equal(Error(error.InvalidOptions("Request(InvalidPath)")))
+      }),
       startest.it("rejects a CRLF-injected upgrade header value", fn() {
         websocket.upgrade(current_connection(), "/ws", [
           #("X-Trace", "abc\r\nX-Injected: evil"),
@@ -661,6 +669,17 @@ pub fn websocket_tests() -> test_tree.TestTree {
           Error(error.InvalidOptions("Request(InvalidHeaderValue)")),
         )
       }),
+      startest.it(
+        "rejects a vertical-tab byte in an upgrade header value",
+        fn() {
+          websocket.upgrade(current_connection(), "/ws", [
+            #("X-Trace", "abc\u{000B}def"),
+          ])
+          |> expect.to_equal(
+            Error(error.InvalidOptions("Request(InvalidHeaderValue)")),
+          )
+        },
+      ),
       startest.it("rejects an invalid upgrade header name", fn() {
         websocket.upgrade(current_connection(), "/ws", [
           #("X-Trace: evil", "abc"),
