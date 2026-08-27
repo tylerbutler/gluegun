@@ -628,6 +628,45 @@ pub fn websocket_tests() -> test_tree.TestTree {
         |> expect.to_equal(Error(error.ErlangError("Error(FunctionClause)")))
       }),
     ]),
+    startest.describe("upgrade injection guards", [
+      startest.it("rejects a CRLF-split upgrade path", fn() {
+        websocket.upgrade(
+          current_connection(),
+          "/ws HTTP/1.1\r\nX-Injected: evil",
+          [],
+        )
+        |> expect.to_equal(Error(error.InvalidOptions("Request(InvalidPath)")))
+      }),
+      startest.it("rejects a CRLF-injected upgrade header value", fn() {
+        websocket.upgrade(current_connection(), "/ws", [
+          #("X-Trace", "abc\r\nX-Injected: evil"),
+        ])
+        |> expect.to_equal(
+          Error(error.InvalidOptions("Request(InvalidHeaderValue)")),
+        )
+      }),
+      startest.it("rejects an invalid upgrade header name", fn() {
+        websocket.upgrade(current_connection(), "/ws", [
+          #("X-Trace: evil", "abc"),
+        ])
+        |> expect.to_equal(
+          Error(error.InvalidOptions("Request(InvalidHeaderName)")),
+        )
+      }),
+      startest.it(
+        "rejects a caller-supplied Transfer-Encoding upgrade header",
+        fn() {
+          websocket.upgrade(current_connection(), "/ws", [
+            #("Transfer-Encoding", "chunked"),
+          ])
+          |> expect.to_equal(
+            Error(error.InvalidOptions(
+              "Request(ForbiddenTransferEncodingHeader)",
+            )),
+          )
+        },
+      ),
+    ]),
     startest.describe("WebSocket upgrade options", [
       startest.it("encodes default options to an empty option list", fn() {
         websocket.upgrade_options()

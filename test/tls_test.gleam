@@ -77,6 +77,52 @@ pub fn tls_tests() -> test_tree.TestTree {
       ])
     }),
 
+    startest.it(
+      "resolves Auto to Gun's tls transport when TLS options are configured, preventing a silent downgrade to plaintext on non-443 ports",
+      fn() {
+        let tls_options =
+          tls.options() |> tls.with_verify(verify: tls.VerifyPeer)
+
+        connection.options()
+        |> connection.with_tls_options(tls_options)
+        |> connection.options_to_ffi
+        |> gun_transport
+        |> expect.to_equal("tls")
+      },
+    ),
+
+    startest.it(
+      "leaves Auto unresolved for Gun's own port-based default when no TLS options are configured",
+      fn() {
+        connection.options()
+        |> connection.options_to_ffi
+        |> gun_transport
+        |> expect.to_equal("undefined")
+      },
+    ),
+
+    startest.it(
+      "keeps the resolved Gun transport as tcp when transport is explicitly Tcp",
+      fn() {
+        connection.options()
+        |> connection.with_transport(transport: connection.Tcp)
+        |> connection.options_to_ffi
+        |> gun_transport
+        |> expect.to_equal("tcp")
+      },
+    ),
+
+    startest.it(
+      "keeps the resolved Gun transport as tls when transport is explicitly Tls",
+      fn() {
+        connection.options()
+        |> connection.with_transport(transport: connection.Tls)
+        |> connection.options_to_ffi
+        |> gun_transport
+        |> expect.to_equal("tls")
+      },
+    ),
+
     startest.it("skips TLS transport options for TCP connections", fn() {
       let tls_options = tls.options() |> tls.with_verify(verify: tls.VerifyPeer)
 
@@ -273,6 +319,11 @@ pub fn tls_tests() -> test_tree.TestTree {
 fn gun_tls_options(
   options: List(connection.ConnectOption),
 ) -> List(#(String, List(String)))
+
+/// Gun's resolved `transport` option after `connect_options_to_gun`, or
+/// `"undefined"` when left unset for Gun's own port-based default.
+@external(erlang, "gluegun_ffi_test", "gun_transport")
+fn gun_transport(options: List(connection.ConnectOption)) -> String
 
 @external(erlang, "gluegun_ffi_test", "secure_tls_opts_summary")
 fn gun_secure_tls_summary(
