@@ -50,9 +50,6 @@
 //// Any field you set on `TlsOptions` overrides the corresponding default;
 //// fields you leave unset are filled in by the secure baseline.
 
-import gleam/dynamic
-import gleam/erlang/atom
-import gleam/list
 import gleam/option.{type Option, None, Some}
 
 /// TLS peer verification mode.
@@ -82,6 +79,25 @@ pub type ServerNameIndication {
   ServerName(String)
 }
 
+/// One Erlang SSL client option, encoded for the Gun FFI boundary.
+///
+/// `to_ffi` turns `TlsOptions` into a list of these settings.
+/// `src/gluegun_ffi.erl` pattern matches each variant and builds the
+/// corresponding `ssl:tls_client_option()` tuple, so option keys and values
+/// stay typed on the Gleam side.
+@internal
+pub type TlsSetting {
+  VerifySetting(VerifyMode)
+  VersionsSetting(List(TlsVersion))
+  CiphersSetting(List(String))
+  CacertsSetting(List(BitArray))
+  CacertfileSetting(String)
+  CertfileSetting(String)
+  KeyfileSetting(String)
+  ServerNameIndicationSetting(ServerNameIndication)
+  DepthSetting(Int)
+}
+
 /// Pure representation of TLS client options before FFI conversion.
 ///
 /// Build with `options()` then chain `with_verify`, `with_versions`,
@@ -91,7 +107,7 @@ pub type ServerNameIndication {
 /// production HTTPS baseline.
 pub opaque type TlsOptions {
   TlsOptions(
-    verify: Option(dynamic.Dynamic),
+    verify: Option(VerifyMode),
     versions: Option(List(TlsVersion)),
     ciphers: Option(List(String)),
     cacerts: Option(List(BitArray)),
@@ -100,7 +116,6 @@ pub opaque type TlsOptions {
     keyfile: Option(String),
     server_name_indication: Option(ServerNameIndication),
     depth: Option(Int),
-    raw_options: List(#(String, dynamic.Dynamic)),
   )
 }
 
@@ -116,7 +131,6 @@ pub fn options() -> TlsOptions {
     keyfile: None,
     server_name_indication: None,
     depth: None,
-    raw_options: [],
   )
 }
 
@@ -135,7 +149,7 @@ pub fn insecure() -> TlsOptions {
 
 /// Set the TLS peer verification mode.
 pub fn with_verify(options: TlsOptions, verify verify: VerifyMode) -> TlsOptions {
-  TlsOptions(..options, verify: Some(verify_to_ffi(verify)))
+  TlsOptions(..options, verify: Some(verify))
 }
 
 /// Set TLS protocol versions in preference order.
@@ -196,189 +210,34 @@ pub fn with_depth(options: TlsOptions, depth depth: Int) -> TlsOptions {
   TlsOptions(..options, depth: Some(depth))
 }
 
-/// Set the raw `verify` TLS option for uncommon Erlang SSL configurations.
+/// Convert TLS options into the typed settings the Erlang FFI expects.
 ///
-/// Prefer `with_verify` for regular `verify_peer` or `verify_none` settings.
+/// The returned list keeps Gun's expected option ordering: `verify` first,
+/// then versions, ciphers, CA material, key material, SNI, and depth.
 @internal
-pub fn with_verify_dynamic(
-  options: TlsOptions,
-  verify verify: dynamic.Dynamic,
-) -> TlsOptions {
-  TlsOptions(..options, verify: Some(verify))
-}
-
-/// Append a raw Erlang SSL option for uncommon configurations.
-///
-/// This is intended for rare cases like `verify_fun` that do not yet have a
-/// dedicated typed builder.
-@internal
-pub fn with_raw_option(
-  options: TlsOptions,
-  key key: String,
-  value value: dynamic.Dynamic,
-) -> TlsOptions {
-  TlsOptions(..options, raw_options: [#(key, value), ..options.raw_options])
-}
-
-/// Convert TLS options to the Erlang FFI `ssl_options()` list shape.
-@internal
-pub fn to_ffi(options: TlsOptions) -> dynamic.Dynamic {
-  let fields =
-    []
-    |> prepend_optional_int("depth", options.depth)
-    |> prepend_optional_server_name_indication(options.server_name_indication)
-    |> prepend_optional_string("keyfile", options.keyfile)
-    |> prepend_optional_string("certfile", options.certfile)
-    |> prepend_optional_string("cacertfile", options.cacertfile)
-    |> prepend_optional_bit_arrays("cacerts", options.cacerts)
-    |> prepend_optional_strings("ciphers", options.ciphers)
-    |> prepend_optional_versions(options.versions)
-    |> prepend_optional_dynamic("verify", options.verify)
-    |> prepend_raw_options(list.reverse(options.raw_options))
-
-  dynamic.list(fields)
-}
-
-fn prepend_optional_dynamic(
-  fields: List(dynamic.Dynamic),
-  key: String,
-  value: Option(dynamic.Dynamic),
-) -> List(dynamic.Dynamic) {
-  case value {
-    Some(value) -> [dynamic.array([atom_name(key), value]), ..fields]
-    None -> fields
-  }
-}
-
-fn prepend_optional_versions(
-  fields: List(dynamic.Dynamic),
-  versions: Option(List(TlsVersion)),
-) -> List(dynamic.Dynamic) {
-  case versions {
-    Some(versions) -> [
-      dynamic.array([
-        atom_name("versions"),
-        dynamic.list(list.map(versions, tls_version_to_ffi)),
-      ]),
-      ..fields
-    ]
-    None -> fields
-  }
-}
-
-fn prepend_optional_strings(
-  fields: List(dynamic.Dynamic),
-  key: String,
-  values: Option(List(String)),
-) -> List(dynamic.Dynamic) {
-  case values {
-    Some(values) -> [
-      dynamic.array([
-        atom_name(key),
-        dynamic.list(list.map(values, dynamic.string)),
-      ]),
-      ..fields
-    ]
-    None -> fields
-  }
-}
-
-fn prepend_optional_bit_arrays(
-  fields: List(dynamic.Dynamic),
-  key: String,
-  values: Option(List(BitArray)),
-) -> List(dynamic.Dynamic) {
-  case values {
-    Some(values) -> [
-      dynamic.array([
-        atom_name(key),
-        dynamic.list(list.map(values, dynamic.bit_array)),
-      ]),
-      ..fields
-    ]
-    None -> fields
-  }
-}
-
-fn prepend_optional_string(
-  fields: List(dynamic.Dynamic),
-  key: String,
-  value: Option(String),
-) -> List(dynamic.Dynamic) {
-  case value {
-    Some(value) -> [
-      dynamic.array([atom_name(key), dynamic.string(value)]),
-      ..fields
-    ]
-    None -> fields
-  }
-}
-
-fn prepend_optional_server_name_indication(
-  fields: List(dynamic.Dynamic),
-  server_name_indication: Option(ServerNameIndication),
-) -> List(dynamic.Dynamic) {
-  case server_name_indication {
-    Some(server_name_indication) -> [
-      dynamic.array([
-        atom_name("server_name_indication"),
-        server_name_indication_to_ffi(server_name_indication),
-      ]),
-      ..fields
-    ]
-    None -> fields
-  }
-}
-
-fn prepend_optional_int(
-  fields: List(dynamic.Dynamic),
-  key: String,
-  value: Option(Int),
-) -> List(dynamic.Dynamic) {
-  case value {
-    Some(value) -> [
-      dynamic.array([atom_name(key), dynamic.int(value)]),
-      ..fields
-    ]
-    None -> fields
-  }
-}
-
-fn prepend_raw_options(
-  fields: List(dynamic.Dynamic),
-  raw_options: List(#(String, dynamic.Dynamic)),
-) -> List(dynamic.Dynamic) {
-  list.append(
-    fields,
-    list.map(raw_options, fn(option) {
-      dynamic.array([atom_name(option.0), option.1])
-    }),
+pub fn to_ffi(options: TlsOptions) -> List(TlsSetting) {
+  []
+  |> prepend_optional(options.depth, DepthSetting)
+  |> prepend_optional(
+    options.server_name_indication,
+    ServerNameIndicationSetting,
   )
+  |> prepend_optional(options.keyfile, KeyfileSetting)
+  |> prepend_optional(options.certfile, CertfileSetting)
+  |> prepend_optional(options.cacertfile, CacertfileSetting)
+  |> prepend_optional(options.cacerts, CacertsSetting)
+  |> prepend_optional(options.ciphers, CiphersSetting)
+  |> prepend_optional(options.versions, VersionsSetting)
+  |> prepend_optional(options.verify, VerifySetting)
 }
 
-fn atom_name(name: String) -> dynamic.Dynamic {
-  atom.to_dynamic(atom.create(name))
-}
-
-fn verify_to_ffi(verify: VerifyMode) -> dynamic.Dynamic {
-  case verify {
-    VerifyPeer -> atom_name("verify_peer")
-    VerifyNone -> atom_name("verify_none")
-  }
-}
-
-fn tls_version_to_ffi(version: TlsVersion) -> dynamic.Dynamic {
-  case version {
-    TlsV12 -> atom_name("tlsv1.2")
-    TlsV13 -> atom_name("tlsv1.3")
-  }
-}
-
-fn server_name_indication_to_ffi(
-  server_name_indication: ServerNameIndication,
-) -> dynamic.Dynamic {
-  case server_name_indication {
-    Disable -> atom_name("disable")
-    ServerName(hostname) -> dynamic.string(hostname)
+fn prepend_optional(
+  settings: List(TlsSetting),
+  value: Option(value),
+  encode: fn(value) -> TlsSetting,
+) -> List(TlsSetting) {
+  case value {
+    Some(value) -> [encode(value), ..settings]
+    None -> settings
   }
 }

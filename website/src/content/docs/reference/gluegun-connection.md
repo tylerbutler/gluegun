@@ -16,7 +16,7 @@ Connection management for Erlang Gun.
 Pure representation of connection options before FFI conversion.
 
  Build with `options()` then chain `with_transport`, `with_protocols`,
- `with_retry`, `with_connect_timeout`, and `with_tls_opts`. Pass the
+ `with_retry`, `with_connect_timeout`, and `with_tls_options`. Pass the
  result to `open(host:, port:)`.
 
 ```gleam
@@ -207,12 +207,12 @@ Shut down a Gun connection immediately.
 pub fn shutdown(internal.Connection) -> Result(Nil, error.GluegunError)
 ```
 
-### `tls_opts`
+### `tls_options`
 
 Inspect explicitly configured TLS options, if any.
 
 ```gleam
-pub fn tls_opts(ConnectOptions) -> option.Option(tls.TlsOptions)
+pub fn tls_options(ConnectOptions) -> option.Option(tls.TlsOptions)
 ```
 
 ### `transport`
@@ -258,14 +258,14 @@ pub fn with_retry(
 ) -> ConnectOptions
 ```
 
-### `with_tls_opts`
+### `with_tls_options`
 
 Set TLS options for TLS or auto-transport connections.
 
 ```gleam
-pub fn with_tls_opts(
+pub fn with_tls_options(
   ConnectOptions,
-  tls_opts: tls.TlsOptions
+  tls_options: tls.TlsOptions
 ) -> ConnectOptions
 ```
 

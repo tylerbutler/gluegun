@@ -4,15 +4,10 @@
 //// protocol preferences, then close or shut down the connection. Connections
 //// are Erlang process resources and are available on the Erlang target only.
 
-import gleam/dynamic
-import gleam/dynamic/decode as dyn_decode
-import gleam/erlang/atom
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/result
 import gluegun/error
 import gluegun/internal
-import gluegun/internal/ffi_result
 import gluegun/tls
 
 /// Transport selection for a Gun connection.
@@ -55,10 +50,24 @@ pub type Timeout {
 pub type Connection =
   internal.Connection
 
+/// One Gun connection option, encoded for the Erlang FFI boundary.
+///
+/// `options_to_ffi` turns `ConnectOptions` into a list of these values.
+/// `src/gluegun_ffi.erl` pattern matches each variant and builds the matching
+/// `gun:opts()` map entry, so no option ever crosses the boundary untyped.
+@internal
+pub type ConnectOption {
+  TransportOption(Transport)
+  ProtocolsOption(List(Protocol))
+  RetryOption(Timeout)
+  ConnectTimeoutOption(Timeout)
+  TlsOption(List(tls.TlsSetting))
+}
+
 /// Pure representation of connection options before FFI conversion.
 ///
 /// Build with `options()` then chain `with_transport`, `with_protocols`,
-/// `with_retry`, `with_connect_timeout`, and `with_tls_opts`. Pass the
+/// `with_retry`, `with_connect_timeout`, and `with_tls_options`. Pass the
 /// result to `open(host:, port:)`.
 pub opaque type ConnectOptions {
   ConnectOptions(
@@ -66,7 +75,7 @@ pub opaque type ConnectOptions {
     protocols: Option(List(Protocol)),
     retry: Timeout,
     connect_timeout: Timeout,
-    tls_opts: Option(tls.TlsOptions),
+    tls_options: Option(tls.TlsOptions),
   )
 }
 
@@ -77,7 +86,7 @@ pub fn options() -> ConnectOptions {
     protocols: None,
     retry: Milliseconds(5000),
     connect_timeout: Milliseconds(5000),
-    tls_opts: None,
+    tls_options: None,
   )
 }
 
@@ -116,11 +125,11 @@ pub fn with_connect_timeout(
 }
 
 /// Set TLS options for TLS or auto-transport connections.
-pub fn with_tls_opts(
+pub fn with_tls_options(
   options: ConnectOptions,
-  tls_opts tls_opts: tls.TlsOptions,
+  tls_options tls_options: tls.TlsOptions,
 ) -> ConnectOptions {
-  ConnectOptions(..options, tls_opts: Some(tls_opts))
+  ConnectOptions(..options, tls_options: Some(tls_options))
 }
 
 /// Inspect configured transport. Intended for tests and later FFI conversion.
@@ -144,8 +153,8 @@ pub fn connect_timeout(options: ConnectOptions) -> Timeout {
 }
 
 /// Inspect explicitly configured TLS options, if any.
-pub fn tls_opts(options: ConnectOptions) -> Option(tls.TlsOptions) {
-  options.tls_opts
+pub fn tls_options(options: ConnectOptions) -> Option(tls.TlsOptions) {
+  options.tls_options
 }
 
 /// Open a Gun connection to `host:port`.
@@ -163,8 +172,6 @@ pub fn open(
   port port: Int,
 ) -> Result(Connection, error.GluegunError) {
   ffi_open(host, port, options_to_ffi(options))
-  |> result.map(internal.connection)
-  |> result.map_error(error.decode_ffi_error)
 }
 
 /// Wait until a Gun connection is up and return the negotiated protocol.
@@ -180,22 +187,7 @@ pub fn await_up(
   connection: Connection,
   timeout: Timeout,
 ) -> Result(Protocol, error.GluegunError) {
-  ffi_await_up(internal.connection_raw(connection), timeout_to_ffi(timeout))
-  |> decode_await_up_result
-}
-
-@internal
-pub fn decode_await_up_result(
-  await_result: Result(dynamic.Dynamic, dynamic.Dynamic),
-) -> Result(Protocol, error.GluegunError) {
-  await_result
-  |> result.map_error(error.decode_ffi_error)
-  |> result.try(fn(protocol) {
-    case decode_protocol(protocol) {
-      Ok(protocol) -> Ok(protocol)
-      Error(message) -> Error(error.DecodeError(message))
-    }
-  })
+  ffi_await_up(connection, timeout)
 }
 
 /// Close a Gun connection cleanly.
@@ -203,8 +195,7 @@ pub fn decode_await_up_result(
 /// Sends Gun's shutdown signal and waits for the process to exit. Safe to
 /// call once per connection. Outstanding streams are cancelled.
 pub fn close(connection: Connection) -> Result(Nil, error.GluegunError) {
-  ffi_close(internal.connection_raw(connection))
-  |> ffi_result.decode_nil_result
+  ffi_close(connection)
 }
 
 /// Shut down a Gun connection immediately.
@@ -213,108 +204,52 @@ pub fn close(connection: Connection) -> Result(Nil, error.GluegunError) {
 /// `close` for normal teardown; use `shutdown` when the connection is
 /// suspected stuck.
 pub fn shutdown(connection: Connection) -> Result(Nil, error.GluegunError) {
-  ffi_shutdown(internal.connection_raw(connection))
-  |> ffi_result.decode_nil_result
+  ffi_shutdown(connection)
 }
 
-/// Convert connection options to the Erlang FFI map shape.
+/// Convert connection options to the typed shape the Erlang FFI expects.
 @internal
-pub fn options_to_ffi(options: ConnectOptions) -> dynamic.Dynamic {
-  let protocol_entries = case options.protocols {
-    Some(protocols) -> [
-      #(
-        dynamic.string("protocols"),
-        dynamic.list(list.map(protocols, protocol_to_ffi)),
-      ),
-    ]
+pub fn options_to_ffi(options: ConnectOptions) -> List(ConnectOption) {
+  let protocol_options = case options.protocols {
+    Some(protocols) -> [ProtocolsOption(protocols)]
     None -> []
   }
 
-  let transport_entries = case options.transport, options.tls_opts {
-    Tcp, _ -> []
-    _, Some(tls_opts) -> [
-      #(
-        dynamic.string("transport_opts"),
-        dynamic.properties([
-          #(dynamic.string("tls_opts"), tls.to_ffi(tls_opts)),
-        ]),
-      ),
-    ]
-    _, _ -> []
+  let tls_options = case options.transport, options.tls_options {
+    Tcp, None -> []
+    Tcp, Some(_) -> []
+    Auto, None -> []
+    Tls, None -> []
+    Auto, Some(tls_options) -> [TlsOption(tls.to_ffi(tls_options))]
+    Tls, Some(tls_options) -> [TlsOption(tls.to_ffi(tls_options))]
   }
 
-  let fields =
-    list.append(
-      [
-        #(dynamic.string("transport"), transport_to_ffi(options.transport)),
-        #(dynamic.string("retry"), timeout_to_ffi(options.retry)),
-        #(
-          dynamic.string("connect_timeout"),
-          timeout_to_ffi(options.connect_timeout),
-        ),
-        ..protocol_entries
-      ],
-      transport_entries,
-    )
-
-  dynamic.properties(fields)
-}
-
-/// Convert a timeout to the Erlang FFI shape.
-@internal
-pub fn timeout_to_ffi(timeout: Timeout) -> dynamic.Dynamic {
-  case timeout {
-    Milliseconds(milliseconds) -> dynamic.int(milliseconds)
-    Infinity -> atom.to_dynamic(atom.create("infinity"))
-  }
-}
-
-fn transport_to_ffi(transport: Transport) -> dynamic.Dynamic {
-  case transport {
-    Auto -> atom.to_dynamic(atom.create("auto"))
-    Tcp -> atom.to_dynamic(atom.create("tcp"))
-    Tls -> atom.to_dynamic(atom.create("tls"))
-  }
-}
-
-fn protocol_to_ffi(protocol: Protocol) -> dynamic.Dynamic {
-  case protocol {
-    Http1 -> atom.to_dynamic(atom.create("http"))
-    Http2 -> atom.to_dynamic(atom.create("http2"))
-  }
-}
-
-fn decode_protocol(protocol: dynamic.Dynamic) -> Result(Protocol, String) {
-  case dyn_decode.run(protocol, atom.decoder()) {
-    Ok(protocol) ->
-      case atom.to_string(protocol) {
-        "http" -> Ok(Http1)
-        "http2" -> Ok(Http2)
-        _ -> Error("Invalid protocol")
-      }
-    Error(_) -> Error("Invalid protocol")
-  }
+  list.append(
+    [
+      TransportOption(options.transport),
+      RetryOption(options.retry),
+      ConnectTimeoutOption(options.connect_timeout),
+      ..protocol_options
+    ],
+    tls_options,
+  )
 }
 
 @external(erlang, "gluegun_ffi", "open")
 fn ffi_open(
   host: String,
   port: Int,
-  options: dynamic.Dynamic,
-) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+  options: List(ConnectOption),
+) -> Result(Connection, error.GluegunError)
 
 @external(erlang, "gluegun_ffi", "await_up")
 fn ffi_await_up(
-  connection: dynamic.Dynamic,
-  timeout: dynamic.Dynamic,
-) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+  connection: Connection,
+  timeout: Timeout,
+) -> Result(Protocol, error.GluegunError)
 
 @external(erlang, "gluegun_ffi", "close")
-fn ffi_close(
-  connection: dynamic.Dynamic,
-) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+fn ffi_close(connection: Connection) -> Result(Nil, error.GluegunError)
 
 @external(erlang, "gluegun_ffi", "shutdown")
-fn ffi_shutdown(
-  connection: dynamic.Dynamic,
-) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+fn ffi_shutdown(connection: Connection) -> Result(Nil, error.GluegunError)

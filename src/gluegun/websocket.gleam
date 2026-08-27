@@ -19,33 +19,49 @@
 //// import gluegun/message
 //// import gluegun/websocket
 ////
-//// use conn <- result.try(
+//// use opened_connection <- result.try(
 ////   connection.options()
 ////   |> connection.open(host: "echo.example.com", port: 80),
 //// )
 ////
-//// use protocol <- result.try(connection.await_up(conn, connection.Milliseconds(5000)))
+//// use protocol <- result.try(connection.await_up(
+////   opened_connection,
+////   connection.Milliseconds(5000),
+//// ))
 ////
-//// use stream <- result.try(websocket.upgrade_with_protocol(conn, protocol, "/ws", []))
-//// use _ <- result.try(websocket.await_upgrade(conn, stream, connection.Milliseconds(5000)))
+//// use stream <- result.try(websocket.upgrade_with_protocol(
+////   opened_connection,
+////   protocol,
+////   "/ws",
+////   [],
+//// ))
+//// use _ <- result.try(websocket.await_upgrade(
+////   opened_connection,
+////   stream,
+////   connection.Milliseconds(5000),
+//// ))
 ////
-//// use _ <- result.try(websocket.send(conn, stream, message.Text("hello")))
+//// use _ <- result.try(websocket.send(
+////   opened_connection,
+////   stream,
+////   message.Text("hello"),
+//// ))
 ////
-//// case websocket.receive(conn, stream, connection.Milliseconds(5000)) {
+//// case
+////   websocket.receive(opened_connection, stream, connection.Milliseconds(5000))
+//// {
 ////   Ok(message.Text(reply)) -> Ok(reply)
 ////   Ok(_) -> Error(error.InvalidMessage("expected a text frame"))
-////   Error(err) -> Error(err)
+////   Error(error) -> Error(error)
 //// }
 //// ```
 
-import gleam/dynamic
+import gleam/erlang/process.{type Pid}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gluegun/connection.{type Connection, type Protocol, type Timeout}
 import gluegun/error
-import gluegun/internal
-import gluegun/internal/ffi_result
 import gluegun/message.{type Frame}
 import gluegun/request.{type Header, type Stream}
 
@@ -84,11 +100,38 @@ pub opaque type UpgradeOptions {
     flow: Option(Int),
     keepalive: Option(Timeout),
     protocols: List(#(String, String)),
-    reply_to: Option(dynamic.Dynamic),
+    reply_to: Option(Pid),
     silence_pings: Option(Bool),
-    tunnel: Option(dynamic.Dynamic),
-    user_opts: Option(dynamic.Dynamic),
+    tunnel: Option(Stream),
+    handler_options: Option(HandlerOptions),
   )
+}
+
+/// The value Gun forwards unchanged to a WebSocket protocol handler module as
+/// its `user_opts` upgrade option.
+///
+/// Gun accepts any Erlang term here because the shape is defined by the
+/// handler module, not by Gun. Build one from any Gleam value with
+/// `gluegun/websocket/raw.handler_options`.
+pub type HandlerOptions
+
+/// One Gun WebSocket upgrade option, encoded for the Erlang FFI boundary.
+///
+/// `upgrade_options_to_ffi` turns `UpgradeOptions` into a list of these
+/// values. `src/gluegun_ffi.erl` pattern matches each variant and builds the
+/// matching `gun:ws_opts()` map entry.
+@internal
+pub type UpgradeOption {
+  ClosingTimeout(Timeout)
+  Compress(Bool)
+  DefaultProtocol(String)
+  Flow(Int)
+  Keepalive(Timeout)
+  Protocols(List(#(String, String)))
+  ReplyTo(Pid)
+  SilencePings(Bool)
+  Tunnel(Stream)
+  UserOptions(HandlerOptions)
 }
 
 /// Construct a reusable WebSocket handle from an upgraded connection and stream.
@@ -174,7 +217,7 @@ pub fn upgrade_options() -> UpgradeOptions {
     reply_to: None,
     silence_pings: None,
     tunnel: None,
-    user_opts: None,
+    handler_options: None,
   )
 }
 
@@ -195,33 +238,40 @@ pub fn connect(
   path path: String,
   options options: Options,
 ) -> Result(Socket, error.GluegunError) {
-  use conn <- result.try(connection.open(
+  use opened_connection <- result.try(connection.open(
     options.connect_options,
     host: host,
     port: port,
   ))
 
-  close_on_error(conn, {
-    use protocol <- result.try(connection.await_up(conn, options.timeout))
+  close_on_error(opened_connection, {
+    use protocol <- result.try(connection.await_up(
+      opened_connection,
+      options.timeout,
+    ))
     use stream <- result.try(upgrade_with_protocol_and_options(
-      conn,
+      opened_connection,
       protocol,
       path,
       options.headers,
       options.upgrade_options,
     ))
-    use _ <- result.try(await_upgrade(conn, stream, options.timeout))
-    Ok(socket(conn, stream, options.timeout))
+    use _ <- result.try(await_upgrade(
+      opened_connection,
+      stream,
+      options.timeout,
+    ))
+    Ok(socket(opened_connection, stream, options.timeout))
   })
 }
 
 fn close_on_error(
-  conn: Connection,
+  opened_connection: Connection,
   result: Result(a, error.GluegunError),
 ) -> Result(a, error.GluegunError) {
   case result {
     Error(error) -> {
-      let _ = connection.close(conn)
+      let _ = connection.close(opened_connection)
       Error(error)
     }
     Ok(value) -> Ok(value)
@@ -330,7 +380,7 @@ pub fn with_protocol_module(
 @internal
 pub fn with_reply_to_raw(
   options: UpgradeOptions,
-  reply_to: dynamic.Dynamic,
+  reply_to: Pid,
 ) -> UpgradeOptions {
   UpgradeOptions(..options, reply_to: Some(reply_to))
 }
@@ -338,46 +388,33 @@ pub fn with_reply_to_raw(
 @internal
 pub fn with_tunnel_raw(
   options: UpgradeOptions,
-  tunnel: dynamic.Dynamic,
+  tunnel: Stream,
 ) -> UpgradeOptions {
   UpgradeOptions(..options, tunnel: Some(tunnel))
 }
 
 @internal
-pub fn with_user_opts_raw(
+pub fn with_handler_options_raw(
   options: UpgradeOptions,
-  user_opts: dynamic.Dynamic,
+  handler_options: HandlerOptions,
 ) -> UpgradeOptions {
-  UpgradeOptions(..options, user_opts: Some(user_opts))
+  UpgradeOptions(..options, handler_options: Some(handler_options))
 }
 
-/// Convert WebSocket upgrade options to the Erlang FFI map shape.
+/// Convert WebSocket upgrade options to the typed shape the Erlang FFI expects.
 @internal
-pub fn upgrade_options_to_ffi(options: UpgradeOptions) -> dynamic.Dynamic {
+pub fn upgrade_options_to_ffi(options: UpgradeOptions) -> List(UpgradeOption) {
   []
-  |> prepend_optional(
-    "closing_timeout",
-    options.closing_timeout,
-    connection.timeout_to_ffi,
-  )
-  |> prepend_optional("compress", options.compress, dynamic.bool)
-  |> prepend_optional(
-    "default_protocol",
-    options.default_protocol,
-    dynamic.string,
-  )
-  |> prepend_optional("flow", options.flow, dynamic.int)
-  |> prepend_optional("keepalive", options.keepalive, connection.timeout_to_ffi)
-  |> prepend_optional(
-    "protocols",
-    non_empty(options.protocols),
-    encode_protocols,
-  )
-  |> prepend_optional("reply_to", options.reply_to, fn(value) { value })
-  |> prepend_optional("silence_pings", options.silence_pings, dynamic.bool)
-  |> prepend_optional("tunnel", options.tunnel, fn(value) { value })
-  |> prepend_optional("user_opts", options.user_opts, fn(value) { value })
-  |> dynamic.properties
+  |> prepend_optional(options.closing_timeout, ClosingTimeout)
+  |> prepend_optional(options.compress, Compress)
+  |> prepend_optional(options.default_protocol, DefaultProtocol)
+  |> prepend_optional(options.flow, Flow)
+  |> prepend_optional(options.keepalive, Keepalive)
+  |> prepend_optional(non_empty(options.protocols), Protocols)
+  |> prepend_optional(options.reply_to, ReplyTo)
+  |> prepend_optional(options.silence_pings, SilencePings)
+  |> prepend_optional(options.tunnel, Tunnel)
+  |> prepend_optional(options.handler_options, UserOptions)
 }
 
 /// Initiate a WebSocket upgrade when the negotiated protocol is known.
@@ -441,13 +478,7 @@ pub fn upgrade_with_options(
   headers: List(Header),
   options: UpgradeOptions,
 ) -> Result(Stream, error.GluegunError) {
-  ffi_ws_upgrade(
-    internal.connection_raw(connection),
-    path,
-    headers,
-    upgrade_options_to_ffi(options),
-  )
-  |> ffi_result.decode_request_result
+  ffi_ws_upgrade(connection, path, headers, upgrade_options_to_ffi(options))
 }
 
 /// Wait for the WebSocket upgrade confirmation (`101 Switching Protocols`).
@@ -528,12 +559,7 @@ pub fn send_many(
   stream: Stream,
   frames: List(Frame),
 ) -> Result(Nil, error.GluegunError) {
-  ffi_ws_send(
-    internal.connection_raw(connection),
-    internal.stream_raw(stream),
-    frames,
-  )
-  |> ffi_result.decode_nil_result
+  ffi_ws_send(connection, stream, frames)
 }
 
 /// Receive the next WebSocket frame from the stream.
@@ -618,8 +644,8 @@ pub fn receive_app_frame_from(
 pub fn receive_from(
   message_result: Result(message.Message, error.GluegunError),
 ) -> Result(Frame, error.GluegunError) {
-  use msg <- result.try(message_result)
-  case msg {
+  use message <- result.try(message_result)
+  case message {
     message.WebSocket(frame) -> Ok(frame)
     message.Upgrade(_, _) ->
       Error(error.InvalidMessage(
@@ -644,8 +670,8 @@ pub fn receive_from(
 pub fn await_upgrade_from(
   message_result: Result(message.Message, error.GluegunError),
 ) -> Result(Nil, error.GluegunError) {
-  use msg <- result.try(message_result)
-  case msg {
+  use message <- result.try(message_result)
+  case message {
     message.Upgrade(_, _) -> Ok(Nil)
     message.Inform(_, _)
     | message.Response(_, _, _)
@@ -661,45 +687,33 @@ pub fn await_upgrade_from(
 
 @external(erlang, "gluegun_ffi", "ws_upgrade")
 fn ffi_ws_upgrade(
-  connection: dynamic.Dynamic,
+  connection: Connection,
   path: String,
   headers: List(Header),
-  opts: dynamic.Dynamic,
-) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+  options: List(UpgradeOption),
+) -> Result(Stream, error.GluegunError)
 
 @external(erlang, "gluegun_ffi", "ws_send")
 fn ffi_ws_send(
-  connection: dynamic.Dynamic,
-  stream: dynamic.Dynamic,
+  connection: Connection,
+  stream: Stream,
   frames: List(Frame),
-) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+) -> Result(Nil, error.GluegunError)
 
 fn prepend_optional(
-  fields: List(#(dynamic.Dynamic, dynamic.Dynamic)),
-  key: String,
-  value: Option(a),
-  encode: fn(a) -> dynamic.Dynamic,
-) -> List(#(dynamic.Dynamic, dynamic.Dynamic)) {
+  options: List(UpgradeOption),
+  value: Option(value),
+  encode: fn(value) -> UpgradeOption,
+) -> List(UpgradeOption) {
   case value {
-    Some(value) -> [#(dynamic.string(key), encode(value)), ..fields]
-    None -> fields
+    Some(value) -> [encode(value), ..options]
+    None -> options
   }
 }
 
-fn non_empty(values: List(a)) -> Option(List(a)) {
+fn non_empty(values: List(value)) -> Option(List(value)) {
   case values {
     [] -> None
     _ -> Some(values)
   }
-}
-
-fn encode_protocols(protocols: List(#(String, String))) -> dynamic.Dynamic {
-  dynamic.list(
-    list.map(protocols, fn(protocol) {
-      dynamic.array([
-        dynamic.string(protocol.0),
-        dynamic.string(protocol.1),
-      ])
-    }),
-  )
 }

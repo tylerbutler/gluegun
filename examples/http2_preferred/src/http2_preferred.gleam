@@ -14,7 +14,7 @@ const port = 443
 
 const path = "/httpbin/get"
 
-pub fn main() {
+pub fn main() -> Nil {
   let timeout = connection.Milliseconds(15_000)
   let options =
     connection.options()
@@ -22,37 +22,41 @@ pub fn main() {
     |> connection.with_protocols([connection.Http2, connection.Http1])
 
   case connection.open(options, host: host, port: port) {
-    Ok(conn) -> {
-      case connection.await_up(conn, timeout) {
+    Ok(connection) -> {
+      case connection.await_up(connection, timeout) {
         Ok(protocol) -> {
           io.println("protocol: " <> protocol_to_string(protocol))
 
-          case client.get(conn, path, [], timeout) {
-            Ok(res) -> print_response(res)
-            Error(err) -> io.println("request failed: " <> error_to_string(err))
+          case client.get(connection, path, [], timeout) {
+            Ok(response) -> print_response(response)
+            Error(error) ->
+              io.println("request failed: " <> error_to_string(error))
           }
         }
 
-        Error(err) -> io.println("connection failed: " <> error_to_string(err))
+        Error(error) ->
+          io.println("connection failed: " <> error_to_string(error))
       }
 
-      case connection.close(conn) {
+      case connection.close(connection) {
         Ok(Nil) -> Nil
-        Error(err) -> io.println("close failed: " <> error_to_string(err))
+        Error(error) -> io.println("close failed: " <> error_to_string(error))
       }
     }
 
-    Error(err) -> io.println("connection failed: " <> error_to_string(err))
+    Error(error) -> io.println("connection failed: " <> error_to_string(error))
   }
 }
 
-fn print_response(res) {
-  io.println("status: " <> int.to_string(response.status(res)))
+fn print_response(response: response.Response) -> Nil {
+  io.println("status: " <> int.to_string(response.status(response)))
 
-  case response.body_text(res) {
+  case response.body_text(response) {
     Ok(text) -> io.println(text)
-    Error(err) ->
-      io.println("response body failed UTF-8 decode: " <> error_to_string(err))
+    Error(error) ->
+      io.println(
+        "response body failed UTF-8 decode: " <> error_to_string(error),
+      )
   }
 }
 
@@ -63,8 +67,8 @@ fn protocol_to_string(protocol: connection.Protocol) -> String {
   }
 }
 
-fn error_to_string(err: error.GluegunError) -> String {
-  case err {
+fn error_to_string(error: error.GluegunError) -> String {
+  case error {
     error.Timeout -> "timeout"
     error.ConnectionDown(reason) -> "connection down: " <> reason
     error.ConnectionError(reason) -> "connection error: " <> reason

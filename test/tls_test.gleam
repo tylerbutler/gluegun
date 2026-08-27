@@ -1,57 +1,52 @@
-import gleam/dict
-import gleam/dynamic
-import gleam/erlang/atom
-import gleam/result
+import gleam/option.{type Option, None, Some}
 import gluegun/connection
 import gluegun/error
 import gluegun/tls
-import startest.{describe, it}
+import startest
 import startest/expect
+import startest/test_tree
 
-pub fn tls_tests() {
-  describe("TLS option encoding", [
-    it("nests TLS options under transport_opts in connection FFI", fn() {
-      let options =
-        connection.options()
-        |> connection.with_transport(transport: connection.Tls)
-        |> connection.with_tls_opts(
-          tls.options()
-          |> tls.with_verify(verify: tls.VerifyPeer)
-          |> tls.with_versions(versions: [tls.TlsV12, tls.TlsV13]),
-        )
+/// Gun `tls_opts()` projected back into Gleam by `gluegun_ffi_test`:
+/// `#(verify, versions, depth, server_name_indication, has_cacerts,
+/// has_hostname_check)`.
+type TlsSummary =
+  #(
+    Option(String),
+    Option(List(String)),
+    Option(Int),
+    Option(String),
+    Bool,
+    Bool,
+  )
 
-      connection.options_to_ffi(options)
-      |> expect.to_equal(
-        dynamic.properties([
-          #(dynamic.string("transport"), atom.to_dynamic(atom.create("tls"))),
-          #(dynamic.string("retry"), dynamic.int(5000)),
-          #(dynamic.string("connect_timeout"), dynamic.int(5000)),
-          #(
-            dynamic.string("transport_opts"),
-            dynamic.properties([
-              #(
-                dynamic.string("tls_opts"),
-                dynamic.list([
-                  dynamic.array([
-                    atom.to_dynamic(atom.create("verify")),
-                    atom.to_dynamic(atom.create("verify_peer")),
-                  ]),
-                  dynamic.array([
-                    atom.to_dynamic(atom.create("versions")),
-                    dynamic.list([
-                      atom.to_dynamic(atom.create("tlsv1.2")),
-                      atom.to_dynamic(atom.create("tlsv1.3")),
-                    ]),
-                  ]),
-                ]),
-              ),
-            ]),
-          ),
-        ]),
-      )
-    }),
+pub fn tls_tests() -> test_tree.TestTree {
+  startest.describe("TLS option encoding", [
+    startest.it(
+      "nests TLS options under transport_opts in connection FFI",
+      fn() {
+        let options =
+          connection.options()
+          |> connection.with_transport(transport: connection.Tls)
+          |> connection.with_tls_options(
+            tls.options()
+            |> tls.with_verify(verify: tls.VerifyPeer)
+            |> tls.with_versions(versions: [tls.TlsV12, tls.TlsV13]),
+          )
 
-    it("converts nested TLS options to Gun tls_opts", fn() {
+        connection.options_to_ffi(options)
+        |> expect.to_equal([
+          connection.TransportOption(connection.Tls),
+          connection.RetryOption(connection.Milliseconds(5000)),
+          connection.ConnectTimeoutOption(connection.Milliseconds(5000)),
+          connection.TlsOption([
+            tls.VerifySetting(tls.VerifyPeer),
+            tls.VersionsSetting([tls.TlsV12, tls.TlsV13]),
+          ]),
+        ])
+      },
+    ),
+
+    startest.it("converts nested TLS options to Gun tls_opts", fn() {
       let tls_options =
         tls.options()
         |> tls.with_verify(verify: tls.VerifyPeer)
@@ -59,88 +54,63 @@ pub fn tls_tests() {
 
       connection.options()
       |> connection.with_transport(transport: connection.Tls)
-      |> connection.with_tls_opts(tls_options)
+      |> connection.with_tls_options(tls_options)
       |> connection.options_to_ffi
-      |> gluegun_ffi_test_gun_tls_opts
-      |> expect.to_equal(
-        dynamic.list([
-          dynamic.array([
-            atom.to_dynamic(atom.create("verify")),
-            atom.to_dynamic(atom.create("verify_peer")),
-          ]),
-          dynamic.array([
-            atom.to_dynamic(atom.create("versions")),
-            dynamic.list([
-              atom.to_dynamic(atom.create("tlsv1.2")),
-              atom.to_dynamic(atom.create("tlsv1.3")),
-            ]),
-          ]),
-        ]),
-      )
+      |> gun_tls_options
+      |> expect.to_equal([
+        #("verify", ["verify_peer"]),
+        #("versions", ["tlsv1.2", "tlsv1.3"]),
+      ])
     }),
 
-    it("includes TLS options for auto transport", fn() {
+    startest.it("includes TLS options for auto transport", fn() {
       let tls_options = tls.options() |> tls.with_verify(verify: tls.VerifyPeer)
 
       connection.options()
-      |> connection.with_tls_opts(tls_options)
+      |> connection.with_tls_options(tls_options)
       |> connection.options_to_ffi
-      |> expect.to_equal(
-        dynamic.properties([
-          #(dynamic.string("transport"), atom.to_dynamic(atom.create("auto"))),
-          #(dynamic.string("retry"), dynamic.int(5000)),
-          #(dynamic.string("connect_timeout"), dynamic.int(5000)),
-          #(
-            dynamic.string("transport_opts"),
-            dynamic.properties([
-              #(
-                dynamic.string("tls_opts"),
-                dynamic.list([
-                  dynamic.array([
-                    atom.to_dynamic(atom.create("verify")),
-                    atom.to_dynamic(atom.create("verify_peer")),
-                  ]),
-                ]),
-              ),
-            ]),
-          ),
-        ]),
-      )
+      |> expect.to_equal([
+        connection.TransportOption(connection.Auto),
+        connection.RetryOption(connection.Milliseconds(5000)),
+        connection.ConnectTimeoutOption(connection.Milliseconds(5000)),
+        connection.TlsOption([tls.VerifySetting(tls.VerifyPeer)]),
+      ])
     }),
 
-    it("skips TLS transport options for TCP connections", fn() {
+    startest.it("skips TLS transport options for TCP connections", fn() {
       let tls_options = tls.options() |> tls.with_verify(verify: tls.VerifyPeer)
 
       connection.options()
       |> connection.with_transport(transport: connection.Tcp)
-      |> connection.with_tls_opts(tls_options)
+      |> connection.with_tls_options(tls_options)
       |> connection.options_to_ffi
-      |> expect.to_equal(
-        dynamic.properties([
-          #(dynamic.string("transport"), atom.to_dynamic(atom.create("tcp"))),
-          #(dynamic.string("retry"), dynamic.int(5000)),
-          #(dynamic.string("connect_timeout"), dynamic.int(5000)),
-        ]),
-      )
+      |> expect.to_equal([
+        connection.TransportOption(connection.Tcp),
+        connection.RetryOption(connection.Milliseconds(5000)),
+        connection.ConnectTimeoutOption(connection.Milliseconds(5000)),
+      ])
     }),
 
-    it("applies the secure baseline when TLS is used and no opts are set", fn() {
-      let opts =
-        connection.options()
-        |> connection.with_transport(transport: connection.Tls)
-        |> connection.options_to_ffi
+    startest.it(
+      "applies the secure baseline when TLS is used and no options are set",
+      fn() {
+        let options =
+          connection.options()
+          |> connection.with_transport(transport: connection.Tls)
+          |> connection.options_to_ffi
 
-      gluegun_ffi_test_secure_tls_opts_summary("example.com", opts)
-      |> expect.to_equal(secure_tls_summary(
-        sni: dynamic.string("example.com"),
-        versions: default_versions(),
-        depth: dynamic.int(10),
-        has_cacerts: True,
-        has_hostname_check: True,
-      ))
-    }),
+        gun_secure_tls_summary("example.com", options)
+        |> expect.to_equal(secure_tls_summary(
+          server_name_indication: Some("example.com"),
+          versions: default_versions(),
+          depth: Some(10),
+          has_cacerts: True,
+          has_hostname_check: True,
+        ))
+      },
+    ),
 
-    it("lets user-set TLS fields override the secure baseline", fn() {
+    startest.it("lets user-set TLS fields override the secure baseline", fn() {
       let tls_options =
         tls.options()
         |> tls.with_versions(versions: [tls.TlsV13])
@@ -149,135 +119,133 @@ pub fn tls_tests() {
           server_name_indication: tls.ServerName("override.example"),
         )
 
-      let opts =
+      let options =
         connection.options()
         |> connection.with_transport(transport: connection.Tls)
-        |> connection.with_tls_opts(tls_options)
+        |> connection.with_tls_options(tls_options)
         |> connection.options_to_ffi
 
-      gluegun_ffi_test_secure_tls_opts_summary("example.com", opts)
+      gun_secure_tls_summary("example.com", options)
       |> expect.to_equal(secure_tls_summary(
-        sni: dynamic.string("override.example"),
-        versions: dynamic.list([dynamic.string("tlsv1.3")]),
-        depth: dynamic.int(3),
+        server_name_indication: Some("override.example"),
+        versions: Some(["tlsv1.3"]),
+        depth: Some(3),
         has_cacerts: True,
         has_hostname_check: True,
       ))
     }),
 
-    it("tls.insecure() suppresses the secure baseline", fn() {
-      let opts =
+    startest.it("tls.insecure() suppresses the secure baseline", fn() {
+      let options =
         connection.options()
         |> connection.with_transport(transport: connection.Tls)
-        |> connection.with_tls_opts(tls.insecure())
+        |> connection.with_tls_options(tls.insecure())
         |> connection.options_to_ffi
 
-      gluegun_ffi_test_secure_tls_opts_summary("example.com", opts)
+      gun_secure_tls_summary("example.com", options)
       |> expect.to_equal(insecure_tls_summary())
     }),
 
-    it("skips SNI when host is an IP literal", fn() {
-      let opts =
+    startest.it("skips SNI when host is an IP literal", fn() {
+      let options =
         connection.options()
         |> connection.with_transport(transport: connection.Tls)
         |> connection.options_to_ffi
 
-      gluegun_ffi_test_secure_tls_opts_summary("127.0.0.1", opts)
+      gun_secure_tls_summary("127.0.0.1", options)
       |> expect.to_equal(secure_tls_summary(
-        sni: undefined_dynamic(),
+        server_name_indication: None,
         versions: default_versions(),
-        depth: dynamic.int(10),
+        depth: Some(10),
         has_cacerts: True,
         has_hostname_check: True,
       ))
     }),
 
-    it("skips SNI when host is a bracketed IPv6 literal", fn() {
-      let opts =
+    startest.it("skips SNI when host is a bracketed IPv6 literal", fn() {
+      let options =
         connection.options()
         |> connection.with_transport(transport: connection.Tls)
         |> connection.options_to_ffi
 
-      gluegun_ffi_test_secure_tls_opts_summary("[::1]", opts)
+      gun_secure_tls_summary("[::1]", options)
       |> expect.to_equal(secure_tls_summary(
-        sni: undefined_dynamic(),
+        server_name_indication: None,
         versions: default_versions(),
-        depth: dynamic.int(10),
+        depth: Some(10),
         has_cacerts: True,
         has_hostname_check: True,
       ))
 
-      gluegun_ffi_test_secure_tls_opts_summary("[2001:db8::1]", opts)
+      gun_secure_tls_summary("[2001:db8::1]", options)
       |> expect.to_equal(secure_tls_summary(
-        sni: undefined_dynamic(),
+        server_name_indication: None,
         versions: default_versions(),
-        depth: dynamic.int(10),
+        depth: Some(10),
         has_cacerts: True,
         has_hostname_check: True,
       ))
     }),
 
-    it("applies the secure baseline for Auto transport too", fn() {
-      let opts =
+    startest.it("applies the secure baseline for Auto transport too", fn() {
+      let options =
         connection.options()
         |> connection.options_to_ffi
 
-      gluegun_ffi_test_secure_tls_opts_summary("example.com", opts)
+      gun_secure_tls_summary("example.com", options)
       |> expect.to_equal(secure_tls_summary(
-        sni: dynamic.string("example.com"),
+        server_name_indication: Some("example.com"),
         versions: default_versions(),
-        depth: dynamic.int(10),
+        depth: Some(10),
         has_cacerts: True,
         has_hostname_check: True,
       ))
     }),
 
-    it("does not apply the secure baseline for TCP transport", fn() {
-      let opts =
+    startest.it("does not apply the secure baseline for TCP transport", fn() {
+      let options =
         connection.options()
         |> connection.with_transport(transport: connection.Tcp)
         |> connection.options_to_ffi
 
-      gluegun_ffi_test_secure_tls_opts_summary("example.com", opts)
+      gun_secure_tls_summary("example.com", options)
       |> expect.to_equal(tls_summary(
-        verify: undefined_dynamic(),
-        versions: undefined_dynamic(),
-        depth: undefined_dynamic(),
-        sni: undefined_dynamic(),
+        verify: None,
+        versions: None,
+        depth: None,
+        server_name_indication: None,
         has_cacerts: False,
         has_hostname_check: False,
       ))
     }),
 
-    it(
+    startest.it(
       "returns InvalidOptions when secure defaults cannot load system CAs",
       fn() {
-        let opts =
+        let options =
           connection.options()
           |> connection.with_transport(transport: connection.Tls)
           |> connection.options_to_ffi
 
-        gluegun_ffi_test_secure_tls_opts_with_empty_cacerts("example.com", opts)
-        |> result.map_error(error.decode_ffi_error)
+        gun_secure_tls_summary_with_empty_cacerts("example.com", options)
         |> expect.to_equal(
           Error(error.InvalidOptions("Tls(NoSystemCacerts(Empty))")),
         )
       },
     ),
 
-    it(
+    startest.it(
       "returns InvalidOptions when hostname match function is unavailable",
       fn() {
-        let opts =
+        let options =
           connection.options()
           |> connection.with_transport(transport: connection.Tls)
           |> connection.options_to_ffi
 
-        gluegun_ffi_test_secure_tls_opts_with_hostname_match_failure(
+        gun_secure_tls_summary_with_hostname_match_failure(
           "example.com",
-          opts,
+          options,
         )
-        |> result.map_error(error.decode_ffi_error)
         |> expect.to_equal(
           Error(error.InvalidOptions(
             "Tls(HostnameMatchFunUnavailable(Error(TestHostnameMatchFailure)))",
@@ -286,95 +254,96 @@ pub fn tls_tests() {
       },
     ),
 
-    it("caches system CA certificates after the first successful load", fn() {
-      let opts =
-        connection.options()
-        |> connection.with_transport(transport: connection.Tls)
-        |> connection.options_to_ffi
+    startest.it(
+      "caches system CA certificates after the first successful load",
+      fn() {
+        let options =
+          connection.options()
+          |> connection.with_transport(transport: connection.Tls)
+          |> connection.options_to_ffi
 
-      gluegun_ffi_test_secure_tls_opts_caches_cacerts("example.com", opts)
-      |> expect.to_equal(1)
-    }),
+        gun_secure_tls_cacerts_load_count("example.com", options)
+        |> expect.to_equal(1)
+      },
+    ),
   ])
 }
 
 @external(erlang, "gluegun_ffi_test", "gun_tls_opts")
-fn gluegun_ffi_test_gun_tls_opts(options: dynamic.Dynamic) -> dynamic.Dynamic
+fn gun_tls_options(
+  options: List(connection.ConnectOption),
+) -> List(#(String, List(String)))
 
 @external(erlang, "gluegun_ffi_test", "secure_tls_opts_summary")
-fn gluegun_ffi_test_secure_tls_opts_summary(
+fn gun_secure_tls_summary(
   host: String,
-  options: dynamic.Dynamic,
-) -> dict.Dict(String, dynamic.Dynamic)
+  options: List(connection.ConnectOption),
+) -> TlsSummary
 
 @external(erlang, "gluegun_ffi_test", "secure_tls_opts_with_empty_cacerts")
-fn gluegun_ffi_test_secure_tls_opts_with_empty_cacerts(
+fn gun_secure_tls_summary_with_empty_cacerts(
   host: String,
-  options: dynamic.Dynamic,
-) -> Result(dict.Dict(String, dynamic.Dynamic), dynamic.Dynamic)
+  options: List(connection.ConnectOption),
+) -> Result(TlsSummary, error.GluegunError)
 
 @external(erlang, "gluegun_ffi_test", "secure_tls_opts_with_hostname_match_failure")
-fn gluegun_ffi_test_secure_tls_opts_with_hostname_match_failure(
+fn gun_secure_tls_summary_with_hostname_match_failure(
   host: String,
-  options: dynamic.Dynamic,
-) -> Result(dict.Dict(String, dynamic.Dynamic), dynamic.Dynamic)
+  options: List(connection.ConnectOption),
+) -> Result(TlsSummary, error.GluegunError)
 
 @external(erlang, "gluegun_ffi_test", "secure_tls_opts_caches_cacerts")
-fn gluegun_ffi_test_secure_tls_opts_caches_cacerts(
+fn gun_secure_tls_cacerts_load_count(
   host: String,
-  options: dynamic.Dynamic,
+  options: List(connection.ConnectOption),
 ) -> Int
 
 fn secure_tls_summary(
-  sni sni: dynamic.Dynamic,
-  versions versions: dynamic.Dynamic,
-  depth depth: dynamic.Dynamic,
+  server_name_indication server_name_indication: Option(String),
+  versions versions: Option(List(String)),
+  depth depth: Option(Int),
   has_cacerts has_cacerts: Bool,
   has_hostname_check has_hostname_check: Bool,
-) {
+) -> TlsSummary {
   tls_summary(
-    verify: dynamic.string("verify_peer"),
+    verify: Some("verify_peer"),
     versions: versions,
     depth: depth,
-    sni: sni,
+    server_name_indication: server_name_indication,
     has_cacerts: has_cacerts,
     has_hostname_check: has_hostname_check,
   )
 }
 
-fn insecure_tls_summary() {
+fn insecure_tls_summary() -> TlsSummary {
   tls_summary(
-    verify: dynamic.string("verify_none"),
-    versions: undefined_dynamic(),
-    depth: undefined_dynamic(),
-    sni: dynamic.string("disable"),
+    verify: Some("verify_none"),
+    versions: None,
+    depth: None,
+    server_name_indication: Some("disable"),
     has_cacerts: False,
     has_hostname_check: False,
   )
 }
 
 fn tls_summary(
-  verify verify: dynamic.Dynamic,
-  versions versions: dynamic.Dynamic,
-  depth depth: dynamic.Dynamic,
-  sni sni: dynamic.Dynamic,
+  verify verify: Option(String),
+  versions versions: Option(List(String)),
+  depth depth: Option(Int),
+  server_name_indication server_name_indication: Option(String),
   has_cacerts has_cacerts: Bool,
   has_hostname_check has_hostname_check: Bool,
-) {
-  dict.from_list([
-    #("verify", verify),
-    #("versions", versions),
-    #("depth", depth),
-    #("sni", sni),
-    #("has_cacerts", dynamic.bool(has_cacerts)),
-    #("has_hostname_check", dynamic.bool(has_hostname_check)),
-  ])
+) -> TlsSummary {
+  #(
+    verify,
+    versions,
+    depth,
+    server_name_indication,
+    has_cacerts,
+    has_hostname_check,
+  )
 }
 
-fn default_versions() {
-  dynamic.list([dynamic.string("tlsv1.3"), dynamic.string("tlsv1.2")])
-}
-
-fn undefined_dynamic() {
-  atom.to_dynamic(atom.create("undefined"))
+fn default_versions() -> Option(List(String)) {
+  Some(["tlsv1.3", "tlsv1.2"])
 }

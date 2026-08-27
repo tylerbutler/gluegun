@@ -212,14 +212,14 @@ pub fn with_retry(
 ) -> connection.ConnectOptions
 ```
 
-### `with_tls_opts`
+### `with_tls_options`
 
 Set TLS options on connection options.
 
 ```gleam
-pub fn with_tls_opts(
+pub fn with_tls_options(
   connection.ConnectOptions,
-  tls_opts: tls.TlsOptions
+  tls_options: tls.TlsOptions
 ) -> connection.ConnectOptions
 ```
 

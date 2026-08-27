@@ -3,8 +3,9 @@ import gleam/string
 import gluegun/client
 import gluegun/connection
 import gluegun/request
-import startest.{describe, it}
+import startest
 import startest/expect
+import startest/test_tree
 import webprobe/cli
 import webprobe/report
 import webprobe/runner
@@ -14,16 +15,24 @@ pub fn main() -> Nil {
   startest.run(startest.default_config())
 }
 
-pub fn webprobe_tests() {
-  describe("webprobe", [
-    describe("URL parsing", [
-      it("parses an HTTP URL with the default port and root path", fn() {
-        url.parse("http://example.com")
-        |> expect.to_equal(
-          Ok(url.ParsedUrl(host: "example.com", port: 80, path: "/", tls: False)),
-        )
-      }),
-      it("parses an HTTPS URL with path and query", fn() {
+pub fn webprobe_tests() -> test_tree.TestTree {
+  startest.describe("webprobe", [
+    startest.describe("URL parsing", [
+      startest.it(
+        "parses an HTTP URL with the default port and root path",
+        fn() {
+          url.parse("http://example.com")
+          |> expect.to_equal(
+            Ok(url.ParsedUrl(
+              host: "example.com",
+              port: 80,
+              path: "/",
+              tls: False,
+            )),
+          )
+        },
+      ),
+      startest.it("parses an HTTPS URL with path and query", fn() {
         url.parse("https://example.com/search?q=gleam")
         |> expect.to_equal(
           Ok(url.ParsedUrl(
@@ -34,7 +43,7 @@ pub fn webprobe_tests() {
           )),
         )
       }),
-      it("parses explicit ports", fn() {
+      startest.it("parses explicit ports", fn() {
         url.parse("https://localhost:8443/health")
         |> expect.to_equal(
           Ok(url.ParsedUrl(
@@ -45,13 +54,13 @@ pub fn webprobe_tests() {
           )),
         )
       }),
-      it("rejects unsupported schemes", fn() {
+      startest.it("rejects unsupported schemes", fn() {
         url.parse("ftp://example.com")
         |> expect.to_equal(Error("Only http:// and https:// URLs are supported"))
       }),
     ]),
-    describe("CLI parsing", [
-      it("parses a default GET probe", fn() {
+    startest.describe("CLI parsing", [
+      startest.it("parses a default GET probe", fn() {
         cli.parse(["https://example.com"])
         |> expect.to_equal(
           Ok(cli.Config(
@@ -64,7 +73,7 @@ pub fn webprobe_tests() {
           )),
         )
       }),
-      it(
+      startest.it(
         "parses method, headers, timeout, HTTP/2 preference, and body size",
         fn() {
           cli.parse([
@@ -96,22 +105,22 @@ pub fn webprobe_tests() {
           )
         },
       ),
-      it("rejects malformed headers", fn() {
+      startest.it("rejects malformed headers", fn() {
         cli.parse(["--header", "missing-colon", "https://example.com"])
         |> expect.to_equal(Error("Header must use name:value format"))
       }),
-      it("rejects negative body preview sizes", fn() {
+      startest.it("rejects negative body preview sizes", fn() {
         cli.parse(["--body-bytes", "-1", "https://example.com"])
         |> expect.to_equal(Error("Body preview bytes must be zero or greater"))
       }),
-      it("documents the header option in help text", fn() {
+      startest.it("documents the header option in help text", fn() {
         cli.help_text()
         |> string.contains("--header,-H HEADER")
         |> expect.to_equal(True)
       }),
     ]),
-    describe("report formatting", [
-      it("renders protocol, status, headers, and body preview", fn() {
+    startest.describe("report formatting", [
+      startest.it("renders protocol, status, headers, and body preview", fn() {
         report.format(
           protocol: connection.Http2,
           status: 200,
@@ -127,7 +136,7 @@ pub fn webprobe_tests() {
           <> "body-preview: hello\n",
         )
       }),
-      it("renders invalid UTF-8 bodies as byte arrays", fn() {
+      startest.it("renders invalid UTF-8 bodies as byte arrays", fn() {
         report.format(
           protocol: connection.Http1,
           status: 200,
@@ -143,8 +152,8 @@ pub fn webprobe_tests() {
         )
       }),
     ]),
-    describe("runner request construction", [
-      it("prefers HTTP/2 only for TLS URLs when requested", fn() {
+    startest.describe("runner request construction", [
+      startest.it("prefers HTTP/2 only for TLS URLs when requested", fn() {
         let config =
           cli.Config(
             url: "https://example.com",
@@ -161,7 +170,7 @@ pub fn webprobe_tests() {
         |> connection.protocols
         |> expect.to_equal(Some([connection.Http2, connection.Http1]))
       }),
-      it("builds the gluegun request from parsed config and URL", fn() {
+      startest.it("builds the gluegun request from parsed config and URL", fn() {
         let config =
           cli.Config(
             url: "https://example.com/search?q=gleam",

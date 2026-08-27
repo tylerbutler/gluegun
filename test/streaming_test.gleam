@@ -1,24 +1,18 @@
-import gleam/dynamic
-import gleam/dynamic/decode
-import gleam/erlang/atom
 import gluegun/error
 import gluegun/fin
 import gluegun/internal
-import gluegun/internal/ffi_result
 import gluegun/request
-import startest.{describe, it}
+import startest
 import startest/expect
+import startest/test_tree
 
-pub fn streaming_tests() {
-  describe("streaming requests", [
-    describe("request FFI shapes", [
-      it("exposes start_stream helper name", fn() {
-        compile_start_stream_helper(False)
-        |> expect.to_equal(Nil)
-      }),
-      it("normalizes streaming request headers", fn() {
-        let #(method, path, headers, _options) =
-          request.headers_args_to_ffi(
+pub fn streaming_tests() -> test_tree.TestTree {
+  startest.describe("streaming requests", [
+    startest.describe("request FFI shapes", [
+      startest.it("normalizes streaming request headers", fn() {
+        let assert Ok(_stream) =
+          request.start_stream(
+            current_connection(),
             request.Post,
             "/upload",
             [#("Content-Type", "text/plain")],
@@ -26,91 +20,83 @@ pub fn streaming_tests() {
               |> request.add_headers([#("X-Trace", "abc")]),
           )
 
-        method
-        |> expect.to_equal("POST")
-
-        path
-        |> expect.to_equal("/upload")
-
-        headers
-        |> expect.to_equal([
-          #("content-type", "text/plain"),
-          #("x-trace", "abc"),
-        ])
+        capture_stream_headers()
+        |> expect.to_equal(
+          Ok(
+            #("POST", "/upload", [
+              #("content-type", "text/plain"),
+              #("x-trace", "abc"),
+            ]),
+          ),
+        )
       }),
-      it("decodes opaque stream request results", fn() {
-        let raw_stream = dynamic.string("stream-ref")
+      startest.it("returns an opaque stream for started streams", fn() {
+        let assert Ok(first) =
+          request.start_stream(
+            current_connection(),
+            request.Post,
+            "/upload",
+            [],
+            request.options(),
+          )
+        let assert Ok(second) =
+          request.start_stream(
+            current_connection(),
+            request.Post,
+            "/upload",
+            [],
+            request.options(),
+          )
+        let _ = capture_stream_headers()
+        let _ = capture_stream_headers()
 
-        ffi_result.decode_request_result(Ok(raw_stream))
-        |> expect.to_equal(Ok(internal.stream(raw_stream)))
+        { first == second }
+        |> expect.to_be_false
       }),
-      it("encodes fin values for streaming data", fn() {
-        request.fin_to_ffi(fin.Fin)
-        |> decode.run(atom.decoder())
-        |> expect.to_equal(Ok(atom.create("fin")))
-
-        request.fin_to_ffi(fin.NoFin)
-        |> decode.run(atom.decoder())
-        |> expect.to_equal(Ok(atom.create("nofin")))
+      startest.it("surfaces request errors instead of stream handles", fn() {
+        request.request(
+          invalid_connection(),
+          request.Post,
+          "/upload",
+          [],
+          <<>>,
+          request.options(),
+        )
+        |> expect.to_equal(Error(error.ErlangError("Error(FunctionClause)")))
       }),
-      it("accepts typed fin values for streaming data", fn() {
-        let _send = send_streaming_data
+      startest.it("encodes fin values for streaming data", fn() {
+        capture_data_fin(fin.Fin, <<"chunk":utf8>>)
+        |> expect.to_equal(Ok("fin"))
 
-        request.fin_to_ffi(fin.Fin)
-        |> decode.run(atom.decoder())
-        |> expect.to_equal(Ok(atom.create("fin")))
-
-        request.fin_to_ffi(fin.NoFin)
-        |> decode.run(atom.decoder())
-        |> expect.to_equal(Ok(atom.create("nofin")))
+        capture_data_fin(fin.NoFin, <<"chunk":utf8>>)
+        |> expect.to_equal(Ok("nofin"))
       }),
     ]),
-    describe("stream control", [
-      it("decodes cancel success and error results", fn() {
-        ffi_result.decode_nil_result(Ok(dynamic.nil()))
+    startest.describe("stream control", [
+      startest.it("cancels streams on an open connection", fn() {
+        request.cancel(current_connection(), stream_ref())
         |> expect.to_equal(Ok(Nil))
-
-        ffi_result.decode_nil_result(Error(gluegun_ffi_test_stream_error()))
-        |> expect.to_equal(Error(error.StreamError("Boom")))
       }),
-      it("encodes update_flow increments", fn() {
-        let connection = internal.connection(dynamic.string("conn"))
-        let stream = internal.stream(dynamic.string("stream"))
-        let #(raw_connection, raw_stream, increment) =
-          request.update_flow_args_to_ffi(connection, stream, 1234)
-
-        raw_connection
-        |> expect.to_equal(dynamic.string("conn"))
-
-        raw_stream
-        |> expect.to_equal(dynamic.string("stream"))
-
-        increment
-        |> expect.to_equal(1234)
+      startest.it("surfaces cancel errors", fn() {
+        request.cancel(invalid_connection(), stream_ref())
+        |> expect.to_equal(Error(error.StreamError("Error(FunctionClause)")))
       }),
-      it("decodes update_flow success and error results", fn() {
-        ffi_result.decode_nil_result(Ok(dynamic.nil()))
-        |> expect.to_equal(Ok(Nil))
-
-        ffi_result.decode_nil_result(Error(gluegun_ffi_test_stream_error()))
-        |> expect.to_equal(Error(error.StreamError("Boom")))
+      startest.it("encodes update_flow increments", fn() {
+        capture_update_flow(1234)
+        |> expect.to_equal(Ok(1234))
       }),
-      it("rejects zero update_flow increments", fn() {
-        request.update_flow(
-          internal.connection(dynamic.string("conn")),
-          internal.stream(dynamic.string("stream")),
-          0,
-        )
+      startest.it("surfaces update_flow errors", fn() {
+        request.update_flow(invalid_connection(), stream_ref(), 1)
+        |> expect.to_equal(Error(error.StreamError("Error(FunctionClause)")))
+      }),
+      startest.it("rejects zero update_flow increments", fn() {
+        request.update_flow(current_connection(), stream_ref(), 0)
         |> expect.to_equal(
           Error(error.InvalidOptions("flow-control increment must be positive")),
         )
       }),
-      it("rejects negative update_flow increments", fn() {
-        request.update_flow(
-          internal.connection(dynamic.string("conn")),
-          internal.stream(dynamic.string("stream")),
-          -1,
-        )
+      startest.it("rejects negative update_flow increments", fn() {
+        request.update_flow(current_connection(), stream_ref(), -1)
         |> expect.to_equal(
           Error(error.InvalidOptions("flow-control increment must be positive")),
         )
@@ -119,31 +105,26 @@ pub fn streaming_tests() {
   ])
 }
 
-fn compile_start_stream_helper(should_run: Bool) -> Nil {
-  case should_run {
-    True -> {
-      let _ =
-        request.start_stream(
-          internal.connection(dynamic.string("conn")),
-          request.Post,
-          "/upload",
-          [],
-          request.options(),
-        )
-      Nil
-    }
-    False -> Nil
-  }
-}
+@external(erlang, "gluegun_ffi_test", "current_connection")
+fn current_connection() -> internal.Connection
 
-fn send_streaming_data(
-  connection: internal.Connection,
-  stream: internal.Stream,
+@external(erlang, "gluegun_ffi_test", "invalid_connection")
+fn invalid_connection() -> internal.Connection
+
+@external(erlang, "gluegun_ffi_test", "stream_ref")
+fn stream_ref() -> internal.Stream
+
+@external(erlang, "gluegun_ffi_test", "capture_stream_headers")
+fn capture_stream_headers() -> Result(
+  #(String, String, List(#(String, String))),
+  error.GluegunError,
+)
+
+@external(erlang, "gluegun_ffi_test", "capture_data_fin")
+fn capture_data_fin(
   fin: fin.Fin,
   data: BitArray,
-) {
-  request.data(connection, stream, fin, data)
-}
+) -> Result(String, error.GluegunError)
 
-@external(erlang, "gluegun_ffi_test", "test_stream_error")
-fn gluegun_ffi_test_stream_error() -> dynamic.Dynamic
+@external(erlang, "gluegun_ffi_test", "capture_update_flow")
+fn capture_update_flow(increment: Int) -> Result(Int, error.GluegunError)

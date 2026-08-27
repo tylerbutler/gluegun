@@ -17,7 +17,7 @@ const port = 443
 
 const path = "/post"
 
-pub fn main() {
+pub fn main() -> Nil {
   let timeout = connection.Milliseconds(15_000)
 
   case
@@ -25,27 +25,31 @@ pub fn main() {
     |> connection.with_transport(transport: connection.Tls)
     |> connection.open(host: host, port: port)
   {
-    Ok(conn) -> {
-      case connection.await_up(conn, timeout) {
+    Ok(connection) -> {
+      case connection.await_up(connection, timeout) {
         Ok(protocol) -> {
           io.println("protocol: " <> protocol_to_string(protocol))
-          upload_chunks(conn, timeout)
+          upload_chunks(connection, timeout)
         }
 
-        Error(err) -> io.println("connection failed: " <> error_to_string(err))
+        Error(error) ->
+          io.println("connection failed: " <> error_to_string(error))
       }
 
-      close(conn)
+      close(connection)
     }
 
-    Error(err) -> io.println("connection failed: " <> error_to_string(err))
+    Error(error) -> io.println("connection failed: " <> error_to_string(error))
   }
 }
 
-fn upload_chunks(conn, timeout) {
+fn upload_chunks(
+  connection: connection.Connection,
+  timeout: connection.Timeout,
+) -> Nil {
   case
     request.start_stream(
-      conn,
+      connection,
       request.Post,
       path,
       [#("content-type", "text/plain")],
@@ -53,55 +57,62 @@ fn upload_chunks(conn, timeout) {
     )
   {
     Ok(stream) -> {
-      case send_chunks(conn, stream) {
-        Ok(Nil) -> await_response(conn, stream, timeout)
-        Error(err) -> io.println("upload failed: " <> error_to_string(err))
+      case send_chunks(connection, stream) {
+        Ok(Nil) -> await_response(connection, stream, timeout)
+        Error(error) -> io.println("upload failed: " <> error_to_string(error))
       }
     }
 
-    Error(err) -> io.println("request failed: " <> error_to_string(err))
+    Error(error) -> io.println("request failed: " <> error_to_string(error))
   }
 }
 
-fn send_chunks(conn, stream) {
+fn send_chunks(
+  connection: connection.Connection,
+  stream: request.Stream,
+) -> Result(Nil, error.GluegunError) {
   use _ <- result.try(
-    request.data(conn, stream, fin.NoFin, <<"first chunk\n":utf8>>),
+    request.data(connection, stream, fin.NoFin, <<"first chunk\n":utf8>>),
   )
   use _ <- result.try(
-    request.data(conn, stream, fin.NoFin, <<"second chunk\n":utf8>>),
+    request.data(connection, stream, fin.NoFin, <<"second chunk\n":utf8>>),
   )
-  request.data(conn, stream, fin.Fin, <<"final chunk\n":utf8>>)
+  request.data(connection, stream, fin.Fin, <<"final chunk\n":utf8>>)
 }
 
-fn await_response(conn, stream, timeout) {
-  case message.await(conn, stream, timeout) {
+fn await_response(
+  connection: connection.Connection,
+  stream: request.Stream,
+  timeout: connection.Timeout,
+) -> Nil {
+  case message.await(connection, stream, timeout) {
     Ok(message.Inform(status, _headers)) -> {
       io.println("informational status: " <> int.to_string(status))
-      await_response(conn, stream, timeout)
+      await_response(connection, stream, timeout)
     }
 
     Ok(message.Response(response_fin, status, _headers)) -> {
       case response_fin {
         fin.Fin -> io.println("final status: " <> int.to_string(status))
         fin.NoFin -> {
-          case message.await_body(conn, stream, timeout) {
+          case message.await_body(connection, stream, timeout) {
             Ok(_body) -> io.println("final status: " <> int.to_string(status))
-            Error(err) ->
-              io.println("response body failed: " <> error_to_string(err))
+            Error(error) ->
+              io.println("response body failed: " <> error_to_string(error))
           }
         }
       }
     }
 
     Ok(other) -> io.println("unexpected message: " <> message_to_string(other))
-    Error(err) -> io.println("response failed: " <> error_to_string(err))
+    Error(error) -> io.println("response failed: " <> error_to_string(error))
   }
 }
 
-fn close(conn) {
-  case connection.close(conn) {
+fn close(connection: connection.Connection) -> Nil {
+  case connection.close(connection) {
     Ok(Nil) -> Nil
-    Error(err) -> io.println("close failed: " <> error_to_string(err))
+    Error(error) -> io.println("close failed: " <> error_to_string(error))
   }
 }
 
@@ -112,8 +123,8 @@ fn protocol_to_string(protocol: connection.Protocol) -> String {
   }
 }
 
-fn message_to_string(msg: message.Message) -> String {
-  case msg {
+fn message_to_string(message: message.Message) -> String {
+  case message {
     message.Inform(status, _) -> "Inform(" <> int.to_string(status) <> ")"
     message.Response(_, status, _) ->
       "Response(" <> int.to_string(status) <> ")"
@@ -127,8 +138,8 @@ fn message_to_string(msg: message.Message) -> String {
   }
 }
 
-fn error_to_string(err: error.GluegunError) -> String {
-  case err {
+fn error_to_string(error: error.GluegunError) -> String {
+  case error {
     error.Timeout -> "timeout"
     error.ConnectionDown(reason) -> "connection down: " <> reason
     error.ConnectionError(reason) -> "connection error: " <> reason

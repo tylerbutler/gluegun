@@ -381,9 +381,16 @@ fn step(
   message: Message,
 ) -> Result(Step, error.GluegunError) {
   case collection {
-    AwaitingResponse(info) -> handle_awaiting(info, message)
-    Collecting(status, headers, chunks, trailers, info) ->
-      handle_collecting(status, headers, chunks, trailers, info, message)
+    AwaitingResponse(informational) -> handle_awaiting(informational, message)
+    Collecting(status, headers, chunks, trailers, informational) ->
+      handle_collecting(
+        status,
+        headers,
+        chunks,
+        trailers,
+        informational,
+        message,
+      )
   }
 }
 

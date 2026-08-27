@@ -59,6 +59,19 @@ A close control frame with no status code or reason.
 A close control frame carrying a numeric close code and opaque reason
  payload (RFC 6455 §5.5.1).
 
+### `GunMessage`
+
+A raw Gun stream message, exactly as Gun delivers it to the process that
+ owns the stream.
+
+ This external type has no Gleam constructors: values come from Gun itself
+ (or from an Erlang FFI function of your own that receives them). Use
+ `decode` to turn one into a typed `Message`.
+
+```gleam
+pub type GunMessage
+```
+
 ### `Message`
 
 Gun HTTP stream messages delivered by the Erlang Gun client.
@@ -190,7 +203,9 @@ Await and collect the full response body for a stream.
 
  Drains body chunks until the final `Fin` and returns the concatenated
  payload. Headers must already have been consumed (e.g. via a prior
- `await` that returned `Response`). For incremental access use `await`
+ `await` that returned `Response`). When the response ends with trailers,
+ the collected body is returned and the trailer headers are dropped; use
+ `await` if you need them. For incremental access use `await`
  directly. The full body is held in memory; use the lower-level loop for
  very large responses.
 
@@ -208,10 +223,14 @@ pub fn await_body(
 
 Decode a raw Erlang Gun message into a typed Gleam message.
 
- Useful when receiving Gun messages outside Gluegun's helpers (e.g. inside
- a custom `receive` loop). Returns `DecodeError` if the dynamic value is
- not a recognized Gun message shape.
+ Useful when receiving Gun messages outside Gluegun's helpers (for example
+ inside a custom `receive` loop that hands the message to Gluegun through
+ your own Erlang FFI). Accepts both the mailbox tuples Gun sends to the
+ stream owner (`gun_response`, `gun_data`, `gun_inform`, `gun_trailers`,
+ `gun_push`, `gun_upgrade`, `gun_ws`) and the shorter terms `gun:await/3`
+ returns. Returns `DecodeError` when the term is not a recognized Gun
+ message shape, including for error messages such as `gun_error`.
 
 ```gleam
-pub fn decode(dynamic.Dynamic) -> Result(Message, error.GluegunError)
+pub fn decode(GunMessage) -> Result(Message, error.GluegunError)
 ```

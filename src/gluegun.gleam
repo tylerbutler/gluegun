@@ -73,11 +73,11 @@ pub fn with_connect_timeout(
 }
 
 /// Set TLS options on connection options.
-pub fn with_tls_opts(
+pub fn with_tls_options(
   options: ConnectOptions,
-  tls_opts tls_opts: tls.TlsOptions,
+  tls_options tls_options: tls.TlsOptions,
 ) -> ConnectOptions {
-  connection.with_tls_opts(options, tls_opts: tls_opts)
+  connection.with_tls_options(options, tls_options: tls_options)
 }
 
 /// Convert a request method to an HTTP method string.
@@ -116,10 +116,10 @@ pub fn body_text(
 
 /// Wait until a Gun connection is up.
 pub fn await_up(
-  conn: Connection,
+  connection: Connection,
   timeout: Timeout,
 ) -> Result(Protocol, error.GluegunError) {
-  connection.await_up(conn, timeout)
+  connection.await_up(connection, timeout)
 }
 
 /// Construct a `Request` builder.

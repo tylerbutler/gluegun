@@ -18,7 +18,7 @@ const port = 443
 
 const path = "/stream/5"
 
-pub fn main() {
+pub fn main() -> Nil {
   let timeout = connection.Milliseconds(15_000)
 
   case
@@ -26,25 +26,29 @@ pub fn main() {
     |> connection.with_transport(transport: connection.Tls)
     |> connection.open(host: host, port: port)
   {
-    Ok(conn) -> {
-      case download(conn, timeout) {
+    Ok(connection) -> {
+      case download(connection, timeout) {
         Ok(Nil) -> Nil
-        Error(err) -> io.println("download failed: " <> error_to_string(err))
+        Error(error) ->
+          io.println("download failed: " <> error_to_string(error))
       }
 
-      close(conn)
+      close(connection)
     }
 
-    Error(err) -> io.println("connection failed: " <> error_to_string(err))
+    Error(error) -> io.println("connection failed: " <> error_to_string(error))
   }
 }
 
-fn download(conn, timeout) {
-  use protocol <- result.try(connection.await_up(conn, timeout))
+fn download(
+  connection: connection.Connection,
+  timeout: connection.Timeout,
+) -> Result(Nil, error.GluegunError) {
+  use protocol <- result.try(connection.await_up(connection, timeout))
   io.println("protocol: " <> protocol_to_string(protocol))
 
   use stream <- result.try(request.request(
-    conn,
+    connection,
     request.Get,
     path,
     [],
@@ -52,31 +56,39 @@ fn download(conn, timeout) {
     request.options(),
   ))
 
-  await_response(conn, stream, timeout)
+  await_response(connection, stream, timeout)
 }
 
-fn await_response(conn, stream, timeout) {
-  case message.await(conn, stream, timeout) {
+fn await_response(
+  connection: connection.Connection,
+  stream: request.Stream,
+  timeout: connection.Timeout,
+) -> Result(Nil, error.GluegunError) {
+  case message.await(connection, stream, timeout) {
     Ok(message.Response(response_fin, status, headers)) -> {
       io.println("status: " <> int.to_string(status))
       io.println("headers: " <> int.to_string(count(headers)))
 
       case response_fin {
         fin.Fin -> Ok(Nil)
-        fin.NoFin -> stream_body(conn, stream, timeout)
+        fin.NoFin -> stream_body(connection, stream, timeout)
       }
     }
 
     Ok(other) -> unexpected(other)
-    Error(err) -> Error(err)
+    Error(error) -> Error(error)
   }
 }
 
-fn stream_body(conn, stream, timeout) {
-  case message.await(conn, stream, timeout) {
+fn stream_body(
+  connection: connection.Connection,
+  stream: request.Stream,
+  timeout: connection.Timeout,
+) -> Result(Nil, error.GluegunError) {
+  case message.await(connection, stream, timeout) {
     Ok(message.Data(fin.NoFin, data)) -> {
       print_chunk(data)
-      stream_body(conn, stream, timeout)
+      stream_body(connection, stream, timeout)
     }
 
     Ok(message.Data(fin.Fin, data)) -> {
@@ -90,23 +102,25 @@ fn stream_body(conn, stream, timeout) {
     }
 
     Ok(other) -> unexpected(other)
-    Error(err) -> Error(err)
+    Error(error) -> Error(error)
   }
 }
 
-fn print_chunk(data: BitArray) {
+fn print_chunk(data: BitArray) -> Nil {
   io.println("chunk bytes: " <> int.to_string(bit_array.byte_size(data)))
 }
 
-fn close(conn) {
-  case connection.close(conn) {
+fn close(connection: connection.Connection) -> Nil {
+  case connection.close(connection) {
     Ok(Nil) -> Nil
-    Error(err) -> io.println("close failed: " <> error_to_string(err))
+    Error(error) -> io.println("close failed: " <> error_to_string(error))
   }
 }
 
-fn unexpected(msg: message.Message) -> Result(Nil, error.GluegunError) {
-  Error(error.InvalidMessage("unexpected message: " <> message_to_string(msg)))
+fn unexpected(message: message.Message) -> Result(Nil, error.GluegunError) {
+  Error(error.InvalidMessage(
+    "unexpected message: " <> message_to_string(message),
+  ))
 }
 
 fn protocol_to_string(protocol: connection.Protocol) -> String {
@@ -120,8 +134,8 @@ fn count(items: List(a)) -> Int {
   list.length(items)
 }
 
-fn message_to_string(msg: message.Message) -> String {
-  case msg {
+fn message_to_string(message: message.Message) -> String {
+  case message {
     message.Inform(status, _) -> "Inform(" <> int.to_string(status) <> ")"
     message.Response(_, status, _) ->
       "Response(" <> int.to_string(status) <> ")"
@@ -156,8 +170,8 @@ fn frame_to_string(frame: message.Frame) -> String {
   }
 }
 
-fn error_to_string(err: error.GluegunError) -> String {
-  case err {
+fn error_to_string(error: error.GluegunError) -> String {
+  case error {
     error.Timeout -> "timeout"
     error.ConnectionDown(reason) -> "connection down: " <> reason
     error.ConnectionError(reason) -> "connection error: " <> reason

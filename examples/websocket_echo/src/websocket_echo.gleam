@@ -24,7 +24,7 @@ const port = 8080
 
 const path = "/echo"
 
-pub fn main() {
+pub fn main() -> Nil {
   let assert Ok(socket) =
     websocket.connect(
       host: host,
@@ -40,10 +40,11 @@ pub fn main() {
   case websocket.receive_app_frame(socket) {
     Ok(message.Text(reply)) -> io.println("Received: " <> reply)
     Ok(other) -> io.println("Unexpected frame: " <> frame_to_string(other))
-    Error(err) -> io.println("Error: " <> error_to_string(err))
+    Error(error) -> io.println("Error: " <> error_to_string(error))
   }
 
   let assert Ok(Nil) = websocket.send_close_frame(socket)
+  Nil
 }
 
 fn frame_to_string(frame: message.Frame) -> String {
@@ -58,8 +59,8 @@ fn frame_to_string(frame: message.Frame) -> String {
   }
 }
 
-fn error_to_string(err: error.GluegunError) -> String {
-  case err {
+fn error_to_string(error: error.GluegunError) -> String {
+  case error {
     error.Timeout -> "timeout"
     error.ConnectionDown(reason) -> "connection down: " <> reason
     error.ConnectionError(reason) -> "connection error: " <> reason

@@ -24,26 +24,57 @@ WebSocket helpers for Gun connections.
  import gluegun/message
  import gluegun/websocket
 
- use conn <- result.try(
+ use opened_connection <- result.try(
    connection.options()
    |> connection.open(host: "echo.example.com", port: 80),
  )
 
- use protocol <- result.try(connection.await_up(conn, connection.Milliseconds(5000)))
+ use protocol <- result.try(connection.await_up(
+   opened_connection,
+   connection.Milliseconds(5000),
+ ))
 
- use stream <- result.try(websocket.upgrade_with_protocol(conn, protocol, "/ws", []))
- use _ <- result.try(websocket.await_upgrade(conn, stream, connection.Milliseconds(5000)))
+ use stream <- result.try(websocket.upgrade_with_protocol(
+   opened_connection,
+   protocol,
+   "/ws",
+   [],
+ ))
+ use _ <- result.try(websocket.await_upgrade(
+   opened_connection,
+   stream,
+   connection.Milliseconds(5000),
+ ))
 
- use _ <- result.try(websocket.send(conn, stream, message.Text("hello")))
+ use _ <- result.try(websocket.send(
+   opened_connection,
+   stream,
+   message.Text("hello"),
+ ))
 
- case websocket.receive(conn, stream, connection.Milliseconds(5000)) {
+ case
+   websocket.receive(opened_connection, stream, connection.Milliseconds(5000))
+ {
    Ok(message.Text(reply)) -> Ok(reply)
    Ok(_) -> Error(error.InvalidMessage("expected a text frame"))
-   Error(err) -> Error(err)
+   Error(error) -> Error(error)
  }
  ```
 
 ## Types
+
+### `HandlerOptions`
+
+The value Gun forwards unchanged to a WebSocket protocol handler module as
+ its `user_opts` upgrade option.
+
+ Gun accepts any Erlang term here because the shape is defined by the
+ handler module, not by Gun. Build one from any Gleam value with
+ `gluegun/websocket/raw.handler_options`.
+
+```gleam
+pub type HandlerOptions
+```
 
 ### `Options`
 
