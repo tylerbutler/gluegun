@@ -40,21 +40,21 @@ pub fn ffi_shape_tests() -> test_tree.TestTree {
         gluegun_ffi_test_response_message(fin.Fin, 200, [
           #("Content-Type", "text/plain"),
         ])
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(
           Ok(message.Response(fin.Fin, 200, [#("content-type", "text/plain")])),
         )
       }),
       startest.it("decodes binary body data message shapes", fn() {
         gluegun_ffi_test_data_message(fin.NoFin, <<"hello":utf8>>)
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(Ok(message.Data(fin.NoFin, <<"hello":utf8>>)))
       }),
       startest.it("keeps Gun stream references intact in push messages", fn() {
         let stream = gluegun_ffi_test_stream_ref()
 
         gluegun_ffi_test_push_message(stream, "GET", "/pushed", [])
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(Ok(message.Push(stream, request.Get, "/pushed", [])))
       }),
       startest.it("decodes flow-control updates as Nil results", fn() {
@@ -102,55 +102,117 @@ pub fn ffi_shape_tests() -> test_tree.TestTree {
     ]),
     startest.describe("Gun mailbox messages", [
       startest.it("decodes gun_inform mailbox tuples", fn() {
-        mailbox_inform_message(103, [#("Link", "</style.css>")])
-        |> message.decode
-        |> expect.to_equal(Ok(message.Inform(103, [#("link", "</style.css>")])))
-      }),
-      startest.it("decodes gun_response mailbox tuples", fn() {
-        mailbox_response_message(fin.NoFin, 200, [#("Server", "gun")])
+        let conn = current_connection()
+        let stream = gluegun_ffi_test_stream_ref()
+
+        mailbox_inform_message(conn, stream, 103, [
+          #("Link", "</style.css>"),
+        ])
         |> message.decode
         |> expect.to_equal(
-          Ok(message.Response(fin.NoFin, 200, [#("server", "gun")])),
+          Ok(message.Envelope(
+            conn,
+            stream,
+            message.Inform(103, [#("link", "</style.css>")]),
+          )),
+        )
+      }),
+      startest.it("decodes gun_response mailbox tuples", fn() {
+        let conn = current_connection()
+        let stream = gluegun_ffi_test_stream_ref()
+
+        mailbox_response_message(conn, stream, fin.NoFin, 200, [
+          #("Server", "gun"),
+        ])
+        |> message.decode
+        |> expect.to_equal(
+          Ok(message.Envelope(
+            conn,
+            stream,
+            message.Response(fin.NoFin, 200, [#("server", "gun")]),
+          )),
         )
       }),
       startest.it("decodes gun_data mailbox tuples", fn() {
-        mailbox_data_message(fin.Fin, <<"hello":utf8>>)
+        let conn = current_connection()
+        let stream = gluegun_ffi_test_stream_ref()
+
+        mailbox_data_message(conn, stream, fin.Fin, <<"hello":utf8>>)
         |> message.decode
-        |> expect.to_equal(Ok(message.Data(fin.Fin, <<"hello":utf8>>)))
+        |> expect.to_equal(
+          Ok(message.Envelope(
+            conn,
+            stream,
+            message.Data(fin.Fin, <<"hello":utf8>>),
+          )),
+        )
       }),
       startest.it("decodes gun_trailers mailbox tuples", fn() {
-        mailbox_trailers_message([#("Expires", "soon")])
+        let conn = current_connection()
+        let stream = gluegun_ffi_test_stream_ref()
+
+        mailbox_trailers_message(conn, stream, [#("Expires", "soon")])
         |> message.decode
-        |> expect.to_equal(Ok(message.Trailers([#("expires", "soon")])))
+        |> expect.to_equal(
+          Ok(message.Envelope(
+            conn,
+            stream,
+            message.Trailers([#("expires", "soon")]),
+          )),
+        )
       }),
       startest.it("decodes gun_push mailbox tuples", fn() {
+        let conn = current_connection()
+        let stream = gluegun_ffi_test_stream_ref()
         let pushed = gluegun_ffi_test_stream_ref()
 
-        mailbox_push_message(pushed, "GET", "/assets/app.css", [
+        mailbox_push_message(conn, stream, pushed, "GET", "/assets/app.css", [
           #("Accept", "text/css"),
         ])
         |> message.decode
         |> expect.to_equal(
-          Ok(
+          Ok(message.Envelope(
+            conn,
+            stream,
             message.Push(pushed, request.Get, "/assets/app.css", [
               #("accept", "text/css"),
             ]),
-          ),
+          )),
         )
       }),
       startest.it("decodes gun_upgrade mailbox tuples", fn() {
-        mailbox_upgrade_message(["websocket"], [#("Connection", "Upgrade")])
+        let conn = current_connection()
+        let stream = gluegun_ffi_test_stream_ref()
+
+        mailbox_upgrade_message(conn, stream, ["websocket"], [
+          #("Connection", "Upgrade"),
+        ])
         |> message.decode
         |> expect.to_equal(
-          Ok(message.Upgrade(["websocket"], [#("connection", "Upgrade")])),
+          Ok(message.Envelope(
+            conn,
+            stream,
+            message.Upgrade(["websocket"], [#("connection", "Upgrade")]),
+          )),
         )
       }),
       startest.it("decodes gun_ws mailbox tuples", fn() {
+        let conn = current_connection()
+        let stream = gluegun_ffi_test_stream_ref()
+
         mailbox_websocket_frame_message(
+          conn,
+          stream,
           gluegun_ffi_test_text_frame(<<"hello":utf8>>),
         )
         |> message.decode
-        |> expect.to_equal(Ok(message.WebSocket(message.Text("hello"))))
+        |> expect.to_equal(
+          Ok(message.Envelope(
+            conn,
+            stream,
+            message.WebSocket(message.Text("hello")),
+          )),
+        )
       }),
       startest.it("maps stream-level gun_error tuples", fn() {
         mailbox_stream_error_result()
@@ -160,6 +222,88 @@ pub fn ffi_shape_tests() -> test_tree.TestTree {
         mailbox_connection_error_result()
         |> expect.to_equal(Error(error.ConnectionError("Boom")))
       }),
+      startest.it(
+        "rejects gun:await/3-style terms with no embedded stream",
+        fn() {
+          gluegun_ffi_test_response_message(fin.Fin, 200, [])
+          |> message.decode
+          |> expect.to_equal(Error(error.DecodeError("Invalid Gun message")))
+        },
+      ),
+      startest.it(
+        "collapses a malformed payload in a recognized mailbox tuple to a generic decode error",
+        fn() {
+          let conn = current_connection()
+          let stream = gluegun_ffi_test_stream_ref()
+
+          mailbox_websocket_frame_message(
+            conn,
+            stream,
+            gluegun_ffi_test_unknown_frame(),
+          )
+          |> message.decode
+          |> expect.to_equal(Error(error.DecodeError("Invalid Gun message")))
+        },
+      ),
+      startest.it(
+        "keeps two concurrent streams on the same connection distinct",
+        fn() {
+          let conn = current_connection()
+          let stream_a = gluegun_ffi_test_stream_ref()
+          let stream_b = gluegun_ffi_test_stream_ref()
+
+          let assert Ok(message.Envelope(
+            connection: envelope_a_conn,
+            stream: envelope_a_stream,
+            message: message_a,
+          )) =
+            mailbox_response_message(conn, stream_a, fin.NoFin, 200, [])
+            |> message.decode
+
+          let assert Ok(message.Envelope(
+            connection: envelope_b_conn,
+            stream: envelope_b_stream,
+            message: message_b,
+          )) =
+            mailbox_data_message(conn, stream_b, fin.Fin, <<"hi":utf8>>)
+            |> message.decode
+
+          envelope_a_conn |> expect.to_equal(conn)
+          envelope_b_conn |> expect.to_equal(conn)
+          envelope_a_stream |> expect.to_equal(stream_a)
+          envelope_b_stream |> expect.to_equal(stream_b)
+          envelope_a_stream |> expect.to_not_equal(envelope_b_stream)
+          message_a
+          |> expect.to_equal(message.Response(fin.NoFin, 200, []))
+          message_b
+          |> expect.to_equal(message.Data(fin.Fin, <<"hi":utf8>>))
+        },
+      ),
+      startest.it(
+        "attributes a server push to its owning stream, not the pushed stream",
+        fn() {
+          let conn = current_connection()
+          let owning_stream = gluegun_ffi_test_stream_ref()
+          let pushed_stream = gluegun_ffi_test_stream_ref()
+
+          mailbox_push_message(
+            conn,
+            owning_stream,
+            pushed_stream,
+            "GET",
+            "/assets/app.css",
+            [],
+          )
+          |> message.decode
+          |> expect.to_equal(
+            Ok(message.Envelope(
+              conn,
+              owning_stream,
+              message.Push(pushed_stream, request.Get, "/assets/app.css", []),
+            )),
+          )
+        },
+      ),
     ]),
     startest.describe("collected response bodies", [
       startest.it("returns the body when the last chunk carries Fin", fn() {
@@ -262,30 +406,46 @@ type GunFrame
 @external(erlang, "gluegun_ffi_test", "text_frame")
 fn gluegun_ffi_test_text_frame(data: BitArray) -> GunFrame
 
+@external(erlang, "gluegun_ffi_test", "unknown_frame")
+fn gluegun_ffi_test_unknown_frame() -> GunFrame
+
 @external(erlang, "gluegun_ffi_test", "mailbox_inform_message")
 fn mailbox_inform_message(
+  connection: internal.Connection,
+  stream: internal.Stream,
   status: Int,
   headers: List(#(String, String)),
 ) -> message.GunMessage
 
 @external(erlang, "gluegun_ffi_test", "mailbox_response_message")
 fn mailbox_response_message(
+  connection: internal.Connection,
+  stream: internal.Stream,
   fin: fin.Fin,
   status: Int,
   headers: List(#(String, String)),
 ) -> message.GunMessage
 
 @external(erlang, "gluegun_ffi_test", "mailbox_data_message")
-fn mailbox_data_message(fin: fin.Fin, data: BitArray) -> message.GunMessage
+fn mailbox_data_message(
+  connection: internal.Connection,
+  stream: internal.Stream,
+  fin: fin.Fin,
+  data: BitArray,
+) -> message.GunMessage
 
 @external(erlang, "gluegun_ffi_test", "mailbox_trailers_message")
 fn mailbox_trailers_message(
+  connection: internal.Connection,
+  stream: internal.Stream,
   headers: List(#(String, String)),
 ) -> message.GunMessage
 
 @external(erlang, "gluegun_ffi_test", "mailbox_push_message")
 fn mailbox_push_message(
+  connection: internal.Connection,
   stream: internal.Stream,
+  pushed_stream: internal.Stream,
   method: String,
   uri: String,
   headers: List(#(String, String)),
@@ -293,12 +453,18 @@ fn mailbox_push_message(
 
 @external(erlang, "gluegun_ffi_test", "mailbox_upgrade_message")
 fn mailbox_upgrade_message(
+  connection: internal.Connection,
+  stream: internal.Stream,
   protocols: List(String),
   headers: List(#(String, String)),
 ) -> message.GunMessage
 
 @external(erlang, "gluegun_ffi_test", "mailbox_websocket_frame_message")
-fn mailbox_websocket_frame_message(frame: GunFrame) -> message.GunMessage
+fn mailbox_websocket_frame_message(
+  connection: internal.Connection,
+  stream: internal.Stream,
+  frame: GunFrame,
+) -> message.GunMessage
 
 @external(erlang, "gluegun_ffi_test", "mailbox_stream_error_result")
 fn mailbox_stream_error_result() -> Result(message.Message, error.GluegunError)
@@ -308,6 +474,14 @@ fn mailbox_connection_error_result() -> Result(
   message.Message,
   error.GluegunError,
 )
+
+@external(erlang, "gluegun_ffi_test", "current_connection")
+fn current_connection() -> internal.Connection
+
+@external(erlang, "gluegun_ffi", "safe_decode_message")
+fn safe_decode_message(
+  message: message.GunMessage,
+) -> Result(message.Message, error.GluegunError)
 
 @external(erlang, "gluegun_ffi_test", "await_body_with_fin")
 fn await_body_with_fin(body: BitArray) -> Result(BitArray, error.GluegunError)

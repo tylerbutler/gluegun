@@ -80,17 +80,38 @@ pub type GluegunError =
 /// `decode` to turn one into a typed `Message`.
 pub type GunMessage
 
-/// Decode a raw Erlang Gun message into a typed Gleam message.
+/// A decoded `Message` paired with the connection and stream Gun says it
+/// belongs to.
+///
+/// Gun's mailbox tuples (`gun_response`, `gun_data`, `gun_inform`,
+/// `gun_trailers`, `gun_push`, `gun_upgrade`, `gun_ws`) always name the
+/// connection process and stream reference a message came from. `decode`
+/// preserves both alongside the decoded `Message` so a process that owns
+/// several concurrent streams — for example an HTTP/2 connection with
+/// server push, or several requests sharing one `reply_to` process — can
+/// attribute each message to the right stream instead of assuming messages
+/// arrive for whichever stream the caller currently has in mind.
+///
+/// `stream` names the stream that *delivered* the message; for `Push` it is
+/// the existing stream the server pushed on, not the new stream carried
+/// inside `message.Push`.
+pub type Envelope {
+  Envelope(connection: Connection, stream: Stream, message: Message)
+}
+
+/// Decode a raw Erlang Gun mailbox message into a typed `Message`, paired
+/// with the connection and stream it belongs to.
 ///
 /// Useful when receiving Gun messages outside Gluegun's helpers (for example
 /// inside a custom `receive` loop that hands the message to Gluegun through
-/// your own Erlang FFI). Accepts both the mailbox tuples Gun sends to the
-/// stream owner (`gun_response`, `gun_data`, `gun_inform`, `gun_trailers`,
-/// `gun_push`, `gun_upgrade`, `gun_ws`) and the shorter terms `gun:await/3`
-/// returns. Returns `DecodeError` when the term is not a recognized Gun
-/// message shape, including for error messages such as `gun_error`.
+/// your own Erlang FFI). Accepts the mailbox tuples Gun sends to the stream
+/// owner (`gun_response`, `gun_data`, `gun_inform`, `gun_trailers`,
+/// `gun_push`, `gun_upgrade`, `gun_ws`). Returns `DecodeError` when the term
+/// is not a recognized Gun mailbox message shape, including for error
+/// messages such as `gun_error` — handle those directly in your `receive`
+/// clause instead of passing them to `decode`.
 @external(erlang, "gluegun_ffi", "decode_message")
-pub fn decode(message: GunMessage) -> Result(Message, GluegunError)
+pub fn decode(message: GunMessage) -> Result(Envelope, GluegunError)
 
 /// Await the next Gun message for a stream.
 ///
