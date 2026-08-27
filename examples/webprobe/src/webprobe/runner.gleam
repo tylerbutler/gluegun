@@ -42,55 +42,72 @@ pub fn run(config: Config) -> Result(String, String) {
     connect_options(config, parsed_url)
     |> connection.open(host: parsed_url.host, port: parsed_url.port)
   {
-    Ok(conn) -> run_on_connection(config, parsed_url, conn)
-    Error(err) -> Error("connection failed: " <> error_to_string(err))
+    Ok(connection) -> run_on_connection(config, parsed_url, connection)
+    Error(error) -> Error("connection failed: " <> error_to_string(error))
   }
 }
 
-fn run_on_connection(config: Config, parsed_url: ParsedUrl, conn) {
-  case connection.await_up(conn, config.timeout) {
+fn run_on_connection(
+  config: Config,
+  parsed_url: ParsedUrl,
+  connection: connection.Connection,
+) -> Result(String, String) {
+  case connection.await_up(connection, config.timeout) {
     Ok(protocol) -> {
-      case build_request(config, parsed_url) |> client.send(connection: conn) {
-        Ok(res) -> close_after_success(conn, protocol, config, res)
-        Error(err) ->
-          close_after_error(conn, "request failed: " <> error_to_string(err))
+      case
+        build_request(config, parsed_url) |> client.send(connection: connection)
+      {
+        Ok(response) ->
+          close_after_success(connection, protocol, config, response)
+        Error(error) ->
+          close_after_error(
+            connection,
+            "request failed: " <> error_to_string(error),
+          )
       }
     }
 
-    Error(err) ->
-      close_after_error(conn, "connection failed: " <> error_to_string(err))
+    Error(error) ->
+      close_after_error(
+        connection,
+        "connection failed: " <> error_to_string(error),
+      )
   }
 }
 
 fn close_after_success(
-  conn,
+  connection: connection.Connection,
   protocol: connection.Protocol,
   config: Config,
-  res: response.Response,
-) {
-  case connection.close(conn) {
+  response: response.Response,
+) -> Result(String, String) {
+  case connection.close(connection) {
     Ok(Nil) ->
       Ok(report.format(
         protocol: protocol,
-        status: response.status(res),
-        headers: response.headers(res),
-        body: response.body(res),
+        status: response.status(response),
+        headers: response.headers(response),
+        body: response.body(response),
         body_preview_bytes: config.body_preview_bytes,
       ))
 
-    Error(err) -> Error("close failed: " <> error_to_string(err))
+    Error(error) -> Error("close failed: " <> error_to_string(error))
   }
 }
 
-fn close_after_error(conn, message: String) -> Result(String, String) {
-  case connection.close(conn) {
+fn close_after_error(
+  connection: connection.Connection,
+  message: String,
+) -> Result(String, String) {
+  case connection.close(connection) {
     Ok(Nil) -> Error(message)
-    Error(err) -> Error(message <> "; close failed: " <> error_to_string(err))
+    Error(error) ->
+      Error(message <> "; close failed: " <> error_to_string(error))
   }
 }
 
-pub fn error_to_string(err: error.GluegunError) -> String {
-  case err {
+pub fn error_to_string(error: error.GluegunError) -> String {
+  case error {
     error.Timeout -> "timeout"
     error.ConnectionDown(reason) -> "connection down: " <> reason
     error.ConnectionError(reason) -> "connection error: " <> reason

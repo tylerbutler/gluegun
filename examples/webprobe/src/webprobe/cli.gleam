@@ -30,16 +30,16 @@ type ParsedFlags {
   )
 }
 
-pub fn parse(args: List(String)) -> Result(Config, String) {
-  case args {
+pub fn parse(arguments: List(String)) -> Result(Config, String) {
+  case arguments {
     ["--help", ..] | ["-h", ..] -> Error(help_text())
-    _ -> parse_config(args)
+    _ -> parse_config(arguments)
   }
 }
 
-fn parse_config(args: List(String)) -> Result(Config, String) {
-  use #(headers, args) <- result.try(extract_headers(args, []))
-  use flags <- result.try(command() |> clip.run(args))
+fn parse_config(arguments: List(String)) -> Result(Config, String) {
+  use #(headers, arguments) <- result.try(extract_headers(arguments, []))
+  use flags <- result.try(command() |> clip.run(arguments))
 
   Ok(Config(
     url: flags.url,
@@ -138,10 +138,10 @@ pub fn method_from_string(input: String) -> Result(request.Method, String) {
 }
 
 fn extract_headers(
-  args: List(String),
+  arguments: List(String),
   headers: List(request.Header),
 ) -> Result(#(List(request.Header), List(String)), String) {
-  case args {
+  case arguments {
     [] -> Ok(#(list.reverse(headers), []))
 
     ["--header", value, ..rest] | ["-H", value, ..rest] -> {
@@ -151,9 +151,9 @@ fn extract_headers(
 
     ["--header"] | ["-H"] -> Error("Header must use name:value format")
 
-    [arg, ..rest] -> {
+    [argument, ..rest] -> {
       use #(headers, rest) <- result.try(extract_headers(rest, headers))
-      Ok(#(headers, [arg, ..rest]))
+      Ok(#(headers, [argument, ..rest]))
     }
   }
 }

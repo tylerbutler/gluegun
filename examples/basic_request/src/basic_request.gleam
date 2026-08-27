@@ -14,31 +14,31 @@ const port = 80
 
 const path = "/"
 
-pub fn main() {
+pub fn main() -> Nil {
   let timeout = connection.Milliseconds(5000)
 
   case connection.options() |> connection.open(host: host, port: port) {
-    Ok(conn) -> {
-      let assert Ok(protocol) = connection.await_up(conn, timeout)
+    Ok(connection) -> {
+      let assert Ok(protocol) = connection.await_up(connection, timeout)
       io.println("protocol: " <> protocol_to_string(protocol))
 
-      case client.get(conn, path, [], timeout) {
-        Ok(res) -> print_response(res)
-        Error(err) -> io.println("request failed: " <> error_to_string(err))
+      case client.get(connection, path, [], timeout) {
+        Ok(response) -> print_response(response)
+        Error(error) -> io.println("request failed: " <> error_to_string(error))
       }
 
-      let assert Ok(Nil) = connection.close(conn)
+      let assert Ok(Nil) = connection.close(connection)
       Nil
     }
 
-    Error(err) -> io.println("connection failed: " <> error_to_string(err))
+    Error(error) -> io.println("connection failed: " <> error_to_string(error))
   }
 }
 
-fn print_response(res) {
-  io.println("status: " <> int.to_string(response.status(res)))
+fn print_response(response: response.Response) -> Nil {
+  io.println("status: " <> int.to_string(response.status(response)))
 
-  case response.body_text(res) {
+  case response.body_text(response) {
     Ok(text) -> io.println(text)
     Error(_) -> io.println("response body was not valid UTF-8")
   }
@@ -51,8 +51,8 @@ fn protocol_to_string(protocol: connection.Protocol) -> String {
   }
 }
 
-fn error_to_string(err: error.GluegunError) -> String {
-  case err {
+fn error_to_string(error: error.GluegunError) -> String {
+  case error {
     error.Timeout -> "timeout"
     error.ConnectionDown(reason) -> "connection down: " <> reason
     error.ConnectionError(reason) -> "connection error: " <> reason

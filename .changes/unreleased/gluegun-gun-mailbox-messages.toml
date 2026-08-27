@@ -1,0 +1,6 @@
+package = "gluegun"
+kind = "Fixed"
+body = """
+Gun mailbox messages and trailered bodies
+
+`message.decode` now accepts the raw mailbox tuples Gun sends to the process that owns a stream (`gun_response`, `gun_data`, `gun_inform`, `gun_trailers`, `gun_push`, `gun_upgrade`, `gun_ws`, and `gun_error`), in addition to the shapes `gun:await/3` returns. `message.await_body` now returns the collected body when the response ends with trailers instead of reporting a stream error."""

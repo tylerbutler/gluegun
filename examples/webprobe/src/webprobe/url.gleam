@@ -40,9 +40,10 @@ pub fn parse(input: String) -> Result(ParsedUrl, String) {
         tls: True,
       ))
 
-    None, _ -> Error("URL must include a host")
-    _, Some(_) -> Error("Only http:// and https:// URLs are supported")
-    _, None -> Error("Only http:// and https:// URLs are supported")
+    Some(_), Some(_) -> Error("Only http:// and https:// URLs are supported")
+    Some(_), None -> Error("Only http:// and https:// URLs are supported")
+    None, Some(_) -> Error("URL must include a host")
+    None, None -> Error("URL must include a host")
   }
 }
 

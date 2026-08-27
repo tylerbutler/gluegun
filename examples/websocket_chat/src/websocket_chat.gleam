@@ -16,7 +16,7 @@ const port = 8080
 
 const path = "/chat"
 
-pub fn main() {
+pub fn main() -> Nil {
   case
     websocket.with_socket(
       host: host,
@@ -27,7 +27,7 @@ pub fn main() {
     )
   {
     Ok(Nil) -> io.println("chat finished")
-    Error(err) -> io.println("chat failed: " <> error_to_string(err))
+    Error(error) -> io.println("chat failed: " <> error_to_string(error))
   }
 }
 
@@ -62,8 +62,8 @@ fn frame_to_string(frame: message.Frame) -> String {
   }
 }
 
-fn error_to_string(err: error.GluegunError) -> String {
-  case err {
+fn error_to_string(error: error.GluegunError) -> String {
+  case error {
     error.Timeout -> "timeout"
     error.ConnectionDown(reason) -> "connection down: " <> reason
     error.ConnectionError(reason) -> "connection error: " <> reason

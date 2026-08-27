@@ -1,38 +1,37 @@
 -module(gluegun_ws_test).
 
+%% Typed WebSocket helpers for deterministic Gleam tests. Gun casts are sent to
+%% the test process itself, captured, and projected back into Gleam values.
+
 -export([
-    capture_ws_send_frame_message/1,
-    capture_ws_send_message/0,
+    capture_ws_send_frame/1,
+    capture_ws_send_frames/0,
     capture_ws_upgrade_options/1,
     current_process/0,
-    invalid_ws_send_frame_result/0,
     invalid_ws_send_frame_list_result/0,
     invalid_ws_send_text_utf8_result/0,
-    invalid_ws_upgrade_unknown_option_result/0,
     invalid_ws_upgrade_options_result/0,
-    test_close_plain_message/0,
-    test_close_with_reason_message/0,
-    test_ws_close_gun_tuple/0,
-    test_ws_close_with_reason_gun_tuple/0
+    ws_close_message/0,
+    ws_close_with_reason_message/0
 ]).
 
-capture_ws_send_frame_message(Frame) ->
+%% Send one frame through the real FFI, then read the frame Gun was asked to
+%% write and hand it back as a raw Gun message for `gluegun/message.decode`.
+capture_ws_send_frame(Frame) ->
     StreamRef = make_ref(),
-    case gluegun_ffi:ws_send(self(), StreamRef, Frame) of
+    case gluegun_ffi:ws_send(self(), StreamRef, [Frame]) of
         {ok, nil} ->
             receive
-                {'$gen_cast', {ws_send, _ReplyTo, StreamRef, GunFrame}} ->
-                    {ok, #{<<"type">> => <<"websocket">>,
-                           <<"frame">> => gun_frame_to_map(GunFrame)}}
+                {'$gen_cast', {ws_send, _ReplyTo, StreamRef, [GunFrame]}} ->
+                    {ok, {ws, GunFrame}}
             after 0 ->
-                {error, no_ws_send_message}
+                {error, {erlang_error, <<"no ws_send message"/utf8>>}}
             end;
         Error ->
             Error
     end.
 
-
-capture_ws_send_message() ->
+capture_ws_send_frames() ->
     receive
         {'$gen_cast', {ws_send, _ReplyTo, _StreamRef, GunFrames}} when is_list(GunFrames) ->
             {ok, [gun_frame_to_pair(Frame) || Frame <- GunFrames]};
@@ -42,58 +41,41 @@ capture_ws_send_message() ->
         {error, nil}
     end.
 
+%% Project the Gun `ws_opts()` map Gun was called with into a Gleam tuple of
+%% `{Compress, SilencePings, Flow, Keepalive, ClosingTimeout, DefaultProtocol,
+%% Protocols}`, where the first six are `gleam/option.Option` values.
 capture_ws_upgrade_options(Options) ->
     case gluegun_ffi:ws_upgrade(self(), <<"/ws">>, [], Options) of
         {ok, StreamRef} ->
             receive
                 {'$gen_cast', {ws_upgrade, _ReplyTo, StreamRef, _Path, _Headers, GunOpts}} ->
-                    {ok, ws_opts_to_assertion_map(GunOpts)}
+                    {ok, summarize_ws_opts(GunOpts)}
             after 0 ->
-                {error, no_ws_upgrade_message}
+                {error, {erlang_error, <<"no ws_upgrade message"/utf8>>}}
             end;
         Error ->
             Error
     end.
 
-
-invalid_ws_send_frame_result() ->
-    gluegun_ffi:ws_send(self(), make_ref(), bad_frame).
-
 invalid_ws_send_frame_list_result() ->
     gluegun_ffi:ws_send(self(), make_ref(), [{text, <<"ok">>}, bad_frame]).
 
 invalid_ws_send_text_utf8_result() ->
-    gluegun_ffi:ws_send(self(), make_ref(), {text, <<255>>}).
+    gluegun_ffi:ws_send(self(), make_ref(), [{text, <<255>>}]).
 
+%% Bypasses the Gleam `UpgradeOption` type on purpose: checks that Gun's own
+%% ws_opts validation is still surfaced as `InvalidOptions`.
 invalid_ws_upgrade_options_result() ->
-    gluegun_ffi:ws_upgrade(self(), <<"/ws">>, [], #{<<"compress">> => <<"not-a-boolean">>}).
-
-invalid_ws_upgrade_unknown_option_result() ->
-    gluegun_ffi:ws_upgrade(self(), <<"/ws">>, [], #{<<"unexpected_ws_option">> => true}).
+    gluegun_ffi:ws_upgrade(self(), <<"/ws">>, [], [{compress, <<"not-a-boolean">>}]).
 
 current_process() ->
     self().
 
-%% Pre-built message maps matching the new FFI output for plain close.
-%% frame type "close" has no code/reason fields.
-test_close_plain_message() ->
-    #{<<"type">> => <<"websocket">>,
-      <<"frame">> => #{<<"type">> => <<"close">>}}.
-
-%% Pre-built message map for close with reason.
-%% frame type "close_with_reason" carries code and reason as bit_array.
-test_close_with_reason_message() ->
-    #{<<"type">> => <<"websocket">>,
-      <<"frame">> => #{<<"type">> => <<"close_with_reason">>,
-                       <<"code">> => 1001,
-                       <<"reason">> => <<"going away">>}}.
-
-%% Raw Gun message tuples, used with gluegun_ffi:safe_message_to_map/1
-%% to test that the FFI conversion produces the expected map shapes.
-test_ws_close_gun_tuple() ->
+%% Raw Gun WebSocket close messages.
+ws_close_message() ->
     {ws, close}.
 
-test_ws_close_with_reason_gun_tuple() ->
+ws_close_with_reason_message() ->
     {ws, {close, 1001, <<"going away">>}}.
 
 gun_frame_to_pair({text, Data}) -> {<<"text">>, Data};
@@ -101,33 +83,27 @@ gun_frame_to_pair({binary, Data}) -> {<<"binary">>, Data};
 gun_frame_to_pair({ping, Data}) -> {<<"ping">>, Data};
 gun_frame_to_pair({pong, Data}) -> {<<"pong">>, Data};
 gun_frame_to_pair(close) -> {<<"close">>, <<>>};
-gun_frame_to_pair({close, Code, Reason}) -> {<<"close_with_reason">>, <<(integer_to_binary(Code))/binary, $:, Reason/binary>>}.
+gun_frame_to_pair({close, Code, Reason}) ->
+    {<<"close_with_reason">>, <<(integer_to_binary(Code))/binary, $:, Reason/binary>>}.
 
-gun_frame_to_map({text, Data}) ->
-    #{<<"type">> => <<"text">>, <<"data">> => Data};
-gun_frame_to_map({binary, Data}) ->
-    #{<<"type">> => <<"binary">>, <<"data">> => Data};
-gun_frame_to_map({ping, Data}) ->
-    #{<<"type">> => <<"ping">>, <<"data">> => Data};
-gun_frame_to_map({pong, Data}) ->
-    #{<<"type">> => <<"pong">>, <<"data">> => Data};
-gun_frame_to_map(close) ->
-    #{<<"type">> => <<"close">>};
-gun_frame_to_map({close, Code, Reason}) ->
-    #{<<"type">> => <<"close_with_reason">>,
-      <<"code">> => Code,
-      <<"reason">> => Reason}.
+summarize_ws_opts(GunOpts) when is_map(GunOpts) ->
+    {
+        optional(maps:get(compress, GunOpts, undefined)),
+        optional(maps:get(silence_pings, GunOpts, undefined)),
+        optional(maps:get(flow, GunOpts, undefined)),
+        optional_timeout(maps:get(keepalive, GunOpts, undefined)),
+        optional_timeout(maps:get(closing_timeout, GunOpts, undefined)),
+        optional_module(maps:get(default_protocol, GunOpts, undefined)),
+        [{Protocol, atom_to_binary(Module, utf8)} || {Protocol, Module} <- maps:get(protocols, GunOpts, [])]
+    }.
 
+optional(undefined) -> none;
+optional(Value) -> {some, Value}.
 
-ws_opts_to_assertion_map(GunOpts) when is_map(GunOpts) ->
-    maps:from_list([{atom_to_binary(Key, utf8), ws_opt_value_to_assertion(Value)} || {Key, Value} <- maps:to_list(GunOpts)]).
+optional_timeout(undefined) -> none;
+optional_timeout(infinity) -> {some, <<"infinity"/utf8>>};
+optional_timeout(Milliseconds) when is_integer(Milliseconds) ->
+    {some, integer_to_binary(Milliseconds)}.
 
-ws_opt_value_to_assertion(Protocols) when is_list(Protocols) ->
-    [ws_protocol_to_assertion(Protocol) || Protocol <- Protocols];
-ws_opt_value_to_assertion(Value) ->
-    Value.
-
-ws_protocol_to_assertion({Protocol, Module}) ->
-    {Protocol, Module};
-ws_protocol_to_assertion([Protocol, Module]) ->
-    {Protocol, Module}.
+optional_module(undefined) -> none;
+optional_module(Module) when is_atom(Module) -> {some, atom_to_binary(Module, utf8)}.

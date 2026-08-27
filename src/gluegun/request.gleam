@@ -4,14 +4,12 @@
 //// bodies, flow-control updates, cancellation, or direct access to asynchronous
 //// Gun messages. For simple full-body responses, prefer `gluegun/client`.
 
-import gleam/dynamic
 import gleam/list
 import gleam/string
 import gluegun/connection.{type Connection}
 import gluegun/error
 import gluegun/fin.{type Fin}
 import gluegun/internal
-import gluegun/internal/ffi_result
 
 /// HTTP request method constructors.
 ///
@@ -125,14 +123,12 @@ pub fn request(
   options: RequestOptions,
 ) -> Result(Stream, error.GluegunError) {
   ffi_request(
-    internal.connection_raw(connection),
+    connection,
     method_to_string(method),
     path,
     normalize_headers(list.append(headers, options.headers)),
     body,
-    options_to_ffi(options),
   )
-  |> ffi_result.decode_request_result
 }
 
 /// Start a low-level HTTP request whose body will be streamed in chunks.
@@ -154,17 +150,12 @@ pub fn start_stream(
   headers: List(Header),
   options: RequestOptions,
 ) -> Result(Stream, error.GluegunError) {
-  let #(method, path, headers, options) =
-    headers_args_to_ffi(method, path, headers, options)
-
   ffi_headers(
-    internal.connection_raw(connection),
-    method,
+    connection,
+    method_to_string(method),
     path,
-    headers,
-    options,
+    normalize_headers(list.append(headers, options.headers)),
   )
-  |> ffi_result.decode_request_result
 }
 
 /// Send a chunk of request body data on an open stream.
@@ -178,13 +169,7 @@ pub fn data(
   fin: Fin,
   data: BitArray,
 ) -> Result(Nil, error.GluegunError) {
-  ffi_data(
-    internal.connection_raw(connection),
-    internal.stream_raw(stream),
-    fin,
-    data,
-  )
-  |> ffi_result.decode_nil_result
+  ffi_data(connection, stream, fin, data)
 }
 
 /// Cancel an in-flight request stream.
@@ -196,8 +181,7 @@ pub fn cancel(
   connection: Connection,
   stream: Stream,
 ) -> Result(Nil, error.GluegunError) {
-  ffi_cancel(internal.connection_raw(connection), internal.stream_raw(stream))
-  |> ffi_result.decode_nil_result
+  ffi_cancel(connection, stream)
 }
 
 /// Update HTTP/1.1 or HTTP/2 stream flow control by the given increment.
@@ -211,13 +195,7 @@ pub fn update_flow(
   increment: Int,
 ) -> Result(Nil, error.GluegunError) {
   case increment > 0 {
-    True -> {
-      let #(connection, stream, increment) =
-        update_flow_args_to_ffi(connection, stream, increment)
-
-      ffi_update_flow(connection, stream, increment)
-      |> ffi_result.decode_nil_result
-    }
+    True -> ffi_update_flow(connection, stream, increment)
     False ->
       Error(error.InvalidOptions("flow-control increment must be positive"))
   }
@@ -228,87 +206,46 @@ pub fn update_flow(
 /// Useful after `cancel` or when recovering from an aborted flow. Returns
 /// `Ok(Nil)` even when no messages were buffered.
 pub fn flush(connection: Connection) -> Result(Nil, error.GluegunError) {
-  ffi_flush(internal.connection_raw(connection))
-  |> ffi_result.decode_nil_result
-}
-
-fn options_to_ffi(_options: RequestOptions) -> dynamic.Dynamic {
-  dynamic.properties([])
-}
-
-@internal
-pub fn headers_args_to_ffi(
-  method: Method,
-  path: String,
-  headers: List(Header),
-  options: RequestOptions,
-) -> #(String, String, List(Header), dynamic.Dynamic) {
-  #(
-    method_to_string(method),
-    path,
-    normalize_headers(list.append(headers, options.headers)),
-    options_to_ffi(options),
-  )
-}
-
-@internal
-pub fn fin_to_ffi(fin: Fin) -> dynamic.Dynamic {
-  ffi_fin_to_ffi(fin)
-}
-
-@external(erlang, "gluegun_ffi", "fin_to_ffi")
-fn ffi_fin_to_ffi(fin: Fin) -> dynamic.Dynamic
-
-@internal
-pub fn update_flow_args_to_ffi(
-  connection: Connection,
-  stream: Stream,
-  increment: Int,
-) -> #(dynamic.Dynamic, dynamic.Dynamic, Int) {
-  #(internal.connection_raw(connection), internal.stream_raw(stream), increment)
+  ffi_flush(connection)
 }
 
 @external(erlang, "gluegun_ffi", "headers")
 fn ffi_headers(
-  connection: dynamic.Dynamic,
+  connection: Connection,
   method: String,
   path: String,
   headers: List(Header),
-  options: dynamic.Dynamic,
-) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+) -> Result(Stream, error.GluegunError)
 
 @external(erlang, "gluegun_ffi", "request")
 fn ffi_request(
-  connection: dynamic.Dynamic,
+  connection: Connection,
   method: String,
   path: String,
   headers: List(Header),
   body: BitArray,
-  options: dynamic.Dynamic,
-) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+) -> Result(Stream, error.GluegunError)
 
 @external(erlang, "gluegun_ffi", "data")
 fn ffi_data(
-  connection: dynamic.Dynamic,
-  stream: dynamic.Dynamic,
+  connection: Connection,
+  stream: Stream,
   fin: Fin,
   data: BitArray,
-) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+) -> Result(Nil, error.GluegunError)
 
 @external(erlang, "gluegun_ffi", "cancel")
 fn ffi_cancel(
-  connection: dynamic.Dynamic,
-  stream: dynamic.Dynamic,
-) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+  connection: Connection,
+  stream: Stream,
+) -> Result(Nil, error.GluegunError)
 
 @external(erlang, "gluegun_ffi", "update_flow")
 fn ffi_update_flow(
-  connection: dynamic.Dynamic,
-  stream: dynamic.Dynamic,
+  connection: Connection,
+  stream: Stream,
   increment: Int,
-) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+) -> Result(Nil, error.GluegunError)
 
 @external(erlang, "gluegun_ffi", "flush")
-fn ffi_flush(
-  connection: dynamic.Dynamic,
-) -> Result(dynamic.Dynamic, dynamic.Dynamic)
+fn ffi_flush(connection: Connection) -> Result(Nil, error.GluegunError)

@@ -18,7 +18,8 @@ High-level `gluegun/client` helpers use this flow internally for ordinary reques
 ## `message.await` versus `message.await_body`
 
 - `message.await(conn, stream, timeout)` returns the *next* message for a stream as a typed `Message`. Use it in a loop to handle `Inform`, `Response`, `Data`, `Trailers`, `Push`, `Upgrade`, and `WebSocket` values explicitly. This is the right choice for streaming, server push, upgrade flows, or any case where you want to apply backpressure.
-- `message.await_body(conn, stream, timeout)` is a convenience that drains body chunks until `Fin` and returns the concatenated bytes. It must be called *after* the `Response` message has been received (e.g. via a prior `await`). The whole body is held in memory.
+- `message.await_body(conn, stream, timeout)` is a convenience that drains body chunks until `Fin` and returns the concatenated bytes. It must be called *after* the `Response` message has been received (e.g. via a prior `await`). The whole body is held in memory. If the response ends with trailers, the body is still returned and the trailer headers are dropped; use `await` when you need them.
+- `message.decode(gun_message)` turns a raw Gun term into a typed `Message`. It accepts both the mailbox tuples Gun sends to the process that owns the stream (`gun_response`, `gun_data`, `gun_inform`, `gun_trailers`, `gun_push`, `gun_upgrade`, `gun_ws`) and the shorter terms `gun:await/3` returns. Use it when your own Erlang FFI receives Gun messages outside Gluegun's helpers.
 
 For chunked bodies, see the [streaming guide](/guides/streaming/). For WebSocket upgrade flows, see the [websockets guide](/guides/websockets/).
 
@@ -64,21 +65,20 @@ Gun handles ping/pong automatically by default. `websocket.with_silence_pings` c
 
 ## Process ownership and `reply_to`
 
-Gun sends asynchronous connection and stream messages to the Erlang process that called `gun:open`. If you want another process to receive WebSocket upgrade and frame messages, use `websocket.with_reply_to_dynamic` to set Gun's raw `reply_to` option.
+Gun sends asynchronous connection and stream messages to the Erlang process that called `gun:open`. If you want another process to receive WebSocket upgrade and frame messages, use `websocket/raw.with_reply_to` to set Gun's `reply_to` option to that process identifier.
 
 If that receiving process dies before it handles the messages, those messages are lost. Gluegun does not buffer them elsewhere.
 
 ```gleam
-import gleam/dynamic
 import gleam/erlang/process
 import gluegun/connection
 import gluegun/websocket
+import gluegun/websocket/raw
 
 pub fn upgrade_in_current_process(conn) {
-  let owner = dynamic.from(process.self())
   let options =
     websocket.upgrade_options()
-    |> websocket.with_reply_to_dynamic(reply_to: owner)
+    |> raw.with_reply_to(reply_to: process.self())
 
   let assert Ok(protocol) =
     connection.await_up(conn, connection.Milliseconds(5000))

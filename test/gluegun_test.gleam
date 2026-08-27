@@ -1,20 +1,20 @@
-import gleam/dynamic
 import gluegun
 import gluegun/client
 import gluegun/connection
 import gluegun/internal
 import gluegun/request
 import gluegun/websocket
-import startest.{describe, it}
+import startest
 import startest/expect
+import startest/test_tree
 
 pub fn main() -> Nil {
   startest.run(startest.default_config())
 }
 
-pub fn gluegun_tests() {
-  describe("gluegun root facade", [
-    it("builds a root request with default fields", fn() {
+pub fn gluegun_tests() -> test_tree.TestTree {
+  startest.describe("gluegun root facade", [
+    startest.it("builds a root request with default fields", fn() {
       gluegun.new_request(request.Get, "/")
       |> client.inspect_request
       |> expect.to_equal(client.RequestFields(
@@ -26,16 +26,16 @@ pub fn gluegun_tests() {
         timeout: connection.Milliseconds(5000),
       ))
     }),
-    it("exposes root WebSocket options", fn() {
+    startest.it("exposes root WebSocket options", fn() {
       gluegun.websocket_options()
       |> websocket.options_timeout
       |> expect.to_equal(connection.Milliseconds(5000))
     }),
-    it("exposes the minimal common-path root helpers", fn() {
+    startest.it("exposes the minimal common-path root helpers", fn() {
       compile_common_path_facade(False)
       |> expect.to_equal(Nil)
     }),
-    it("exposes public handle types from non-internal modules", fn() {
+    startest.it("exposes public handle types from non-internal modules", fn() {
       compile_public_handle_types(False)
       |> expect.to_equal(Nil)
     }),
@@ -45,16 +45,17 @@ pub fn gluegun_tests() {
 fn compile_common_path_facade(should_run: Bool) -> Nil {
   case should_run {
     True -> {
-      let assert Ok(conn) =
+      let assert Ok(open_connection) =
         gluegun.open(
           gluegun.connection_options(),
           host: "localhost",
           port: 8080,
         )
       let assert Ok(_protocol) =
-        gluegun.await_up(conn, connection.Milliseconds(5000))
+        gluegun.await_up(open_connection, connection.Milliseconds(5000))
       let request = gluegun.new_request(request.Get, "/")
-      let assert Ok(response) = gluegun.send(request, connection: conn)
+      let assert Ok(response) =
+        gluegun.send(request, connection: open_connection)
       let assert Ok(_body) = gluegun.body_text(response)
       let assert Ok(_socket) =
         gluegun.websocket_connect(
@@ -72,8 +73,8 @@ fn compile_common_path_facade(should_run: Bool) -> Nil {
 fn compile_public_handle_types(should_run: Bool) -> Nil {
   case should_run {
     True -> {
-      let connection = internal.connection(dynamic.string("connection"))
-      let stream = internal.stream(dynamic.string("stream"))
+      let connection = invalid_connection()
+      let stream = stream_ref()
       let _ = accept_connection(connection)
       let _ = accept_stream(stream)
       Nil
@@ -89,3 +90,9 @@ fn accept_connection(_connection: connection.Connection) -> Nil {
 fn accept_stream(_stream: request.Stream) -> Nil {
   Nil
 }
+
+@external(erlang, "gluegun_ffi_test", "invalid_connection")
+fn invalid_connection() -> internal.Connection
+
+@external(erlang, "gluegun_ffi_test", "stream_ref")
+fn stream_ref() -> internal.Stream

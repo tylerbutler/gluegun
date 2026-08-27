@@ -9,6 +9,11 @@ Error types returned by Gluegun effectful APIs.
  for application-specific recovery, and keep a fallback for Erlang or decode
  errors.
 
+ Every Gluegun operation crosses the Erlang FFI boundary as
+ `Result(value, GluegunError)`. `src/gluegun_ffi.erl` classifies each Gun
+ failure and builds the matching variant, so no Gleam code has to inspect
+ untyped Erlang error terms.
+
 ## Types
 
 ### `GluegunError`

@@ -16,12 +16,12 @@ const port = 80
 
 const path = "/post"
 
-pub fn main() {
+pub fn main() -> Nil {
   let timeout = connection.Milliseconds(15_000)
 
   case connection.options() |> connection.open(host: host, port: port) {
-    Ok(conn) -> {
-      case connection.await_up(conn, timeout) {
+    Ok(connection) -> {
+      case connection.await_up(connection, timeout) {
         Ok(protocol) -> {
           io.println("protocol: " <> protocol_to_string(protocol))
 
@@ -34,41 +34,44 @@ pub fn main() {
           )
           |> client.with_body(body: <<"{ \"name\": \"widget\" }":utf8>>)
           |> client.with_timeout(timeout: timeout)
-          |> client.send(connection: conn)
+          |> client.send(connection: connection)
           |> print_result
         }
 
-        Error(err) -> io.println("connection failed: " <> error_to_string(err))
+        Error(error) ->
+          io.println("connection failed: " <> error_to_string(error))
       }
 
-      case connection.close(conn) {
+      case connection.close(connection) {
         Ok(Nil) -> Nil
-        Error(err) -> io.println("close failed: " <> error_to_string(err))
+        Error(error) -> io.println("close failed: " <> error_to_string(error))
       }
     }
 
-    Error(err) -> io.println("connection failed: " <> error_to_string(err))
+    Error(error) -> io.println("connection failed: " <> error_to_string(error))
   }
 }
 
-fn print_result(result) {
+fn print_result(result: Result(response.Response, error.GluegunError)) -> Nil {
   case result {
-    Ok(res) -> print_response(res)
-    Error(err) -> io.println("request failed: " <> error_to_string(err))
+    Ok(response) -> print_response(response)
+    Error(error) -> io.println("request failed: " <> error_to_string(error))
   }
 }
 
-fn print_response(res) {
-  io.println("status: " <> int.to_string(response.status(res)))
+fn print_response(response: response.Response) -> Nil {
+  io.println("status: " <> int.to_string(response.status(response)))
   io.println(
     "response header count: "
-    <> int.to_string(list.length(response.headers(res))),
+    <> int.to_string(list.length(response.headers(response))),
   )
 
-  case response.body_text(res) {
+  case response.body_text(response) {
     Ok(text) -> io.println(text)
-    Error(err) ->
-      io.println("response body failed UTF-8 decode: " <> error_to_string(err))
+    Error(error) ->
+      io.println(
+        "response body failed UTF-8 decode: " <> error_to_string(error),
+      )
   }
 }
 
@@ -79,8 +82,8 @@ fn protocol_to_string(protocol: connection.Protocol) -> String {
   }
 }
 
-fn error_to_string(err: error.GluegunError) -> String {
-  case err {
+fn error_to_string(error: error.GluegunError) -> String {
+  case error {
     error.Timeout -> "timeout"
     error.ConnectionDown(reason) -> "connection down: " <> reason
     error.ConnectionError(reason) -> "connection error: " <> reason
