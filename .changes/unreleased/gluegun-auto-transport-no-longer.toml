@@ -1,0 +1,8 @@
+package = "gluegun"
+kind = "Fixed"
+body = """
+Auto transport no longer silently drops configured TLS options
+
+Previously, `connection.Auto` left Gun's `transport` option unset, so Gun chose TLS only for port 443 and plain TCP for every other port — even when the caller had explicitly configured `tls.TlsOptions` via `with_tls_options`. TLS settings were silently discarded and the connection sent plaintext.
+
+`connection.Auto` now resolves to TLS whenever TLS options were explicitly configured, regardless of port. Auto connections that never configure TLS options are unaffected: Gun still chooses transport purely from the port number."""

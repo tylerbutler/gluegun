@@ -41,6 +41,32 @@ example, in a minimal container), `connection.open` returns an
 Supply your own CA bundle with `tls.with_cacertfile` or `tls.with_cacerts`
 in that case.
 
+## Auto transport never silently drops configured TLS options
+
+`connection.Auto` (the default transport) normally lets Gun choose TLS on
+port 443 and plain TCP everywhere else. If you configure TLS options with
+`with_tls_options` while `Auto` is active, that is treated as explicit TLS
+intent: the connection uses TLS on every port, not only 443. This keeps a
+misconfigured or non-standard TLS port (for example a proxy that terminates
+TLS on port 8443) from silently falling back to plaintext and discarding
+your TLS settings.
+
+```gleam
+import gluegun/connection
+import gluegun/tls
+
+pub fn open_secure_on_custom_port() {
+  connection.options()
+  |> connection.with_tls_options(tls.options())
+  |> connection.open(host: "example.com", port: 8443)
+  // Uses TLS even though the port is not 443, because TLS options were
+  // explicitly configured.
+}
+```
+
+Auto connections that never configure TLS options are unaffected: Gun still
+chooses transport purely from the port number.
+
 ## Overriding the baseline
 
 ```gleam

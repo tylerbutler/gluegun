@@ -16,6 +16,10 @@ import gluegun/tls
 /// version.
 pub type Transport {
   /// Let Gun choose TLS for TLS ports and TCP otherwise.
+  ///
+  /// If TLS options are configured with `with_tls_options`, Auto uses TLS
+  /// on every port instead: configured TLS options are treated as explicit
+  /// TLS intent, so they are never silently discarded on non-443 ports.
   Auto
   /// Force plain TCP (no TLS). Use for `http://` endpoints.
   Tcp
@@ -125,6 +129,11 @@ pub fn with_connect_timeout(
 }
 
 /// Set TLS options for TLS or auto-transport connections.
+///
+/// Configuring TLS options on an `Auto`-transport connection is treated as
+/// explicit TLS intent: the connection uses TLS on every port, not only
+/// port 443, so the configured options are never silently dropped in favor
+/// of plaintext.
 pub fn with_tls_options(
   options: ConnectOptions,
   tls_options tls_options: tls.TlsOptions,
