@@ -88,7 +88,10 @@ test("generates reference index and module pages from Gleam docs JSON", async ()
 
 		assert.deepEqual(result, { pageCount: 2, moduleCount: 1 });
 		assert.match(index, /title: Reference/);
+		assert.match(index, /## Start here/);
+		assert.match(index, /Find a symbol/);
 		assert.match(index, /\[`gluegun\/connection`\]\(\/reference\/gluegun-connection\/\)/);
+		assert.doesNotMatch(index, /:::note\[Generated content\]/);
 		assert.match(modulePage, /title: gluegun\/connection/);
 		assert.match(modulePage, /## Types/);
 		// Sum types render as pub type ... { ... } blocks.

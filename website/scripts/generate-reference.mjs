@@ -248,34 +248,71 @@ function deprecationBlock(deprecation) {
 }
 
 function renderIndex(packageInterface, modules) {
-	const moduleRows = modules
-		.map(([moduleName, moduleInterface]) => {
-			const description = descriptionFromDocs(
-				moduleInterface.documentation,
-				`Reference for ${moduleName}.`,
-			);
-			return `| [${code(moduleName)}](/reference/${moduleSlug(moduleName)}/) | ${description} |`;
+	const moduleEntries = new Map(
+		modules.map(([moduleName, moduleInterface]) => [
+			moduleName,
+			{
+				description: descriptionFromDocs(
+					moduleInterface.documentation,
+					`Reference for ${moduleName}.`,
+				),
+				link: `/reference/${moduleSlug(moduleName)}/`,
+			},
+		]),
+	);
+	const groups = [
+		{
+			title: "Start here",
+			names: [
+				"gluegun",
+				"gluegun/client",
+				"gluegun/connection",
+				"gluegun/request",
+			],
+		},
+		{
+			title: "Streams and protocols",
+			names: ["gluegun/message", "gluegun/fin", "gluegun/websocket"],
+		},
+		{
+			title: "Responses and security",
+			names: ["gluegun/response", "gluegun/error", "gluegun/tls"],
+		},
+	];
+	const groupedNames = new Set(groups.flatMap(({ names }) => names));
+	const remainingNames = modules
+		.map(([moduleName]) => moduleName)
+		.filter((moduleName) => !groupedNames.has(moduleName));
+	if (remainingNames.length > 0) {
+		groups.push({ title: "Other modules", names: remainingNames });
+	}
+
+	const moduleGroups = groups
+		.map(({ title, names }) => {
+			const items = names
+				.filter((moduleName) => moduleEntries.has(moduleName))
+				.map((moduleName) => {
+					const module = moduleEntries.get(moduleName);
+					return `- [${code(moduleName)}](${module.link}) — ${module.description}`;
+				})
+				.join("\n");
+			return items.length > 0 ? `## ${title}\n\n${items}` : "";
 		})
-		.join("\n");
+		.filter(Boolean)
+		.join("\n\n");
 
 	return `---
 title: Reference
 description: Generated Gluegun API reference from Gleam docs metadata.
 ---
 
-This reference is generated from the Gleam docs metadata for ${code(packageInterface.name)} ${code(packageInterface.version)}.
+This site is the primary reference for ${code(packageInterface.name)} ${code(packageInterface.version)}. It is generated from the package metadata and includes every public type, function, and constant.
 
-For the canonical HexDocs version, see [hexdocs.pm/gluegun](https://hexdocs.pm/gluegun/).
+**Find a symbol:** open Search with \`Ctrl+K\` or \`⌘K\`, then enter a module, type, or function name.
 
-:::note[Generated content]
-The pages under \`/reference/\` are generated from the Gleam docs metadata. They show each public type, function, and constant. For concepts and recommended patterns, see the hand-written [guides](/guides/basic-requests/) and [advanced topics](/advanced/error-handling/).
-:::
+${moduleGroups}
 
-## Modules
-
-| Module | Description |
-|---|---|
-${moduleRows}
+For concepts and recommended patterns, use the [guides](/guides/basic-requests/) and [advanced topics](/advanced/error-handling/). HexDocs provides a [mirror of the API reference](https://hexdocs.pm/gluegun/).
 `;
 }
 
