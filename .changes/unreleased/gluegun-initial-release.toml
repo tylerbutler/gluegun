@@ -1,6 +1,0 @@
-package = "gluegun"
-kind = "Major Release"
-body = """
-Initial release
-
-Gluegun is a typed Gleam wrapper for the Erlang Gun HTTP client, covering connection options, HTTP request streaming, asynchronous message decoding, high-level HTTP response collection, and WebSocket helpers. Ships with documentation and examples."""

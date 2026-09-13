@@ -1,6 +1,0 @@
-package = "gluegun"
-kind = "Added"
-body = """
-`tls.insecure()` development opt-out
-
-`tls.insecure()` disables peer verification and SNI for development against self-signed endpoints."""
