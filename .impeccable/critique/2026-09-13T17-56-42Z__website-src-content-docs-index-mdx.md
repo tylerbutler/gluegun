@@ -2,7 +2,7 @@
 target: website
 total_score: 31
 max_score: 40
-na_heuristics: 
+na_heuristics:
 p0_count: 0
 p1_count: 1
 timestamp: 2026-09-13T17-56-42Z
