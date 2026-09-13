@@ -40,16 +40,33 @@ const sidebar = [
 		label: "Reference",
 		items: [
 			{ label: "Overview", slug: "reference" },
-			{ label: "gluegun", slug: "reference/gluegun" },
-			{ label: "client", slug: "reference/gluegun-client" },
-			{ label: "connection", slug: "reference/gluegun-connection" },
-			{ label: "error", slug: "reference/gluegun-error" },
-			{ label: "fin", slug: "reference/gluegun-fin" },
-			{ label: "message", slug: "reference/gluegun-message" },
-			{ label: "request", slug: "reference/gluegun-request" },
-			{ label: "response", slug: "reference/gluegun-response" },
-			{ label: "tls", slug: "reference/gluegun-tls" },
-			{ label: "websocket", slug: "reference/gluegun-websocket" },
+			{
+				label: "Common path",
+				items: [
+					{ label: "gluegun", slug: "reference/gluegun" },
+					{ label: "client", slug: "reference/gluegun-client" },
+					{ label: "connection", slug: "reference/gluegun-connection" },
+					{ label: "request", slug: "reference/gluegun-request" },
+				],
+			},
+			{
+				label: "Streams and protocols",
+				collapsed: true,
+				items: [
+					{ label: "message", slug: "reference/gluegun-message" },
+					{ label: "fin", slug: "reference/gluegun-fin" },
+					{ label: "websocket", slug: "reference/gluegun-websocket" },
+				],
+			},
+			{
+				label: "Responses and security",
+				collapsed: true,
+				items: [
+					{ label: "response", slug: "reference/gluegun-response" },
+					{ label: "error", slug: "reference/gluegun-error" },
+					{ label: "tls", slug: "reference/gluegun-tls" },
+				],
+			},
 			{
 				label: "API Reference (HexDocs)",
 				link: "https://hexdocs.pm/gluegun/",

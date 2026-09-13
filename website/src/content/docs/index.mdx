@@ -10,7 +10,7 @@ hero:
     alt: Gluegun logo
   actions:
     - text: Get started
-      link: /quick-start/
+      link: /installation/
       icon: right-arrow
       variant: primary
     - text: What is Gluegun?
@@ -172,6 +172,9 @@ connection.close(conn)`;
   }
 
   .gluegun-paths a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
     color: var(--sl-color-accent-high);
     font-weight: 700;
     text-decoration-color: color-mix(in srgb, currentColor 48%, transparent);
@@ -242,6 +245,8 @@ connection.close(conn)`;
   }
 
   .gluegun-production a {
+    display: inline-flex;
+    align-items: center;
     min-height: 2.75rem;
     padding: 0.625rem 0.75rem;
     border: 1px solid var(--sl-color-gray-5);
@@ -359,22 +364,22 @@ connection.close(conn)`;
         <li>
           <span class="gluegun-paths__step">01</span>
           <span class="gluegun-paths__item">
-            <a href="/quick-start/">Send a GET</a>
-            <span>Open a connection. Wait until it is ready. Collect a typed response.</span>
+            <a href="/installation/">Install Gluegun</a>
+            <span>Add the dependency and confirm that the Erlang target is ready.</span>
           </span>
         </li>
         <li>
           <span class="gluegun-paths__step">02</span>
           <span class="gluegun-paths__item">
-            <a href="/guides/streaming/">Stream bodies</a>
-            <span>Use the request and message functions when memory is limited.</span>
+            <a href="/quick-start/">Send a GET</a>
+            <span>Open a connection. Wait until it is ready. Collect a typed response.</span>
           </span>
         </li>
         <li>
           <span class="gluegun-paths__step">03</span>
           <span class="gluegun-paths__item">
-            <a href="/guides/websockets/">Open sockets</a>
-            <span>Upgrade HTTP/1.1 connections and process frames explicitly.</span>
+            <a href="/guides/streaming/">Stream bodies</a>
+            <span>Use the request and message functions when memory is limited.</span>
           </span>
         </li>
       </ol>

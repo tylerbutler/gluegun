@@ -106,3 +106,88 @@ nav.sidebar a,
 nav.sidebar a > span {
 	line-height: 1.4;
 }
+
+.gg-lifecycle {
+	margin-block: 1.25rem 2rem;
+	padding-block: 0.75rem;
+	border-block: 1px solid var(--sl-color-gray-5);
+}
+
+.gg-lifecycle ol {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 0;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.gg-lifecycle li {
+	display: inline-flex;
+	align-items: center;
+	color: var(--sl-color-gray-3);
+	font-size: var(--sl-text-sm);
+	font-weight: 600;
+}
+
+.gg-lifecycle li:not(:last-child)::after {
+	content: "→";
+	margin-inline: 0.625rem;
+	color: var(--sl-color-gray-4);
+}
+
+.gg-lifecycle [aria-current="step"] {
+	color: var(--sl-color-accent-high);
+	font-weight: 700;
+}
+
+.gg-lifecycle a {
+	color: inherit;
+	text-underline-offset: 0.18em;
+}
+
+.sl-link-button {
+	min-height: 2.75rem;
+}
+
+.expressive-code .copy button {
+	min-width: 2.75rem;
+	min-height: 2.75rem;
+}
+
+@media (max-width: 49.99rem), (pointer: coarse) {
+	:root {
+		--sl-menu-button-size: 2.75rem;
+	}
+
+	site-search button[data-open-modal] {
+		justify-content: center;
+		min-width: 2.75rem;
+		height: 2.75rem;
+	}
+
+	starlight-theme-select select {
+		min-height: 2.75rem;
+	}
+
+	mobile-starlight-toc summary,
+	mobile-starlight-toc .toggle {
+		min-height: 2.75rem;
+	}
+
+	.sl-markdown-content .sl-anchor-link::after {
+		inset: -0.625rem -0.75rem;
+	}
+}
+
+@media (max-width: 37.5rem) {
+	.gg-lifecycle ol {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem 1rem;
+	}
+
+	.gg-lifecycle li::after {
+		display: none;
+	}
+}
