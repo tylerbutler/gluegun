@@ -11,6 +11,7 @@ const sidebar = [
 		label: "Start Here",
 		items: [
 			{ label: "What is Gluegun?", slug: "introduction" },
+			{ label: "Choose an HTTP client", slug: "choosing-a-client" },
 			{ label: "Installation", slug: "installation" },
 			{ label: "Quick Start", slug: "quick-start" },
 		],
