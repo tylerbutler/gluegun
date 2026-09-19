@@ -44,3 +44,6 @@ kinds = [
 [tools.trellis.publish]
 exact_tag_format = "v{version}"
 package_tags = ["exact"]
+
+[tools.trellis.publish.lifecycle]
+default = "git_only"
