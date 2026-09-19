@@ -1,9 +1,21 @@
 ---
 title: Basic Requests
 description: Use gluegun/client to send one request and collect one response.
+next:
+  link: /guides/production-checklist/
+  label: Harden requests for production
 ---
 
 Use `gluegun/client` to send one usual HTTP request on an open connection. The client collects the full response in memory: status, headers, body, trailers, and all `1xx` informational responses.
+
+<nav class="gg-lifecycle" aria-label="Request lifecycle">
+  <ol>
+    <li><a href="/installation/">Install</a></li>
+    <li>Connect + await</li>
+    <li aria-current="step">Request + response</li>
+    <li>Close</li>
+  </ol>
+</nav>
 
 ## Builder API
 
@@ -13,9 +25,16 @@ import gluegun/request
 
 fn fetch_json(conn, path, timeout) {
   client.new(request.Get, path)
-  |> client.with_header(name: "accept", value: "application/json")
-  |> client.with_timeout(timeout: timeout)
-  |> client.send(connection: conn)
+  |> client.with_header(
+    name: "accept",
+    value: "application/json",
+  )
+  |> client.with_timeout(
+    timeout: timeout,
+  )
+  |> client.send(
+    connection: conn,
+  )
 }
 ```
 

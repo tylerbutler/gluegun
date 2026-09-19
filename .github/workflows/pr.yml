@@ -47,10 +47,25 @@ jobs:
         id: changelog
         continue-on-error: true
         run: |
-          trellis changelog check \
-            --base "${{ github.event.pull_request.base.sha }}" \
-            --head "${{ github.event.pull_request.head.sha }}" \
-            --format github >> "$GITHUB_OUTPUT"
+          changed_files="$(
+            git diff --name-only \
+              "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
+          )"
+
+          if printf '%s\n' "$changed_files" | grep -qE '^src/'; then
+            trellis changelog check \
+              --base "${{ github.event.pull_request.base.sha }}" \
+              --head "${{ github.event.pull_request.head.sha }}" \
+              --format github >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "has_entries=false"
+              echo "needs_entry=false"
+              echo "invalid_fragments=[]"
+              echo "ok=true"
+              echo "preview="
+            } >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Comment with changelog preview
         if: >-

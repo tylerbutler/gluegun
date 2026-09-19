@@ -9,6 +9,8 @@ Gun is an asynchronous HTTP client. It supports HTTP/1.1, HTTP/2, and WebSocket 
 
 Gun is Erlang only. Thus Gluegun runs only on the Erlang target.
 
+If you only need usual HTTP/1.1 requests with complete responses, [`gleam_httpc`](https://hexdocs.pm/gleam_httpc/) has a smaller API. Choose Gluegun when you need HTTP/2, WebSockets, streaming, cancellation, flow control, or direct connection management. See [Choose an HTTP client](/choosing-a-client/) for a detailed comparison.
+
 ## What Gluegun gives you
 
 - Typed connection options for transport, protocol preference, and timeouts.
