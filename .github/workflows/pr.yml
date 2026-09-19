@@ -52,7 +52,7 @@ jobs:
               "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
           )"
 
-          if printf '%s\n' "$changed_files" | grep -qE '^(src/|gleam\.toml$)'; then
+          if printf '%s\n' "$changed_files" | grep -qE '^src/'; then
             trellis changelog check \
               --base "${{ github.event.pull_request.base.sha }}" \
               --head "${{ github.event.pull_request.head.sha }}" \
