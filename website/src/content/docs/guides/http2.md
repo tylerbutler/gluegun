@@ -26,16 +26,15 @@ pub fn get_over_http2() {
     options
     |> connection.open(host: "example.com", port: 443),
   )
-  use protocol <- result.try(
-    connection.await_up(conn, connection.Milliseconds(5000)),
-  )
+  use timeout <- result.try(connection.milliseconds(5000))
+  use protocol <- result.try(connection.await_up(conn, timeout))
 
   case protocol {
     connection.Http2 -> Nil
     connection.Http1 -> Nil
   }
 
-  client.get(conn, "/", [], connection.Milliseconds(5000))
+  client.get(conn, "/", [], timeout)
 }
 ```
 

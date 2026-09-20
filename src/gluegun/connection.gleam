@@ -43,7 +43,7 @@ pub type Protocol {
 }
 
 /// Timeout or retry duration in milliseconds, or no limit.
-pub type Timeout {
+pub opaque type Timeout {
   /// A finite duration in milliseconds. Must be non-negative.
   Milliseconds(Int)
   /// No upper bound. Wait indefinitely.
@@ -88,10 +88,31 @@ pub fn options() -> ConnectOptions {
   ConnectOptions(
     transport: Auto,
     protocols: None,
-    retry: Milliseconds(5000),
-    connect_timeout: Milliseconds(5000),
+    retry: default_timeout(),
+    connect_timeout: default_timeout(),
     tls_options: None,
   )
+}
+
+/// Construct a finite timeout.
+///
+/// Returns `InvalidOptions` if `value` is negative.
+pub fn milliseconds(value: Int) -> Result(Timeout, error.GluegunError) {
+  case value >= 0 {
+    True -> Ok(Milliseconds(value))
+    False -> Error(error.InvalidOptions("timeout must be non-negative"))
+  }
+}
+
+/// Construct a timeout with no upper bound.
+pub fn infinity() -> Timeout {
+  Infinity
+}
+
+/// Construct the default five-second timeout.
+@internal
+pub fn default_timeout() -> Timeout {
+  Milliseconds(5000)
 }
 
 /// Set the transport Gun should use for a connection.
@@ -228,7 +249,7 @@ pub fn options_to_ffi(options: ConnectOptions) -> List(ConnectOption) {
     Auto, Some(tls_options) | Tls, Some(tls_options) -> [
       TlsOption(tls.to_ffi(tls_options)),
     ]
-    _, _ -> []
+    Auto, None | Tcp, None | Tcp, Some(_) | Tls, None -> []
   }
 
   list.append(

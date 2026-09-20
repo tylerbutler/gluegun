@@ -20,8 +20,8 @@ pub fn http2_tests() -> test_tree.TestTree {
         |> connection.options_to_ffi
         |> expect.to_equal([
           connection.TransportOption(connection.Auto),
-          connection.RetryOption(connection.Milliseconds(5000)),
-          connection.ConnectTimeoutOption(connection.Milliseconds(5000)),
+          connection.RetryOption(connection.default_timeout()),
+          connection.ConnectTimeoutOption(connection.default_timeout()),
           connection.ProtocolsOption([connection.Http2, connection.Http1]),
         ])
       }),
@@ -112,7 +112,7 @@ pub fn http2_tests() -> test_tree.TestTree {
               test_connection,
               expected_path,
               expected_headers,
-              connection.Milliseconds(10),
+              timeout(10),
               fake_request,
               fake_await,
             )
@@ -139,6 +139,11 @@ pub fn http2_tests() -> test_tree.TestTree {
       }),
     ]),
   ])
+}
+
+fn timeout(milliseconds: Int) -> connection.Timeout {
+  let assert Ok(timeout) = connection.milliseconds(milliseconds)
+  timeout
 }
 
 @external(erlang, "gluegun_ffi_test", "protocol_result")

@@ -90,7 +90,7 @@ import gluegun/message
 import gluegun/websocket
 
 pub fn low_level_echo(conn) {
-  let timeout = connection.Milliseconds(5000)
+  use timeout <- result.try(connection.milliseconds(5000))
   use protocol <- result.try(connection.await_up(conn, timeout))
 
   use stream <- result.try(

@@ -9,12 +9,15 @@ Pattern match on the variants that are important to your application. Keep a fal
 
 ```gleam
 import gleam/io
+import gleam/result
 import gluegun/client
 import gluegun/connection
 import gluegun/error
 
 fn safe_get(conn) {
-  case client.get(conn, "/", [], connection.Milliseconds(5000)) {
+  use timeout <- result.try(connection.milliseconds(5000))
+
+  case client.get(conn, "/", [], timeout) {
     Ok(response) -> Ok(response)
     Error(error.Timeout) -> {
       io.println("request timed out")

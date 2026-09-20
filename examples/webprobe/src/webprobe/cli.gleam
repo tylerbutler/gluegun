@@ -23,7 +23,7 @@ pub type Config {
 type ParsedFlags {
   ParsedFlags(
     method: request.Method,
-    timeout_ms: Int,
+    timeout: connection.Timeout,
     prefer_http2: Bool,
     body_preview_bytes: Int,
     url: String,
@@ -45,7 +45,7 @@ fn parse_config(arguments: List(String)) -> Result(Config, String) {
     url: flags.url,
     method: flags.method,
     headers: headers,
-    timeout: connection.Milliseconds(flags.timeout_ms),
+    timeout: flags.timeout,
     prefer_http2: flags.prefer_http2,
     body_preview_bytes: flags.body_preview_bytes,
   ))
@@ -70,12 +70,12 @@ pub fn help_text() -> String {
 fn command() -> clip.Command(ParsedFlags) {
   clip.command({
     use method <- clip.parameter
-    use timeout_ms <- clip.parameter
+    use timeout <- clip.parameter
     use prefer_http2 <- clip.parameter
     use body_preview_bytes <- clip.parameter
     use url <- clip.parameter
 
-    ParsedFlags(method, timeout_ms, prefer_http2, body_preview_bytes, url)
+    ParsedFlags(method, timeout, prefer_http2, body_preview_bytes, url)
   })
   |> clip.opt(method_opt())
   |> clip.opt(timeout_opt())
@@ -96,11 +96,20 @@ fn method_opt() -> opt.Opt(request.Method) {
   |> opt.default(request.Get)
 }
 
-fn timeout_opt() -> opt.Opt(Int) {
+fn timeout_opt() -> opt.Opt(connection.Timeout) {
   opt.new("timeout")
   |> opt.help("Connection and request timeout in milliseconds")
   |> opt.int
-  |> opt.default(5000)
+  |> opt.try_map(fn(milliseconds) {
+    connection.milliseconds(milliseconds)
+    |> result.map_error(fn(_) { "Timeout must be zero or greater" })
+  })
+  |> opt.default(default_timeout())
+}
+
+fn default_timeout() -> connection.Timeout {
+  let assert Ok(timeout) = connection.milliseconds(5000)
+  timeout
 }
 
 fn body_bytes_opt() -> opt.Opt(Int) {

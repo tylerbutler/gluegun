@@ -16,7 +16,7 @@ import gluegun/request
 import gleam/result
 
 pub fn upload_chunks(conn) {
-  let timeout = connection.Milliseconds(5000)
+  use timeout <- result.try(connection.milliseconds(5000))
 
   use stream <- result.try(
     request.start_stream(

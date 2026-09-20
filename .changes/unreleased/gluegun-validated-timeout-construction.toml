@@ -1,0 +1,6 @@
+package = "gluegun"
+kind = "Breaking"
+body = """
+Validated timeout construction
+
+`connection.Timeout` is now opaque. Replace `connection.Milliseconds(value)` with `connection.milliseconds(value)`, which returns a `Result`, and replace `connection.Infinity` with `connection.infinity()`."""

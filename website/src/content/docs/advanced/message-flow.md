@@ -80,8 +80,8 @@ pub fn upgrade_in_current_process(conn) {
     websocket.upgrade_options()
     |> raw.with_reply_to(reply_to: process.self())
 
-  let assert Ok(protocol) =
-    connection.await_up(conn, connection.Milliseconds(5000))
+  let assert Ok(timeout) = connection.milliseconds(5000)
+  let assert Ok(protocol) = connection.await_up(conn, timeout)
 
   let assert Ok(stream) =
     websocket.upgrade_with_protocol_and_options(

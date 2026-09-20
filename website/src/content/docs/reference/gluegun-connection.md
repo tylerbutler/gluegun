@@ -56,21 +56,8 @@ HTTP/2. Negotiated via ALPN when paired with TLS.
 Timeout or retry duration in milliseconds, or no limit.
 
 ```gleam
-pub type Timeout {
-  Milliseconds(Int)
-  Infinity
-}
+pub type Timeout
 ```
-
-#### Constructors
-
-##### `Milliseconds(Int)`
-
-A finite duration in milliseconds. Must be non-negative.
-
-##### `Infinity`
-
-No upper bound. Wait indefinitely.
 
 ### `Transport`
 
@@ -153,6 +140,24 @@ Inspect connect timeout duration.
 
 ```gleam
 pub fn connect_timeout(ConnectOptions) -> Timeout
+```
+
+### `infinity`
+
+Construct a timeout with no upper bound.
+
+```gleam
+pub fn infinity() -> Timeout
+```
+
+### `milliseconds`
+
+Construct a finite timeout.
+
+ Returns `InvalidOptions` if `value` is negative.
+
+```gleam
+pub fn milliseconds(Int) -> Result(Timeout, error.GluegunError)
 ```
 
 ### `open`

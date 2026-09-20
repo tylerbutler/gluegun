@@ -17,7 +17,7 @@ pub fn client_tests() -> test_tree.TestTree {
         client.new(request.Get, "/")
         |> client.with_header("accept", "application/json")
         |> client.with_body(<<"":utf8>>)
-        |> client.with_timeout(connection.Milliseconds(1000))
+        |> client.with_timeout(timeout(1000))
         |> client.inspect_request
         |> expect.to_equal(client.RequestFields(
           method: request.Get,
@@ -25,7 +25,7 @@ pub fn client_tests() -> test_tree.TestTree {
           headers: [#("accept", "application/json")],
           body: <<"":utf8>>,
           options: request.options(),
-          timeout: connection.Milliseconds(1000),
+          timeout: timeout(1000),
         ))
       }),
       startest.it("exposes request_options helper name", fn() {
@@ -46,7 +46,7 @@ pub fn client_tests() -> test_tree.TestTree {
           ],
           body: <<>>,
           options: request.options(),
-          timeout: connection.Milliseconds(5000),
+          timeout: connection.default_timeout(),
         ))
       }),
       startest.it("with_headers replaces request headers", fn() {
@@ -60,7 +60,7 @@ pub fn client_tests() -> test_tree.TestTree {
           headers: [#("x-request-id", "abc")],
           body: <<>>,
           options: request.options(),
-          timeout: connection.Milliseconds(5000),
+          timeout: connection.default_timeout(),
         ))
       }),
     ]),
@@ -216,16 +216,16 @@ pub fn client_tests() -> test_tree.TestTree {
   ])
 }
 
+fn timeout(milliseconds: Int) -> connection.Timeout {
+  let assert Ok(timeout) = connection.milliseconds(milliseconds)
+  timeout
+}
+
 fn compile_request_options_helper(should_run: Bool) -> Nil {
   case should_run {
     True -> {
       let _ =
-        client.request_options(
-          invalid_connection(),
-          "/",
-          [],
-          connection.Milliseconds(1000),
-        )
+        client.request_options(invalid_connection(), "/", [], timeout(1000))
       Nil
     }
     False -> Nil

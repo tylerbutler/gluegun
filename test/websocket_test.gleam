@@ -245,11 +245,7 @@ pub fn websocket_tests() -> test_tree.TestTree {
         "send_text sends Text through the wrapped connection and stream",
         fn() {
           let socket =
-            websocket.socket(
-              current_connection(),
-              stream_ref(),
-              connection.Milliseconds(500),
-            )
+            websocket.socket(current_connection(), stream_ref(), timeout(500))
 
           websocket.send_text(socket, "hello")
           |> expect.to_equal(Ok(Nil))
@@ -262,11 +258,7 @@ pub fn websocket_tests() -> test_tree.TestTree {
         "send_binary sends Binary through the wrapped connection and stream",
         fn() {
           let socket =
-            websocket.socket(
-              current_connection(),
-              stream_ref(),
-              connection.Milliseconds(500),
-            )
+            websocket.socket(current_connection(), stream_ref(), timeout(500))
 
           websocket.send_binary(socket, <<1, 2, 3>>)
           |> expect.to_equal(Ok(Nil))
@@ -279,11 +271,7 @@ pub fn websocket_tests() -> test_tree.TestTree {
         "ping sends Ping through the wrapped connection and stream",
         fn() {
           let socket =
-            websocket.socket(
-              current_connection(),
-              stream_ref(),
-              connection.Milliseconds(500),
-            )
+            websocket.socket(current_connection(), stream_ref(), timeout(500))
 
           websocket.ping(socket, <<"ping":utf8>>)
           |> expect.to_equal(Ok(Nil))
@@ -296,11 +284,7 @@ pub fn websocket_tests() -> test_tree.TestTree {
         "pong sends Pong through the wrapped connection and stream",
         fn() {
           let socket =
-            websocket.socket(
-              current_connection(),
-              stream_ref(),
-              connection.Milliseconds(500),
-            )
+            websocket.socket(current_connection(), stream_ref(), timeout(500))
 
           websocket.pong(socket, <<"pong":utf8>>)
           |> expect.to_equal(Ok(Nil))
@@ -313,11 +297,7 @@ pub fn websocket_tests() -> test_tree.TestTree {
         "send_close_frame sends Close through the wrapped connection and stream",
         fn() {
           let socket =
-            websocket.socket(
-              current_connection(),
-              stream_ref(),
-              connection.Milliseconds(500),
-            )
+            websocket.socket(current_connection(), stream_ref(), timeout(500))
 
           websocket.send_close_frame(socket)
           |> expect.to_equal(Ok(Nil))
@@ -414,7 +394,7 @@ pub fn websocket_tests() -> test_tree.TestTree {
 
           options
           |> websocket.options_timeout
-          |> expect.to_equal(connection.Milliseconds(5000))
+          |> expect.to_equal(connection.default_timeout())
         },
       ),
       startest.it("with_headers updates only headers", fn() {
@@ -515,11 +495,11 @@ pub fn websocket_tests() -> test_tree.TestTree {
         let original = websocket.options()
         let updated =
           original
-          |> websocket.with_timeout(connection.Infinity)
+          |> websocket.with_timeout(connection.infinity())
 
         updated
         |> websocket.options_timeout
-        |> expect.to_equal(connection.Infinity)
+        |> expect.to_equal(connection.infinity())
 
         updated
         |> websocket.options_headers
@@ -713,15 +693,15 @@ pub fn websocket_tests() -> test_tree.TestTree {
         |> websocket.with_compress(True)
         |> websocket.with_silence_pings(True)
         |> websocket.with_flow(8)
-        |> websocket.with_keepalive(connection.Milliseconds(30_000))
-        |> websocket.with_closing_timeout(connection.Infinity)
+        |> websocket.with_keepalive(timeout(30_000))
+        |> websocket.with_closing_timeout(connection.infinity())
         |> websocket.upgrade_options_to_ffi
         |> expect.to_equal([
           websocket.SilencePings(True),
-          websocket.Keepalive(connection.Milliseconds(30_000)),
+          websocket.Keepalive(timeout(30_000)),
           websocket.Flow(8),
           websocket.Compress(True),
-          websocket.ClosingTimeout(connection.Infinity),
+          websocket.ClosingTimeout(connection.infinity()),
         ])
       }),
       startest.it("preserves protocol module values", fn() {
@@ -755,8 +735,8 @@ pub fn websocket_tests() -> test_tree.TestTree {
         |> websocket.with_compress(True)
         |> websocket.with_silence_pings(False)
         |> websocket.with_flow(16)
-        |> websocket.with_keepalive(connection.Milliseconds(45_000))
-        |> websocket.with_closing_timeout(connection.Infinity)
+        |> websocket.with_keepalive(timeout(45_000))
+        |> websocket.with_closing_timeout(connection.infinity())
         |> websocket.upgrade_options_to_ffi
         |> capture_ws_upgrade_options
         |> expect.to_equal(
@@ -832,6 +812,11 @@ pub fn websocket_tests() -> test_tree.TestTree {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+fn timeout(milliseconds: Int) -> connection.Timeout {
+  let assert Ok(timeout) = connection.milliseconds(milliseconds)
+  timeout
+}
 
 /// Gun `ws_opts()` projected back into Gleam by `gluegun_ws_test`:
 /// `#(compress, silence_pings, flow, keepalive, closing_timeout,
