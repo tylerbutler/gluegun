@@ -1,6 +1,0 @@
-package = "gluegun"
-kind = "Changed"
-body = """
-Typed Erlang FFI boundary
-
-Every value that crosses the Gun FFI boundary now has a precise type. Connections and streams are opaque foreign handles instead of wrapped Erlang terms, connection, TLS, and WebSocket upgrade options cross as typed option lists, Gun messages are decoded into `message.Message` in Erlang, and every FFI call returns `Result(value, error.GluegunError)` directly. `message.decode` now takes a `message.GunMessage`, and `websocket/raw` sets `reply_to` from a `Pid`, `tunnel` from a `Stream`, and `user_opts` from any Gleam value."""
