@@ -29,7 +29,7 @@ import gluegun/request
 import gluegun/response
 
 pub fn main() {
-  let timeout = connection.Milliseconds(5000)
+  use timeout <- result.try(connection.milliseconds(5000))
 
   use conn <- result.try(
     connection.open(
@@ -88,7 +88,7 @@ Gluegun keeps connection setup and requests separate:
 
 If you have a full URL, parse it with `gleam/uri` before you call Gluegun. Gluegun accepts only the separate host, port, transport, path, and query values.
 
-`connection.Milliseconds(Int)` makes a finite `Timeout`. Use `connection.Infinity` to wait without a limit. The same `Timeout` value applies to connection readiness, request bodies, and message receives.
+`connection.milliseconds(Int)` validates and returns a finite `Timeout`. Use `connection.infinity()` to wait without a limit. The same `Timeout` value applies to connection readiness, request bodies, and message receives.
 
 Use `connection.close` for usual teardown. Use `connection.shutdown` only when a connection seems stuck. `shutdown` stops the Gun process immediately, without a graceful close.
 

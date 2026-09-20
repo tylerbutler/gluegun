@@ -67,7 +67,7 @@ pub fn webprobe_tests() -> test_tree.TestTree {
             url: "https://example.com",
             method: request.Get,
             headers: [],
-            timeout: connection.Milliseconds(5000),
+            timeout: timeout(5000),
             prefer_http2: False,
             body_preview_bytes: 512,
           )),
@@ -98,7 +98,7 @@ pub fn webprobe_tests() -> test_tree.TestTree {
                 #("accept", "application/json"),
                 #("x-trace", "abc"),
               ],
-              timeout: connection.Milliseconds(750),
+              timeout: timeout(750),
               prefer_http2: True,
               body_preview_bytes: 64,
             )),
@@ -112,6 +112,10 @@ pub fn webprobe_tests() -> test_tree.TestTree {
       startest.it("rejects negative body preview sizes", fn() {
         cli.parse(["--body-bytes", "-1", "https://example.com"])
         |> expect.to_equal(Error("Body preview bytes must be zero or greater"))
+      }),
+      startest.it("rejects negative timeouts", fn() {
+        cli.parse(["--timeout", "-1", "https://example.com"])
+        |> expect.to_equal(Error("Timeout must be zero or greater"))
       }),
       startest.it("documents the header option in help text", fn() {
         cli.help_text()
@@ -159,7 +163,7 @@ pub fn webprobe_tests() -> test_tree.TestTree {
             url: "https://example.com",
             method: request.Get,
             headers: [],
-            timeout: connection.Milliseconds(5000),
+            timeout: timeout(5000),
             prefer_http2: True,
             body_preview_bytes: 512,
           )
@@ -176,7 +180,7 @@ pub fn webprobe_tests() -> test_tree.TestTree {
             url: "https://example.com/search?q=gleam",
             method: request.Head,
             headers: [#("accept", "application/json")],
-            timeout: connection.Milliseconds(750),
+            timeout: timeout(750),
             prefer_http2: False,
             body_preview_bytes: 512,
           )
@@ -191,9 +195,14 @@ pub fn webprobe_tests() -> test_tree.TestTree {
           headers: [#("accept", "application/json")],
           body: <<>>,
           options: request.options(),
-          timeout: connection.Milliseconds(750),
+          timeout: timeout(750),
         ))
       }),
     ]),
   ])
+}
+
+fn timeout(milliseconds: Int) -> connection.Timeout {
+  let assert Ok(timeout) = connection.milliseconds(milliseconds)
+  timeout
 }

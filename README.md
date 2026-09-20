@@ -51,7 +51,7 @@ import gluegun/request
 import gluegun/response
 
 pub fn main() {
-  let timeout = connection.Milliseconds(5000)
+  use timeout <- result.try(connection.milliseconds(5000))
 
   use conn <- result.try(
     connection.options()
@@ -105,7 +105,7 @@ import gluegun/request
 import gleam/result
 
 pub fn upload_chunks(conn) {
-  let timeout = connection.Milliseconds(5000)
+  use timeout <- result.try(connection.milliseconds(5000))
 
   use stream <- result.try(
     request.start_stream(
@@ -155,16 +155,15 @@ pub fn get_over_http2() {
     options
     |> connection.open(host: "example.com", port: 443),
   )
-  use protocol <- result.try(
-    connection.await_up(conn, connection.Milliseconds(5000)),
-  )
+  use timeout <- result.try(connection.milliseconds(5000))
+  use protocol <- result.try(connection.await_up(conn, timeout))
 
   case protocol {
     connection.Http2 -> Nil
     connection.Http1 -> Nil
   }
 
-  client.get(conn, "/", [], connection.Milliseconds(5000))
+  client.get(conn, "/", [], timeout)
 }
 ```
 
@@ -245,12 +244,15 @@ Effectful operations return `Result(_, error.GluegunError)`. Pattern match on va
 
 ```gleam
 import gleam/io
+import gleam/result
 import gluegun/client
 import gluegun/connection
 import gluegun/error
 
 fn safe_get(conn) {
-  case client.get(conn, "/", [], connection.Milliseconds(5000)) {
+  use timeout <- result.try(connection.milliseconds(5000))
+
+  case client.get(conn, "/", [], timeout) {
     Ok(response) -> Ok(response)
     Error(error.Timeout) -> {
       io.println("request timed out")

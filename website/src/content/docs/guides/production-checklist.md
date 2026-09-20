@@ -31,7 +31,7 @@ Use this checklist before you ship Gluegun in a production BEAM service. It does
 
 | Decision | Ready for production when | Read next |
 |---|---|---|
-| Timeout policy | Each connection, request, and message receive uses a timeout that agrees with the latency budget of the caller. `connection.Infinity` is used only for flows that can wait without a limit by design. | [Quick Start: timeout value](/quick-start/#key-idea) |
+| Timeout policy | Each connection, request, and message receive uses a timeout that agrees with the latency budget of the caller. `connection.infinity()` is used only for flows that can wait without a limit by design. | [Quick Start: timeout value](/quick-start/#key-idea) |
 | Error handling | Effectful calls pattern match on `Result(_, error.GluegunError)`. Expected failures such as `Timeout` and `ConnectionDown` have explicit handling. | [Error Handling](/advanced/error-handling/) |
 | Unexpected failures | Logs keep the formatted reason for unexpected Erlang or decode errors. Then you can find missing typed wrappers or upstream Gun behavior. | [Troubleshooting: unexpected Erlang error](/advanced/troubleshooting/#unexpected-erlang-error) |
 | UTF-8 bodies | The code uses `response.body_text` only when text is expected. It uses `response.body` for binary payloads. | [Basic Requests: examine responses](/guides/basic-requests/#examine-responses) |

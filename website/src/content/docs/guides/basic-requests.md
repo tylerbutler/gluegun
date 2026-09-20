@@ -45,11 +45,12 @@ not add headers one by one. Each function accepts `connection`, `path`,
 `headers`, and a `Timeout`. Methods with bodies also accept a `BitArray` body.
 
 ```gleam
+import gleam/result
 import gluegun/client
 import gluegun/connection
 
 pub fn examples(conn) {
-  let timeout = connection.Milliseconds(5000)
+  use timeout <- result.try(connection.milliseconds(5000))
 
   let _ = client.get(conn, "/items", [], timeout)
   let _ = client.head(conn, "/items/1", [], timeout)

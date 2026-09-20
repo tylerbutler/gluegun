@@ -13,11 +13,17 @@ pub fn ffi_shape_tests() -> test_tree.TestTree {
     startest.describe("typed option conversion", [
       startest.it("converts timeouts", fn() {
         connection.options()
-        |> connection.with_retry(connection.Milliseconds(123))
-        |> connection.with_connect_timeout(connection.Infinity)
+        |> connection.with_retry(timeout(123))
+        |> connection.with_connect_timeout(connection.infinity())
         |> connection.options_to_ffi
         |> gun_retry_and_connect_timeout
         |> expect.to_equal(#("123", "infinity"))
+      }),
+      startest.it("rejects negative timeouts", fn() {
+        connection.milliseconds(-1)
+        |> expect.to_equal(
+          Error(error.InvalidOptions("timeout must be non-negative")),
+        )
       }),
       startest.it("preserves protocol ordering", fn() {
         connection.options()
@@ -178,6 +184,11 @@ fn gun_retry_and_connect_timeout(
   options: List(connection.ConnectOption),
 ) -> #(String, String) {
   #(gun_retry(options), gun_connect_timeout(options))
+}
+
+fn timeout(milliseconds: Int) -> connection.Timeout {
+  let assert Ok(timeout) = connection.milliseconds(milliseconds)
+  timeout
 }
 
 @external(erlang, "gluegun_ffi_test", "gun_protocols")

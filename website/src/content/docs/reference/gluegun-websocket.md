@@ -28,10 +28,11 @@ WebSocket helpers for Gun connections.
    connection.options()
    |> connection.open(host: "echo.example.com", port: 80),
  )
+ use timeout <- result.try(connection.milliseconds(5000))
 
  use protocol <- result.try(connection.await_up(
    opened_connection,
-   connection.Milliseconds(5000),
+   timeout,
  ))
 
  use stream <- result.try(websocket.upgrade_with_protocol(
@@ -43,7 +44,7 @@ WebSocket helpers for Gun connections.
  use _ <- result.try(websocket.await_upgrade(
    opened_connection,
    stream,
-   connection.Milliseconds(5000),
+   timeout,
  ))
 
  use _ <- result.try(websocket.send(
@@ -53,7 +54,7 @@ WebSocket helpers for Gun connections.
  ))
 
  case
-   websocket.receive(opened_connection, stream, connection.Milliseconds(5000))
+   websocket.receive(opened_connection, stream, timeout)
  {
    Ok(message.Text(reply)) -> Ok(reply)
    Ok(_) -> Error(error.InvalidMessage("expected a text frame"))

@@ -15,7 +15,7 @@ const port = 443
 const path = "/httpbin/get"
 
 pub fn main() -> Nil {
-  let timeout = connection.Milliseconds(15_000)
+  let assert Ok(timeout) = connection.milliseconds(15_000)
   let options =
     connection.options()
     |> connection.with_transport(connection.Tls)

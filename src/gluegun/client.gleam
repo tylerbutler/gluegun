@@ -13,7 +13,7 @@
 import gleam/bit_array
 import gleam/list
 import gleam/result
-import gluegun/connection.{type Connection, type Timeout, Milliseconds}
+import gluegun/connection.{type Connection, type Timeout}
 import gluegun/error
 import gluegun/fin
 import gluegun/message.{type Message}
@@ -69,7 +69,7 @@ pub fn new(method: low_request.Method, path: String) -> Request {
     headers: [],
     body: <<>>,
     options: low_request.options(),
-    timeout: Milliseconds(5000),
+    timeout: connection.default_timeout(),
   )
 }
 

@@ -15,7 +15,7 @@ const port = 80
 const path = "/"
 
 pub fn main() -> Nil {
-  let timeout = connection.Milliseconds(5000)
+  let assert Ok(timeout) = connection.milliseconds(5000)
 
   case connection.options() |> connection.open(host: host, port: port) {
     Ok(connection) -> {

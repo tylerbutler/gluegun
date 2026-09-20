@@ -18,7 +18,7 @@ const port = 443
 const path = "/post"
 
 pub fn main() -> Nil {
-  let timeout = connection.Milliseconds(15_000)
+  let assert Ok(timeout) = connection.milliseconds(15_000)
 
   case
     connection.options()

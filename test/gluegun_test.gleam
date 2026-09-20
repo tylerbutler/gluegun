@@ -23,13 +23,13 @@ pub fn gluegun_tests() -> test_tree.TestTree {
         headers: [],
         body: <<>>,
         options: request.options(),
-        timeout: connection.Milliseconds(5000),
+        timeout: connection.default_timeout(),
       ))
     }),
     startest.it("exposes root WebSocket options", fn() {
       gluegun.websocket_options()
       |> websocket.options_timeout
-      |> expect.to_equal(connection.Milliseconds(5000))
+      |> expect.to_equal(connection.default_timeout())
     }),
     startest.it("exposes the minimal common-path root helpers", fn() {
       compile_common_path_facade(False)
@@ -52,7 +52,7 @@ fn compile_common_path_facade(should_run: Bool) -> Nil {
           port: 8080,
         )
       let assert Ok(_protocol) =
-        gluegun.await_up(open_connection, connection.Milliseconds(5000))
+        gluegun.await_up(open_connection, connection.default_timeout())
       let request = gluegun.new_request(request.Get, "/")
       let assert Ok(response) =
         gluegun.send(request, connection: open_connection)
