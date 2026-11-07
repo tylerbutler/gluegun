@@ -39,8 +39,8 @@ Typed TLS client options for Gun and Erlang SSL.
  import gluegun/connection
  import gluegun/tls
 
- pub fn https_options(host: String) {
-   let tls_opts =
+ pub fn https_options() {
+   let tls_options =
      tls.options()
      |> tls.with_versions(versions: [tls.TlsV13])
      |> tls.with_cacertfile(cacertfile: "/etc/ssl/cert.pem")
@@ -48,7 +48,7 @@ Typed TLS client options for Gun and Erlang SSL.
 
    connection.options()
    |> connection.with_transport(transport: connection.Tls)
-   |> connection.with_tls_opts(tls_opts: tls_opts)
+   |> connection.with_tls_options(tls_options: tls_options)
  }
  ```
 

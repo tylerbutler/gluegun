@@ -1,8 +1,11 @@
 packages:
   - "."
+overrides:
+  "@napi-rs/wasm-runtime@1.2.4>@emnapi/runtime": 1.11.3
 allowBuilds:
   esbuild: true
   sharp: true
+  workerd: true
 minimumReleaseAgeExclude:
   - astro@7.1.0
   - yaml@2.8.3

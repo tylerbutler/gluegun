@@ -71,8 +71,17 @@ import gluegun/request.{type Header, type Stream}
 /// Wraps the upgraded Gun connection, WebSocket stream, and receive timeout so
 /// higher-level helpers can send and receive frames without repeating them.
 pub opaque type Socket {
-  Socket(connection: Connection, stream: Stream, timeout: Timeout)
+  Socket(
+    connection: Connection,
+    stream: Stream,
+    timeout: Timeout,
+    peer_close: PeerClose,
+  )
 }
+
+/// Internal record of a peer close frame received through this socket.
+@internal
+pub type PeerClose
 
 /// High-level options for opening and upgrading a WebSocket connection.
 ///
@@ -142,7 +151,12 @@ pub fn socket(
   stream: Stream,
   timeout: Timeout,
 ) -> Socket {
-  Socket(connection: connection, stream: stream, timeout: timeout)
+  Socket(
+    connection: connection,
+    stream: stream,
+    timeout: timeout,
+    peer_close: ffi_peer_close(),
+  )
 }
 
 /// Construct default high-level WebSocket connection options.
@@ -228,7 +242,7 @@ pub fn upgrade_options() -> UpgradeOptions {
 /// The connection is opened with the configured connect options, awaited up
 /// to readiness, then upgraded. If any step fails the underlying Gun
 /// connection is closed automatically. On success the caller owns the
-/// returned `Socket` and must eventually `send_close_frame` + `connection.close`
+/// returned `Socket` and must eventually call `close`
 /// (or use `with_socket` for scoped cleanup).
 ///
 /// Defaults to HTTP/1.1; HTTP/2 is rejected with `UnsupportedFeature`
@@ -272,7 +286,7 @@ fn close_on_error(
 ) -> Result(a, error.GluegunError) {
   case result {
     Error(error) -> {
-      let _ = connection.close(opened_connection)
+      let _ = connection.terminate(opened_connection)
       Error(error)
     }
     Ok(value) -> Ok(value)
@@ -301,26 +315,18 @@ pub fn with_socket(
   ))
 
   let callback_result = callback(socket)
-  let close_frame_result = send_close_frame(socket)
-  let close_connection_result = connection.close(socket.connection)
-
-  with_socket_result(
-    callback_result,
-    close_frame_result,
-    close_connection_result,
-  )
+  let cleanup_result = close(socket)
+  with_socket_result(callback_result, cleanup_result)
 }
 
 /// Combine callback and cleanup results using `with_socket` error precedence.
 @internal
 pub fn with_socket_result(
   callback_result: Result(a, error.GluegunError),
-  close_frame_result: Result(Nil, error.GluegunError),
-  close_connection_result: Result(Nil, error.GluegunError),
+  cleanup_result: Result(Nil, error.GluegunError),
 ) -> Result(a, error.GluegunError) {
   use value <- result.try(callback_result)
-  use _ <- result.try(close_frame_result)
-  use _ <- result.try(close_connection_result)
+  use _ <- result.try(cleanup_result)
   Ok(value)
 }
 
@@ -559,10 +565,31 @@ pub fn pong(socket: Socket, data: BitArray) -> Result(Nil, error.GluegunError) {
 /// Send a close WebSocket frame using a reusable socket.
 ///
 /// This only sends the close frame; it does not close the underlying Gun
-/// connection. Follow with `connection.close(socket.connection)` or use
+/// connection. Follow with `close(socket)` or use
 /// `with_socket` for automatic teardown.
 pub fn send_close_frame(socket: Socket) -> Result(Nil, error.GluegunError) {
   send_frame(socket, message.Close)
+}
+
+/// Send a close frame, await the peer, then release the Gun process.
+///
+/// Uses one deadline: the socket's finite timeout, or five seconds for
+/// `Infinity`. Other frames do not extend it. A missing peer close returns
+/// `Timeout`; connection and stream failures return their typed errors.
+/// Teardown still terminates the process and flushes its queued Gun messages
+/// from this caller after a handshake error. The handshake error takes
+/// precedence over a termination error.
+///
+/// An already-exited connection returns `Ok(Nil)`. Repeated close is safe.
+/// Call from the socket's receiver; other receivers and external forwarders
+/// need separate mailbox cleanup. Do not reuse the socket after this call.
+pub fn close(socket: Socket) -> Result(Nil, error.GluegunError) {
+  ffi_ws_close(
+    socket.connection,
+    socket.stream,
+    socket.timeout,
+    socket.peer_close,
+  )
 }
 
 /// Send one or more WebSocket frames on the stream.
@@ -571,6 +598,11 @@ pub fn send_close_frame(socket: Socket) -> Result(Nil, error.GluegunError) {
 /// this function with a one-element list.
 /// Validates the complete list before sending. If a frame is invalid, returns
 /// `InvalidMessage` without sending any frame.
+///
+/// Binary, ping, pong, and close-reason payloads must contain whole bytes.
+/// Empty payloads are valid. A non-byte-aligned `BitArray` returns
+/// `InvalidMessage` before Gun receives any frame in the list. Payloads are
+/// never padded or truncated, and the connection remains usable.
 pub fn send_many(
   connection: Connection,
   stream: Stream,
@@ -600,6 +632,7 @@ pub fn receive(
 /// Receive the next WebSocket frame using a reusable socket.
 pub fn receive_frame(socket: Socket) -> Result(Frame, error.GluegunError) {
   receive(socket.connection, socket.stream, socket.timeout)
+  |> ffi_record_peer_close(socket.peer_close)
 }
 
 /// Receive the next application frame, handling ping/pong control frames.
@@ -715,6 +748,23 @@ fn ffi_ws_send(
   connection: Connection,
   stream: Stream,
   frames: List(Frame),
+) -> Result(Nil, error.GluegunError)
+
+@external(erlang, "gluegun_ffi", "ws_peer_close")
+fn ffi_peer_close() -> PeerClose
+
+@external(erlang, "gluegun_ffi", "ws_record_peer_close")
+fn ffi_record_peer_close(
+  frame: Result(Frame, error.GluegunError),
+  peer_close: PeerClose,
+) -> Result(Frame, error.GluegunError)
+
+@external(erlang, "gluegun_ffi", "ws_close")
+fn ffi_ws_close(
+  connection: Connection,
+  stream: Stream,
+  timeout: Timeout,
+  peer_close: PeerClose,
 ) -> Result(Nil, error.GluegunError)
 
 fn prepend_optional(

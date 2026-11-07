@@ -1,7 +1,7 @@
 /// WebSocket echo example using Gluegun's high-level Socket API.
 ///
 /// Connects to a local echo server at ws://localhost:8080/echo, sends one
-/// text frame, receives the echoed reply, then sends a close frame.
+/// text frame, receives the echoed reply, then releases the Gun process.
 ///
 /// ## Protocol note
 ///
@@ -14,6 +14,7 @@
 /// WebSocket frames; you cannot send concurrent HTTP requests on it.
 import gleam/int
 import gleam/io
+import gleam/result
 import gluegun/error
 import gluegun/message
 import gluegun/websocket
@@ -35,16 +36,30 @@ pub fn main() -> Nil {
 
   io.println("WebSocket connected!")
 
-  let assert Ok(Nil) = websocket.send_text(socket, "hello")
+  let exchange = exchange(socket)
+  let cleanup = websocket.close(socket)
+  case exchange {
+    Ok(Nil) -> Nil
+    Error(error) -> io.println("Exchange error: " <> error_to_string(error))
+  }
+  case cleanup {
+    Ok(Nil) -> Nil
+    Error(error) -> io.println("Close error: " <> error_to_string(error))
+  }
+}
+
+fn exchange(socket: websocket.Socket) -> Result(Nil, error.GluegunError) {
+  use _ <- result.try(websocket.send_text(socket, "hello"))
 
   case websocket.receive_app_frame(socket) {
-    Ok(message.Text(reply)) -> io.println("Received: " <> reply)
-    Ok(other) -> io.println("Unexpected frame: " <> frame_to_string(other))
-    Error(error) -> io.println("Error: " <> error_to_string(error))
+    Ok(message.Text(reply)) -> {
+      io.println("Received: " <> reply)
+      Ok(Nil)
+    }
+    Ok(other) ->
+      Error(error.InvalidMessage("Unexpected frame: " <> frame_to_string(other)))
+    Error(error) -> Error(error)
   }
-
-  let assert Ok(Nil) = websocket.send_close_frame(socket)
-  Nil
 }
 
 fn frame_to_string(frame: message.Frame) -> String {

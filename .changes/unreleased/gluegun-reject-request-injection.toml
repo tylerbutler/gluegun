@@ -1,6 +1,0 @@
-package = "gluegun"
-kind = "Fixed"
-body = """
-Reject HTTP request splitting and smuggling inputs at the Erlang FFI boundary
-
-`request`, `headers`, and `ws_upgrade` now validate everything that lands on the request line or in request headers before calling Gun. Request paths and methods must be non-empty and free of control bytes, spaces, and DEL (including CR/LF); header names must be RFC 7230 tokens; header values must be free of control bytes other than HTAB, and DEL; a caller-supplied `Transfer-Encoding` header is rejected; and duplicate or malformed `Content-Length` headers are rejected. Invalid input now returns `InvalidOptions` instead of reaching Gun's request-line and header encoder. Header-name lowercasing on the request path is now ASCII-only instead of Unicode-aware."""

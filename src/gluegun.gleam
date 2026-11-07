@@ -6,8 +6,8 @@
 
 import gluegun/client as http_client
 import gluegun/connection.{
-  type ConnectOptions, type Connection, type Protocol, type Timeout,
-  type Transport,
+  type ConnectOptions, type Connection, type Protocol, type RetryCount,
+  type Timeout, type Transport,
 }
 import gluegun/error
 import gluegun/message
@@ -56,10 +56,10 @@ pub fn with_protocols(
   connection.with_protocols(options, protocols: protocols)
 }
 
-/// Set Gun retry timeout on connection options.
+/// Set Gun retry count on connection options.
 pub fn with_retry(
   options: ConnectOptions,
-  retry retry: Timeout,
+  retry retry: RetryCount,
 ) -> ConnectOptions {
   connection.with_retry(options, retry: retry)
 }
@@ -190,4 +190,11 @@ pub fn websocket_send_close_frame(
   socket: websocket.Socket,
 ) -> Result(Nil, error.GluegunError) {
   websocket.send_close_frame(socket)
+}
+
+/// Complete WebSocket teardown, including bounded peer handshake and cleanup.
+pub fn websocket_close(
+  socket: websocket.Socket,
+) -> Result(Nil, error.GluegunError) {
+  websocket.close(socket)
 }

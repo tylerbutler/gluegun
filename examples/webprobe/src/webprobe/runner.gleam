@@ -20,7 +20,6 @@ pub fn connect_options(
     connection.options()
     |> connection.with_transport(transport)
     |> connection.with_connect_timeout(config.timeout)
-    |> connection.with_retry(config.timeout)
 
   case config.prefer_http2 && parsed_url.tls {
     True ->

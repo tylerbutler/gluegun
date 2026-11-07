@@ -117,6 +117,14 @@ Construct default TLS options.
 pub fn tls_options() -> tls.TlsOptions
 ```
 
+### `websocket_close`
+
+Complete WebSocket teardown, including bounded peer handshake and cleanup.
+
+```gleam
+pub fn websocket_close(websocket.Socket) -> Result(Nil, error.GluegunError)
+```
+
 ### `websocket_connect`
 
 Open a connection, perform a WebSocket upgrade, and return a reusable socket.
@@ -203,12 +211,12 @@ pub fn with_protocols(
 
 ### `with_retry`
 
-Set Gun retry timeout on connection options.
+Set Gun retry count on connection options.
 
 ```gleam
 pub fn with_retry(
   connection.ConnectOptions,
-  retry: connection.Timeout
+  retry: connection.RetryCount
 ) -> connection.ConnectOptions
 ```
 

@@ -1,6 +1,4 @@
-/// Low-level response-body streaming download example using Gluegun.
-///
-/// Buildable streaming download example.
+/// Response streaming with finite credit, a byte limit, and a total deadline.
 import gleam/bit_array
 import gleam/int
 import gleam/io
@@ -18,16 +16,33 @@ const port = 443
 
 const path = "/stream/5"
 
+// Example policy only. Choose a limit for your application.
+const max_bytes = 1_048_576
+
+type ClockUnit {
+  Millisecond
+}
+
+@external(erlang, "erlang", "monotonic_time")
+fn monotonic_time(unit: ClockUnit) -> Int
+
 pub fn main() -> Nil {
-  let assert Ok(timeout) = connection.milliseconds(15_000)
+  let deadline = monotonic_time(Millisecond) + 15_000
+  let assert Ok(setup_timeout) = connection.milliseconds(1000)
+  let assert Ok(retries) = connection.retry_count(0)
 
   case
     connection.options()
     |> connection.with_transport(transport: connection.Tls)
+    |> connection.with_address_family(connection.Ipv4)
+    |> connection.with_retry(retries)
+    |> connection.with_domain_lookup_timeout(setup_timeout)
+    |> connection.with_connect_timeout(setup_timeout)
+    |> connection.with_tls_handshake_timeout(setup_timeout)
     |> connection.open(host: host, port: port)
   {
     Ok(connection) -> {
-      case download(connection, timeout) {
+      case download(connection, deadline) {
         Ok(Nil) -> Nil
         Error(error) ->
           io.println("download failed: " <> error_to_string(error))
@@ -42,36 +57,42 @@ pub fn main() -> Nil {
 
 fn download(
   connection: connection.Connection,
-  timeout: connection.Timeout,
+  deadline: Int,
 ) -> Result(Nil, error.GluegunError) {
+  use timeout <- result.try(remaining_timeout(deadline))
   use protocol <- result.try(connection.await_up(connection, timeout))
   io.println("protocol: " <> protocol_to_string(protocol))
 
+  use _ <- result.try(remaining_timeout(deadline))
+  use options <- result.try(request.with_initial_flow(request.options(), 1))
   use stream <- result.try(request.request(
     connection,
     request.Get,
     path,
     [],
     <<>>,
-    request.options(),
+    options,
   ))
 
-  await_response(connection, stream, timeout)
+  await_response(connection, stream, deadline)
 }
 
 fn await_response(
   connection: connection.Connection,
   stream: request.Stream,
-  timeout: connection.Timeout,
+  deadline: Int,
 ) -> Result(Nil, error.GluegunError) {
+  use timeout <- result.try(remaining_timeout(deadline))
   case message.await(connection, stream, timeout) {
+    Ok(message.Inform(_, _)) -> await_response(connection, stream, deadline)
     Ok(message.Response(response_fin, status, headers)) -> {
+      use _ <- result.try(check_headers(status, headers))
       io.println("status: " <> int.to_string(status))
       io.println("headers: " <> int.to_string(count(headers)))
 
       case response_fin {
         fin.Fin -> Ok(Nil)
-        fin.NoFin -> stream_body(connection, stream, timeout)
+        fin.NoFin -> stream_body(connection, stream, deadline, 0)
       }
     }
 
@@ -83,17 +104,26 @@ fn await_response(
 fn stream_body(
   connection: connection.Connection,
   stream: request.Stream,
-  timeout: connection.Timeout,
+  deadline: Int,
+  received: Int,
 ) -> Result(Nil, error.GluegunError) {
+  use timeout <- result.try(remaining_timeout(deadline))
   case message.await(connection, stream, timeout) {
-    Ok(message.Data(fin.NoFin, data)) -> {
+    Ok(message.Data(response_fin, data)) -> {
+      let total = received + bit_array.byte_size(data)
+      use _ <- result.try(case total <= max_bytes {
+        True -> Ok(Nil)
+        False -> Error(error.InvalidMessage("response exceeds byte limit"))
+      })
       print_chunk(data)
-      stream_body(connection, stream, timeout)
-    }
-
-    Ok(message.Data(fin.Fin, data)) -> {
-      print_chunk(data)
-      Ok(Nil)
+      case response_fin {
+        fin.Fin -> Ok(Nil)
+        fin.NoFin -> {
+          use _ <- result.try(remaining_timeout(deadline))
+          use _ <- result.try(request.update_flow(connection, stream, 1))
+          stream_body(connection, stream, deadline, total)
+        }
+      }
     }
 
     Ok(message.Trailers(headers)) -> {
@@ -106,12 +136,45 @@ fn stream_body(
   }
 }
 
+fn check_headers(
+  status: Int,
+  headers: List(request.Header),
+) -> Result(Nil, error.GluegunError) {
+  case status >= 200 && status < 300 {
+    False -> Error(error.InvalidMessage("non-success response status"))
+    True ->
+      list.try_each(headers, fn(header) {
+        case header {
+          #("content-length", value) ->
+            case int.parse(value) {
+              Ok(size) if size >= 0 && size <= max_bytes -> Ok(Nil)
+              _ ->
+                Error(error.InvalidMessage(
+                  "invalid or oversized Content-Length",
+                ))
+            }
+          _ -> Ok(Nil)
+        }
+      })
+  }
+}
+
+fn remaining_timeout(
+  deadline: Int,
+) -> Result(connection.Timeout, error.GluegunError) {
+  let remaining = deadline - monotonic_time(Millisecond)
+  case remaining > 0 {
+    True -> connection.milliseconds(remaining)
+    False -> Error(error.Timeout)
+  }
+}
+
 fn print_chunk(data: BitArray) -> Nil {
   io.println("chunk bytes: " <> int.to_string(bit_array.byte_size(data)))
 }
 
 fn close(connection: connection.Connection) -> Nil {
-  case connection.close(connection) {
+  case connection.terminate(connection) {
     Ok(Nil) -> Nil
     Error(error) -> io.println("close failed: " <> error_to_string(error))
   }

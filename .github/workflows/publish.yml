@@ -1,4 +1,4 @@
-name: Publish
+name: Release tag checks
 
 on:
   push:
@@ -7,17 +7,3 @@ on:
 jobs:
   test:
     uses: ./.github/workflows/ci.yml
-
-  publish:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
-
-      - name: Setup environment
-        uses: ./.github/actions/setup
-
-      - name: Publish tagged package to Hex.pm
-        run: trellis publish --tag "$GITHUB_REF_NAME"
-        env:
-          HEXPM_API_KEY: ${{ secrets.HEXPM_API_KEY }}

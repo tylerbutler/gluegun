@@ -92,6 +92,8 @@ fn fetch_json(conn, path, timeout) {
 }
 ```
 
+When collection fails, `client` helpers attempt to cancel that stream and drain its queued messages. They return the original error and keep other streams and the shared connection open. Cleanup failures produce a warning. Cancellation is asynchronous, so messages in transit can arrive after the drain. The high-level helpers do not return the failed stream handle; use the low-level API in a separate receiving process if you need strict mailbox isolation.
+
 ## Streaming a request body
 
 Use `gluegun/request` when the request body is produced in chunks. Start with `request.start_stream`, send zero or more chunks with `fin.NoFin`, and complete the body with `fin.Fin`. Response headers and body are separate asynchronous Gun stream messages; use `gluegun/message` helpers or your own receive loop for advanced flows.
@@ -136,6 +138,25 @@ If you need response chunks or trailers as they arrive, continue awaiting
 `message.Data` and `message.Trailers` with `message.await` instead of collecting
 the full body with `message.await_body`.
 
+For bounded response streaming, set `request.with_initial_flow(options, 1)`
+before you send the request. Check status and `Content-Length`, then count each
+`message.Data` chunk's bytes before retaining it. Grant one more data-message
+credit with `request.update_flow(conn, stream, 1)` after each check. Credit is
+not a byte or allocation limit.
+
+Use `connection.with_address_family` to select IPv4 or IPv6 without fallback.
+Set `with_domain_lookup_timeout`, `with_connect_timeout`, and
+`with_tls_handshake_timeout` to bound separate setup stages. Construct a
+`RetryCount` with `connection.retry_count(0)` and pass it to `with_retry` to
+disable retries. These settings preserve the TLS verification defaults.
+Use a monotonic total deadline across setup and response receives.
+`connection.terminate` stops a stalled connection, waits for exit, and flushes
+its messages from the caller's mailbox.
+
+See `examples/streaming_download` and the
+[streaming guide](https://gluegun.tylerbutler.com/guides/streaming/) for a
+bounded receive loop and the limits of Gun flow control.
+
 ## Prefer HTTP/2
 
 Use TLS and put `Http2` before `Http1` to prefer HTTP/2 while allowing Gun to fall back to HTTP/1.1 when needed.
@@ -176,6 +197,7 @@ Use the reusable `Socket` API when you want explicit lifecycle control.
 ```gleam
 import gleam/io
 import gleam/result
+import gluegun/error
 import gluegun/message
 import gluegun/websocket
 
@@ -189,17 +211,25 @@ pub fn ws_echo() {
     ),
   )
 
-  use _ <- result.try(websocket.send_text(socket, "hello"))
-
-  case websocket.receive_app_frame(socket) {
-    Ok(message.Text(reply)) -> io.println(reply)
-    Ok(_) -> io.println("received a non-text frame")
-    Error(_) -> io.println("websocket receive failed")
+  let exchange = {
+    use _ <- result.try(websocket.send_text(socket, "hello"))
+    case websocket.receive_app_frame(socket) {
+      Ok(message.Text(reply)) -> {
+        io.println(reply)
+        Ok(Nil)
+      }
+      Ok(_) -> Error(error.InvalidMessage("expected a text frame"))
+      Error(error) -> Error(error)
+    }
   }
 
-  websocket.send_close_frame(socket)
+  let cleanup = websocket.close(socket)
+  use _ <- result.try(exchange)
+  cleanup
 }
 ```
+
+Call `websocket.close(socket)` from the receiver to release the Gun process and flush its queued messages, including after an exchange fails. It waits for the peer within the socket timeout, or five seconds for `Infinity`. A timeout or handshake error still triggers teardown. Repeated close succeeds after the process exits. `send_close_frame` only sends a frame.
 
 For shorter one-shot flows, `with_socket` opens the socket, runs a callback, then closes the WebSocket and connection.
 
@@ -234,7 +264,7 @@ pub fn echo_once() {
 }
 ```
 
-`Socket` is reusable and lifecycle-explicit. `with_socket` is convenience-only for scoped use. Low-level `upgrade_with_protocol_and_options`, `send`, and `receive` remain available for advanced flows. The root facade stays intentionally minimal; import `gluegun/websocket` directly for `send_text`, `receive_app_frame`, `send_close_frame`, and `with_socket`.
+`Socket` is reusable and you control its lifecycle. `with_socket` calls the same teardown path and gives callback errors precedence over cleanup errors. Low-level `upgrade_with_protocol_and_options`, `send`, and `receive` remain available for advanced flows. The root facade provides `websocket_connect`, `websocket_send_text`, `websocket_receive_app_frame`, and `websocket_close` for the common path.
 
 See `examples/websocket_echo` for a fuller WebSocket example.
 
@@ -336,8 +366,43 @@ just change --kind Added --body "Describe the change"
 ```
 
 Preview the next release with `just changelog-preview`. Trellis creates release
-pull requests from pending fragments on `main`, then tags and publishes merged
-releases.
+pull requests from pending fragments on `main`. Merge `release/pending` to create
+an exact `v{version}` tag and a GitHub release. Tag pushes run CI. Both candidate
+and stable releases are Git-only: Hex publication is disabled in the Trellis
+configuration and there is no Hex publish job.
+
+### Release candidates
+
+Run the **Trellis Release** workflow manually on `main` to change release mode:
+
+| Action | `pre` input | `version` input |
+| --- | --- | --- |
+| Start a candidate cycle | `rc` | Target stable version, for example `1.0.0` |
+| Prepare the next candidate | `rc` | Leave empty |
+| Promote the current candidate to stable | `none` | Leave empty |
+| Prepare a normal stable release | Leave empty | Leave empty, or set a target version |
+
+A new cycle starts at `rc.0`. Merge each candidate PR before preparing the next
+candidate. Trellis retains changelog fragments during the cycle and consumes
+them on stable promotion. Candidate GitHub releases are marked as prereleases.
+
+Automatic pushes to `main` preserve the mode and target of an open release PR.
+If no release PR is open and the current version is a candidate, a push prepares
+another candidate only when the unreleased fragments have changed since that
+candidate's version commit. Automatic pushes do not promote candidates.
+
+Preview candidates locally without changing files:
+
+```sh
+just changelog-preview --set gluegun=1.0.0 --pre rc
+just changelog-preview --pre rc
+just changelog-preview --pre none
+```
+
+The last two commands require a candidate version in the local manifest.
+The **Auto-tag release** workflow also supports a manual run on `main` to recover
+missing tags or GitHub releases. Release preparation requires the
+`RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` Actions secrets; no Hex key is used.
 
 ## License
 

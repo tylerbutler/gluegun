@@ -83,7 +83,7 @@ pub fn secure_options() {
 
   connection.options()
   |> connection.with_transport(transport: connection.Tls)
-  |> connection.with_tls_opts(tls_opts: tls_options)
+  |> connection.with_tls_options(tls_options: tls_options)
 }
 ```
 
@@ -127,7 +127,7 @@ For tests against self-signed endpoints, use `tls.insecure()`:
 ```gleam
 connection.options()
 |> connection.with_transport(transport: connection.Tls)
-|> connection.with_tls_opts(tls_opts: tls.insecure())
+|> connection.with_tls_options(tls_options: tls.insecure())
 |> connection.open(host: "localhost", port: 8443)
 ```
 

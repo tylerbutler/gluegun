@@ -5,16 +5,21 @@
     await_up/2,
     close/1,
     shutdown/1,
-    headers/4,
-    request/5,
+    terminate/1,
+    headers/5,
+    request/6,
     data/4,
     await/3,
     await_body/3,
     cancel/2,
+    cleanup_stream/2,
     update_flow/3,
     flush/1,
     ws_upgrade/4,
     ws_send/3,
+    ws_peer_close/0,
+    ws_record_peer_close/2,
+    ws_close/4,
     decode_message/1,
     safe_decode_message/1,
     protocol_result/1,
@@ -64,26 +69,52 @@ close(ConnPid) ->
 
 shutdown(ConnPid) -> with_normalize(connection_error, fun() -> gun:shutdown(ConnPid) end).
 
-request(ConnPid, Method, Path, Headers, Body) ->
+terminate(ConnPid) when is_pid(ConnPid), ConnPid =/= self(), node(ConnPid) =:= node() ->
+    with_normalize(connection_error, fun() ->
+        Monitor = erlang:monitor(process, ConnPid),
+        exit(ConnPid, kill),
+        receive
+            {'DOWN', Monitor, process, ConnPid, _} ->
+                gun:flush(ConnPid),
+                flush_connection_pushes(ConnPid)
+        end
+    end);
+terminate(_) ->
+    {error, gleam_error({invalid_options, terminate_requires_local_connection})}.
+
+%% Gun 2.1/2.2 flush matches an eight-field push, but emits seven fields.
+flush_connection_pushes(ConnPid) ->
+    receive
+        {gun_push, ConnPid, _, _, _, _, _} -> flush_connection_pushes(ConnPid)
+    after 0 ->
+        ok
+    end.
+
+request(ConnPid, Method, Path, Headers, Body, Options) ->
     try
         MethodBin = validate_request_method(Method),
         PathBin = validate_request_path(Path),
         HeadersOut = validate_request_headers(Headers),
+        BodyOut = validate_byte_payload(Body),
+        GunOptions = request_options_to_gun(Options),
         with_normalize(stream_erlang, fun() ->
-            {ok, gun:request(ConnPid, MethodBin, PathBin, HeadersOut, Body, #{})}
+            {ok, gun:request(ConnPid, MethodBin, PathBin, HeadersOut, BodyOut, GunOptions)}
         end)
     catch
+        error:{invalid_payload, Reason}:_Stack ->
+            {error, gleam_error({invalid_options, {payload, Reason}})};
         error:{invalid_options, Reason}:_Stack -> {error, gleam_error({invalid_options, Reason})};
         Class:Reason:_Stack -> {error, gleam_error({erlang_error, {Class, Reason}})}
     end.
 
-headers(ConnPid, Method, Path, Headers) ->
+headers(ConnPid, Method, Path, Headers, Options) ->
     try
         MethodBin = validate_request_method(Method),
         PathBin = validate_request_path(Path),
         HeadersOut = validate_request_headers(Headers),
+        GunOptions = request_options_to_gun(Options),
         with_normalize(stream_erlang, fun() ->
-            {ok, gun:headers(ConnPid, MethodBin, PathBin, HeadersOut, #{})}
+            {ok, gun:headers(ConnPid, MethodBin, PathBin, HeadersOut, GunOptions)}
         end)
     catch
         error:{invalid_options, Reason}:_Stack -> {error, gleam_error({invalid_options, Reason})};
@@ -91,9 +122,15 @@ headers(ConnPid, Method, Path, Headers) ->
     end.
 
 data(ConnPid, StreamRef, Fin, Data) ->
-    with_normalize(stream, fun() ->
-        gun:data(ConnPid, StreamRef, fin_to_gun(Fin), Data)
-    end).
+    try
+        DataOut = validate_byte_payload(Data),
+        with_normalize(stream, fun() ->
+            gun:data(ConnPid, StreamRef, fin_to_gun(Fin), DataOut)
+        end)
+    catch
+        error:{invalid_payload, Reason}:_Stack ->
+            {error, gleam_error({invalid_options, {payload, Reason}})}
+    end.
 
 await(ConnPid, StreamRef, Timeout) ->
     case
@@ -121,6 +158,27 @@ cancel(ConnPid, StreamRef) ->
     with_normalize(stream, fun() ->
         gun:cancel(ConnPid, StreamRef)
     end).
+
+cleanup_stream(ConnPid, StreamRef) ->
+    Cancel = cancel(ConnPid, StreamRef),
+    Drain = with_normalize(stream, fun() -> flush_stream(StreamRef) end),
+    lists:foreach(fun
+        ({error, Reason}) ->
+            logger:warning("Gluegun HTTP failed-stream cleanup failed: ~p", [Reason]);
+        ({ok, nil}) -> ok
+    end, [Cancel, Drain]),
+    case Cancel of
+        {error, _} -> Cancel;
+        {ok, nil} -> Drain
+    end.
+
+flush_stream(StreamRef) ->
+    gun:flush(StreamRef),
+    %% Gun 2.2 flush_ref matches an eight-field push, but sends seven fields.
+    receive
+        {gun_push, _, StreamRef, _, _, _, _} -> flush_stream(StreamRef)
+    after 0 -> ok
+    end.
 
 update_flow(ConnPid, StreamRef, Increment) ->
     with_normalize(stream, fun() ->
@@ -163,6 +221,8 @@ ws_send(ConnPid, StreamRef, Frames) ->
             gun:ws_send(ConnPid, StreamRef, GunFrames)
         end)
     catch
+        error:{invalid_payload, non_byte_aligned}:_Stack ->
+            {error, gleam_error({invalid_message, {invalid_frame, non_byte_aligned_payload}})};
         error:{invalid_frame, Reason}:_Stack ->
             {error, gleam_error({invalid_message, {invalid_frame, Reason}})};
         Class:Reason:_Stack -> {error, gleam_error({erlang_error, {Class, Reason}})}
@@ -172,10 +232,86 @@ ws_send(ConnPid, StreamRef, Frames) ->
 %% Gun passes to a WebSocket protocol handler module as `user_opts`.
 identity(Value) -> Value.
 
+ws_peer_close() -> atomics:new(1, []).
+
+ws_record_peer_close({ok, Frame} = Result, PeerClose)
+    when Frame =:= close; element(1, Frame) =:= close_with_reason ->
+    atomics:put(PeerClose, 1, 1),
+    Result;
+ws_record_peer_close(Result, _) -> Result.
+
+ws_close(ConnPid, StreamRef, Timeout, PeerClose)
+    when is_pid(ConnPid), ConnPid =/= self(), node(ConnPid) =:= node() ->
+    Handshake = with_normalize(connection_error, fun() ->
+        case is_process_alive(ConnPid) of
+            false -> ok;
+            true ->
+                Monitor = erlang:monitor(process, ConnPid),
+                try
+                    Deadline = erlang:monotonic_time(millisecond) + ws_close_timeout(Timeout),
+                    case ws_send(ConnPid, StreamRef, [close]) of
+                        {ok, nil} ->
+                            ws_await_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose);
+                        {error, Error} -> {typed_error, Error}
+                    end
+                after
+                    erlang:demonitor(Monitor, [flush])
+                end
+        end
+    end),
+    Cleanup = terminate(ConnPid),
+    case Handshake of
+        {ok, nil} -> Cleanup;
+        {error, _} -> Handshake
+    end;
+ws_close(_, _, _, _) ->
+    {error, gleam_error({invalid_options, terminate_requires_local_connection})}.
+
+ws_close_timeout(infinity) -> 5000;
+ws_close_timeout({milliseconds, Milliseconds}) when Milliseconds >= 0 -> Milliseconds.
+
+ws_await_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose) ->
+    Remaining = max(0, Deadline - erlang:monotonic_time(millisecond)),
+    receive
+        {gun_ws, ConnPid, StreamRef, Frame} ->
+            case safe_decode_message({ws, Frame}) of
+                {ok, {web_socket, Close}} when Close =:= close;
+                    element(1, Close) =:= close_with_reason ->
+                    ws_record_peer_close({ok, Close}, PeerClose),
+                    ws_await_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose);
+                {ok, {web_socket, _}} ->
+                    ws_continue_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose);
+                {error, Error} -> {typed_error, Error}
+            end;
+        {gun_down, ConnPid, _, normal, _} ->
+            %% Gun also uses 'normal' for its own closing timeout.
+            case atomics:get(PeerClose, 1) of
+                1 -> ok;
+                0 -> {error, timeout}
+            end;
+        {gun_down, ConnPid, _, Reason, _} ->
+            {error, {connection_down, Reason}};
+        {gun_error, ConnPid, StreamRef, Reason} ->
+            {error, {stream_error, Reason}};
+        {gun_error, ConnPid, Reason} ->
+            {error, {connection_error, Reason}};
+        {'DOWN', Monitor, process, ConnPid, Reason} ->
+            {error, {connection_down, Reason}}
+    after Remaining ->
+        {error, timeout}
+    end.
+
+ws_continue_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose) ->
+    case erlang:monotonic_time(millisecond) >= Deadline of
+        true -> {error, timeout};
+        false -> ws_await_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose)
+    end.
+
 with_normalize(Tag, Fun) ->
     try Fun() of
         ok -> {ok, nil};
         {ok, _} = Result -> Result;
+        {typed_error, Error} -> {error, Error};
         {error, timeout} -> {error, timeout};
         {error, Reason} -> {error, gleam_error(normalize_error(Tag, Reason))};
         Other -> {error, gleam_error(normalize_error(Tag, Other))}
@@ -223,20 +359,23 @@ inspect(Reason) -> gleam@string:inspect(Reason).
 %%   Ping(B)               -> {ping, B}
 %%   Pong(B)               -> {pong, B}
 gleam_frame_to_gun({text, Data}) -> {text, validate_text_frame_data(Data)};
-gleam_frame_to_gun({binary, Data}) -> {binary, Data};
+gleam_frame_to_gun({binary, Data}) -> {binary, validate_byte_payload(Data)};
 gleam_frame_to_gun(close) -> close;
 gleam_frame_to_gun({close_with_reason, Code, Reason}) ->
     validate_close_code(Code),
-    ValidReason = validate_control_frame_data(close, Reason, 123),
+    ValidReason = validate_control_frame_data(close, validate_byte_payload(Reason), 123),
     case validate_utf8(ValidReason) of
         {ok, Text} -> {close, Code, Text};
         {error, invalid_utf8} -> error({invalid_frame, {close, invalid_utf8}})
     end;
 gleam_frame_to_gun({ping, Data}) ->
-    {ping, validate_control_frame_data(ping, Data, 125)};
+    {ping, validate_control_frame_data(ping, validate_byte_payload(Data), 125)};
 gleam_frame_to_gun({pong, Data}) ->
-    {pong, validate_control_frame_data(pong, Data, 125)};
+    {pong, validate_control_frame_data(pong, validate_byte_payload(Data), 125)};
 gleam_frame_to_gun(Other) -> error({invalid_frame, Other}).
+
+validate_byte_payload(Data) when is_binary(Data) -> Data;
+validate_byte_payload(_Data) -> error({invalid_payload, non_byte_aligned}).
 
 validate_control_frame_data(_Tag, Data, Limit) when is_binary(Data), byte_size(Data) =< Limit ->
     Data;
@@ -299,12 +438,35 @@ connect_option_to_gun({transport_option, tcp}, GunOptions) -> GunOptions#{transp
 connect_option_to_gun({transport_option, tls}, GunOptions) -> GunOptions#{transport => tls};
 connect_option_to_gun({protocols_option, Protocols}, GunOptions) ->
     GunOptions#{protocols => [protocol_to_gun(Protocol) || Protocol <- Protocols]};
-connect_option_to_gun({retry_option, Timeout}, GunOptions) ->
-    GunOptions#{retry => timeout_to_gun(Timeout)};
+connect_option_to_gun({retry_option, {retry_count, Count}}, GunOptions)
+    when is_integer(Count), Count >= 0 ->
+    GunOptions#{retry => Count};
+connect_option_to_gun({retry_option, Value}, _GunOptions) ->
+    error({invalid_options, {retry, Value}});
 connect_option_to_gun({connect_timeout_option, Timeout}, GunOptions) ->
     GunOptions#{connect_timeout => timeout_to_gun(Timeout)};
+connect_option_to_gun({address_family_option, Family}, GunOptions) ->
+    %% Keep Gun's socket defaults when adding the family selection.
+    GunOptions#{tcp_opts => [address_family_to_gun(Family),
+        {send_timeout, 15000}, {send_timeout_close, true}]};
+connect_option_to_gun({domain_lookup_timeout_option, Timeout}, GunOptions) ->
+    GunOptions#{domain_lookup_timeout => timeout_to_gun(Timeout)};
+connect_option_to_gun({tls_handshake_timeout_option, Timeout}, GunOptions) ->
+    GunOptions#{tls_handshake_timeout => timeout_to_gun(Timeout)};
 connect_option_to_gun({tls_option, TlsSettings}, GunOptions) ->
     GunOptions#{tls_opts => tls_settings_to_gun(TlsSettings)}.
+
+address_family_to_gun(ipv4) -> inet;
+address_family_to_gun(ipv6) -> inet6;
+address_family_to_gun(Value) -> error({invalid_options, {address_family, Value}}).
+
+request_options_to_gun(Options) ->
+    lists:foldl(fun
+        ({initial_flow, Credit}, Acc) when is_integer(Credit), Credit > 0 ->
+            Acc#{flow => Credit};
+        (Value, _) ->
+            error({invalid_options, {request_option, Value}})
+    end, #{}, Options).
 
 %% --- TLS options ------------------------------------------------------------
 %%
@@ -521,7 +683,8 @@ invalid_ws_opt_name(Key) -> Key.
 %% --- Shared value conversions -----------------------------------------------
 
 timeout_to_gun(infinity) -> infinity;
-timeout_to_gun({milliseconds, Timeout}) when is_integer(Timeout) -> Timeout.
+timeout_to_gun({milliseconds, Timeout}) when is_integer(Timeout), Timeout >= 0 -> Timeout;
+timeout_to_gun(Value) -> error({invalid_options, {timeout, Value}}).
 
 protocol_to_gun(http1) -> http;
 protocol_to_gun(http2) -> http2.

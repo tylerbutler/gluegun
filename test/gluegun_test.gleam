@@ -4,42 +4,52 @@ import gluegun/connection
 import gluegun/internal
 import gluegun/request
 import gluegun/websocket
-import startest
-import startest/expect
-import startest/test_tree
+import unitest
 
 pub fn main() -> Nil {
-  startest.run(startest.default_config())
+  unitest.main()
 }
 
-pub fn gluegun_tests() -> test_tree.TestTree {
-  startest.describe("gluegun root facade", [
-    startest.it("builds a root request with default fields", fn() {
-      gluegun.new_request(request.Get, "/")
-      |> client.inspect_request
-      |> expect.to_equal(client.RequestFields(
-        method: request.Get,
-        path: "/",
-        headers: [],
-        body: <<>>,
-        options: request.options(),
-        timeout: connection.default_timeout(),
-      ))
-    }),
-    startest.it("exposes root WebSocket options", fn() {
-      gluegun.websocket_options()
-      |> websocket.options_timeout
-      |> expect.to_equal(connection.default_timeout())
-    }),
-    startest.it("exposes the minimal common-path root helpers", fn() {
-      compile_common_path_facade(False)
-      |> expect.to_equal(Nil)
-    }),
-    startest.it("exposes public handle types from non-internal modules", fn() {
-      compile_public_handle_types(False)
-      |> expect.to_equal(Nil)
-    }),
-  ])
+pub fn builds_a_root_request_with_default_fields_test() -> Nil {
+  let actual_1 = {
+    gluegun.new_request(request.Get, "/")
+    |> client.inspect_request
+  }
+  let expected_1 =
+    client.RequestFields(
+      method: request.Get,
+      path: "/",
+      headers: [],
+      body: <<>>,
+      options: request.options(),
+      timeout: connection.default_timeout(),
+    )
+  let assert #(True, _, _) = #(actual_1 == expected_1, actual_1, expected_1)
+  Nil
+}
+
+pub fn exposes_root_websocket_options_test() -> Nil {
+  let actual_2 = {
+    gluegun.websocket_options()
+    |> websocket.options_timeout
+  }
+  let expected_2 = connection.default_timeout()
+  let assert #(True, _, _) = #(actual_2 == expected_2, actual_2, expected_2)
+  Nil
+}
+
+pub fn exposes_the_minimal_common_path_root_helpers_test() -> Nil {
+  let actual_3 = compile_common_path_facade(False)
+  let expected_3 = Nil
+  let assert #(True, _, _) = #(actual_3 == expected_3, actual_3, expected_3)
+  Nil
+}
+
+pub fn exposes_public_handle_types_from_non_internal_modules_test() -> Nil {
+  let actual_4 = compile_public_handle_types(False)
+  let expected_4 = Nil
+  let assert #(True, _, _) = #(actual_4 == expected_4, actual_4, expected_4)
+  Nil
 }
 
 fn compile_common_path_facade(should_run: Bool) -> Nil {
