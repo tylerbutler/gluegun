@@ -510,7 +510,10 @@ pub fn await_upgrade(
 /// Send a single WebSocket frame on the stream.
 ///
 /// Supported frame types: `Text`, `Binary`, `Ping`, `Pong`, `Close`,
-/// `CloseWithReason`. The frame is forwarded directly to Gun's `ws_send`.
+/// `CloseWithReason`. Invalid control frames return `InvalidMessage` before
+/// calling Gun. Ping and Pong payloads can contain at most 125 bytes. Close
+/// reasons must be valid UTF-8 and contain at most 123 bytes.
+/// Accepted close codes: 1000-1003, 1007-1014, and 3000-4999.
 pub fn send(
   connection: Connection,
   stream: Stream,
@@ -566,6 +569,8 @@ pub fn send_close_frame(socket: Socket) -> Result(Nil, error.GluegunError) {
 ///
 /// Gun accepts either a single frame or a list of frames. `send` delegates to
 /// this function with a one-element list.
+/// Validates the complete list before sending. If a frame is invalid, returns
+/// `InvalidMessage` without sending any frame.
 ///
 /// Binary, ping, pong, and close-reason payloads must contain whole bytes.
 /// Empty payloads are valid. A non-byte-aligned `BitArray` returns
