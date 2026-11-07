@@ -155,6 +155,9 @@ pub fn normalize_headers(headers: List(Header)) -> List(Header) {
 /// duplicate/malformed `Content-Length`. Invalid input returns
 /// `InvalidOptions` instead of reaching Gun.
 ///
+/// The body must contain whole bytes. A non-byte-aligned `BitArray` returns
+/// `InvalidOptions` before Gun receives the request. Empty bodies are valid.
+///
 /// Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.
 pub fn request(
   connection: Connection,
@@ -209,6 +212,10 @@ pub fn start_stream(
 /// Pass `fin.NoFin` for intermediate chunks and `fin.Fin` for the last
 /// chunk. After sending the final chunk the request body is closed, but the
 /// stream remains open for response messages.
+///
+/// Chunks must contain whole bytes; empty chunks are valid. A
+/// non-byte-aligned `BitArray` returns `InvalidOptions` without sending data
+/// or closing the request body, even when `fin.Fin` is supplied.
 pub fn data(
   connection: Connection,
   stream: Stream,

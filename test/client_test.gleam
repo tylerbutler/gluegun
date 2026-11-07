@@ -213,6 +213,75 @@ pub fn client_tests() -> test_tree.TestTree {
         )
       }),
     ]),
+    startest.describe("failed-stream cleanup", [
+      startest.it("cancels on timeout before headers", fn() {
+        failure_cleanup([Error(error.Timeout)], error.Timeout, False)
+        |> expect.to_equal(Ok(Nil))
+      }),
+      startest.it("cancels on timeout after partial body", fn() {
+        failure_cleanup(
+          [
+            Ok(message.Response(fin.NoFin, 200, [])),
+            Ok(message.Data(fin.NoFin, <<"partial">>)),
+            Error(error.Timeout),
+          ],
+          error.Timeout,
+          False,
+        )
+        |> expect.to_equal(Ok(Nil))
+      }),
+      startest.it("cancels on invalid collection messages", fn() {
+        failure_cleanup(
+          [Ok(message.Data(fin.Fin, <<"unexpected">>))],
+          error.InvalidMessage("HTTP helper received body before response"),
+          False,
+        )
+        |> expect.to_equal(Ok(Nil))
+      }),
+      startest.it("cancels on receive and decode failures", fn() {
+        failure_cleanup(
+          [Error(error.StreamError("reset"))],
+          error.StreamError("reset"),
+          False,
+        )
+        |> expect.to_equal(Ok(Nil))
+        failure_cleanup(
+          [Error(error.DecodeError("malformed"))],
+          error.DecodeError("malformed"),
+          False,
+        )
+        |> expect.to_equal(Ok(Nil))
+        failure_cleanup(
+          [Error(error.ConnectionDown("closed"))],
+          error.ConnectionDown("closed"),
+          False,
+        )
+        |> expect.to_equal(Ok(Nil))
+      }),
+      startest.it("drains even if cancel fails and keeps original error", fn() {
+        failure_cleanup([Error(error.Timeout)], error.Timeout, True)
+        |> expect.to_equal(Ok(Nil))
+      }),
+      startest.it("does not cancel successful or rejected requests", fn() {
+        no_cleanup(False) |> expect.to_equal(Ok(Nil))
+        no_cleanup(True) |> expect.to_equal(Ok(Nil))
+      }),
+      startest.it("defines the late-message drain race", fn() {
+        late_after_drain() |> expect.to_equal(Ok(Nil))
+      }),
+      startest.it("cancels delayed headers and preserves shared requests", fn() {
+        delayed_response(False) |> expect.to_equal(Ok(Nil))
+      }),
+      startest.it("cancels delayed body and preserves shared requests", fn() {
+        delayed_response(True) |> expect.to_equal(Ok(Nil))
+      }),
+      startest.it("cleans invalid messages on a shared local connection", fn() {
+        local_failure(False) |> expect.to_equal(Ok(Nil))
+      }),
+      startest.it("cleans receive failures on a shared local connection", fn() {
+        local_failure(True) |> expect.to_equal(Ok(Nil))
+      }),
+    ]),
   ])
 }
 
@@ -237,3 +306,22 @@ fn stream_ref() -> internal.Stream
 
 @external(erlang, "gluegun_ffi_test", "invalid_connection")
 fn invalid_connection() -> internal.Connection
+
+@external(erlang, "gluegun_client_test", "failure_cleanup")
+fn failure_cleanup(
+  messages: List(Result(message.Message, error.GluegunError)),
+  expected: error.GluegunError,
+  invalid_connection: Bool,
+) -> Result(Nil, String)
+
+@external(erlang, "gluegun_client_test", "no_cleanup")
+fn no_cleanup(send_failure: Bool) -> Result(Nil, String)
+
+@external(erlang, "gluegun_client_test", "late_after_drain")
+fn late_after_drain() -> Result(Nil, String)
+
+@external(erlang, "gluegun_client_test", "delayed_response")
+fn delayed_response(body_delay: Bool) -> Result(Nil, String)
+
+@external(erlang, "gluegun_client_test", "local_failure")
+fn local_failure(receive_failure: Bool) -> Result(Nil, String)

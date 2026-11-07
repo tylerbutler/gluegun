@@ -1,0 +1,6 @@
+package = "gluegun"
+kind = "Fixed"
+body = """
+Reject non-byte-aligned payloads before sending to Gun
+
+HTTP request bodies and streamed chunks now return `InvalidOptions` for `BitArray` values with trailing bits. WebSocket binary, ping, pong, and close-reason payloads return `InvalidMessage` for the same values. Rejected sends do not reach Gun or close the connection; a rejected WebSocket batch sends no frames. Empty and byte-aligned payloads are preserved without padding or truncation."""

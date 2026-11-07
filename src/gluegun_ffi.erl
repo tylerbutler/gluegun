@@ -12,6 +12,7 @@
     await/3,
     await_body/3,
     cancel/2,
+    cleanup_stream/2,
     update_flow/3,
     flush/1,
     ws_upgrade/4,
@@ -94,11 +95,14 @@ request(ConnPid, Method, Path, Headers, Body, Options) ->
         MethodBin = validate_request_method(Method),
         PathBin = validate_request_path(Path),
         HeadersOut = validate_request_headers(Headers),
+        BodyOut = validate_byte_payload(Body),
         GunOptions = request_options_to_gun(Options),
         with_normalize(stream_erlang, fun() ->
-            {ok, gun:request(ConnPid, MethodBin, PathBin, HeadersOut, Body, GunOptions)}
+            {ok, gun:request(ConnPid, MethodBin, PathBin, HeadersOut, BodyOut, GunOptions)}
         end)
     catch
+        error:{invalid_payload, Reason}:_Stack ->
+            {error, gleam_error({invalid_options, {payload, Reason}})};
         error:{invalid_options, Reason}:_Stack -> {error, gleam_error({invalid_options, Reason})};
         Class:Reason:_Stack -> {error, gleam_error({erlang_error, {Class, Reason}})}
     end.
@@ -118,9 +122,15 @@ headers(ConnPid, Method, Path, Headers, Options) ->
     end.
 
 data(ConnPid, StreamRef, Fin, Data) ->
-    with_normalize(stream, fun() ->
-        gun:data(ConnPid, StreamRef, fin_to_gun(Fin), Data)
-    end).
+    try
+        DataOut = validate_byte_payload(Data),
+        with_normalize(stream, fun() ->
+            gun:data(ConnPid, StreamRef, fin_to_gun(Fin), DataOut)
+        end)
+    catch
+        error:{invalid_payload, Reason}:_Stack ->
+            {error, gleam_error({invalid_options, {payload, Reason}})}
+    end.
 
 await(ConnPid, StreamRef, Timeout) ->
     case
@@ -148,6 +158,27 @@ cancel(ConnPid, StreamRef) ->
     with_normalize(stream, fun() ->
         gun:cancel(ConnPid, StreamRef)
     end).
+
+cleanup_stream(ConnPid, StreamRef) ->
+    Cancel = cancel(ConnPid, StreamRef),
+    Drain = with_normalize(stream, fun() -> flush_stream(StreamRef) end),
+    lists:foreach(fun
+        ({error, Reason}) ->
+            logger:warning("Gluegun HTTP failed-stream cleanup failed: ~p", [Reason]);
+        ({ok, nil}) -> ok
+    end, [Cancel, Drain]),
+    case Cancel of
+        {error, _} -> Cancel;
+        {ok, nil} -> Drain
+    end.
+
+flush_stream(StreamRef) ->
+    gun:flush(StreamRef),
+    %% Gun 2.2 flush_ref matches an eight-field push, but sends seven fields.
+    receive
+        {gun_push, _, StreamRef, _, _, _, _} -> flush_stream(StreamRef)
+    after 0 -> ok
+    end.
 
 update_flow(ConnPid, StreamRef, Increment) ->
     with_normalize(stream, fun() ->
@@ -190,6 +221,8 @@ ws_send(ConnPid, StreamRef, Frames) ->
             gun:ws_send(ConnPid, StreamRef, GunFrames)
         end)
     catch
+        error:{invalid_payload, non_byte_aligned}:_Stack ->
+            {error, gleam_error({invalid_message, {invalid_frame, non_byte_aligned_payload}})};
         error:{invalid_frame, Reason}:_Stack ->
             {error, gleam_error({invalid_message, {invalid_frame, Reason}})};
         Class:Reason:_Stack -> {error, gleam_error({erlang_error, {Class, Reason}})}
@@ -326,12 +359,38 @@ inspect(Reason) -> gleam@string:inspect(Reason).
 %%   Ping(B)               -> {ping, B}
 %%   Pong(B)               -> {pong, B}
 gleam_frame_to_gun({text, Data}) -> {text, validate_text_frame_data(Data)};
-gleam_frame_to_gun({binary, Data}) -> {binary, Data};
+gleam_frame_to_gun({binary, Data}) -> {binary, validate_byte_payload(Data)};
 gleam_frame_to_gun(close) -> close;
-gleam_frame_to_gun({close_with_reason, Code, Reason}) -> {close, Code, Reason};
-gleam_frame_to_gun({ping, Data}) -> {ping, Data};
-gleam_frame_to_gun({pong, Data}) -> {pong, Data};
+gleam_frame_to_gun({close_with_reason, Code, Reason}) ->
+    validate_close_code(Code),
+    ValidReason = validate_control_frame_data(close, validate_byte_payload(Reason), 123),
+    case validate_utf8(ValidReason) of
+        {ok, Text} -> {close, Code, Text};
+        {error, invalid_utf8} -> error({invalid_frame, {close, invalid_utf8}})
+    end;
+gleam_frame_to_gun({ping, Data}) ->
+    {ping, validate_control_frame_data(ping, validate_byte_payload(Data), 125)};
+gleam_frame_to_gun({pong, Data}) ->
+    {pong, validate_control_frame_data(pong, validate_byte_payload(Data), 125)};
 gleam_frame_to_gun(Other) -> error({invalid_frame, Other}).
+
+validate_byte_payload(Data) when is_binary(Data) -> Data;
+validate_byte_payload(_Data) -> error({invalid_payload, non_byte_aligned}).
+
+validate_control_frame_data(_Tag, Data, Limit) when is_binary(Data), byte_size(Data) =< Limit ->
+    Data;
+validate_control_frame_data(Tag, Data, Limit) when is_binary(Data) ->
+    error({invalid_frame, {Tag, {payload_too_large, byte_size(Data), Limit}}});
+validate_control_frame_data(Tag, _Data, _Limit) ->
+    error({invalid_frame, {Tag, non_byte_aligned_payload}}).
+
+validate_close_code(Code) when is_integer(Code),
+    ((Code >= 1000 andalso Code =< 1003) orelse
+     (Code >= 1007 andalso Code =< 1014) orelse
+     (Code >= 3000 andalso Code =< 4999)) ->
+    ok;
+validate_close_code(Code) ->
+    error({invalid_frame, {close, {invalid_code, Code}}}).
 
 validate_text_frame_data(Data) ->
     case validate_utf8(Data) of
@@ -656,17 +715,53 @@ normalize_stream_error(Reason) -> {stream_error, Reason}.
 %% --- Gun message decoding ---------------------------------------------------
 %%
 %% Builds Gleam `gluegun/message.Message` values directly, so the Gleam side
-%% never has to inspect an untyped Gun term. Two shapes are accepted: the raw
+%% never has to inspect an untyped Gun term. Two shapes exist: the raw
 %% mailbox tuples Gun sends to the stream owner (`{gun_response, ConnPid,
-%% StreamRef, ...}`) and the shorter terms `gun:await/3` returns
-%% (`{response, ...}`).
+%% StreamRef, ...}`), which carry the connection and stream a message came
+%% from, and the shorter terms `gun:await/3` returns (`{response, ...}`),
+%% which do not. `decode_message/1` (`gluegun/message.decode`) only accepts
+%% the former, so it can pair every decoded message with that identity; the
+%% latter is decoded by `safe_decode_message/1` for `gluegun/message.await`,
+%% whose caller already supplies the connection and stream explicitly.
 
-%% `gluegun/message.decode`: any unrecognized shape is a decode failure.
-decode_message(Message) ->
-    case safe_decode_message(Message) of
-        {ok, _} = Decoded -> Decoded;
-        {error, _} -> {error, {decode_error, <<"Invalid Gun message"/utf8>>}}
-    end.
+%% `gluegun/message.decode`: only the raw mailbox tuples Gun sends to the
+%% stream owner are accepted, because only those carry the connection pid and
+%% stream reference a message came from. A process that owns several
+%% concurrent streams (HTTP/2 requests, server pushes) cannot otherwise tell
+%% which stream a decoded message belongs to. Every accepted shape is paired
+%% with that identity as a Gleam `gluegun/message.Envelope`
+%% (`{envelope, ConnPid, StreamRef, Message}`); any other shape, including a
+%% `gun:await/3`-style term with no embedded identity, is a decode failure.
+decode_message({gun_inform, ConnPid, StreamRef, Status, Headers}) ->
+    envelope(ConnPid, StreamRef, safe_decode_message({inform, Status, Headers}));
+decode_message({gun_response, ConnPid, StreamRef, Fin, Status, Headers}) ->
+    envelope(ConnPid, StreamRef, safe_decode_message({response, Fin, Status, Headers}));
+decode_message({gun_data, ConnPid, StreamRef, Fin, Data}) ->
+    envelope(ConnPid, StreamRef, safe_decode_message({data, Fin, Data}));
+decode_message({gun_trailers, ConnPid, StreamRef, Headers}) ->
+    envelope(ConnPid, StreamRef, safe_decode_message({trailers, Headers}));
+decode_message({gun_push, ConnPid, StreamRef, NewStreamRef, Method, URI, Headers}) ->
+    envelope(ConnPid, StreamRef, safe_decode_message({push, NewStreamRef, Method, URI, Headers}));
+decode_message({gun_upgrade, ConnPid, StreamRef, Protocols, Headers}) ->
+    envelope(ConnPid, StreamRef, safe_decode_message({upgrade, Protocols, Headers}));
+decode_message({gun_ws, ConnPid, StreamRef, Frame}) ->
+    envelope(ConnPid, StreamRef, safe_decode_message({ws, Frame}));
+decode_message(_Other) ->
+    %% Covers `gun_error` (stream- and connection-level) and any shape that
+    %% is not a recognized Gun mailbox message, including bare
+    %% `gun:await/3`-style terms, which carry no identity to preserve.
+    {error, {decode_error, <<"Invalid Gun message"/utf8>>}}.
+
+%% Pairs a successfully decoded `Message` with the connection and stream Gun
+%% named for it. `StreamRef` is the stream that delivered the message; for
+%% `gun_push` that is the existing stream the server pushed on, not the new
+%% stream carried inside the decoded `Push` message. A malformed payload
+%% inside a recognized mailbox tuple (e.g. an unrecognized WebSocket frame)
+%% still collapses to the same generic decode failure `decode_message/1`
+%% returns for any other unrecognized shape, so `gluegun/message.decode`'s
+%% error contract stays a single, stable `DecodeError`.
+envelope(ConnPid, StreamRef, {ok, Decoded}) -> {ok, {envelope, ConnPid, StreamRef, Decoded}};
+envelope(_ConnPid, _StreamRef, {error, _}) -> {error, {decode_error, <<"Invalid Gun message"/utf8>>}}.
 
 %% `gluegun/message.await`: keeps Gun's own stream and message classification.
 safe_decode_message(Message) ->
@@ -681,23 +776,11 @@ safe_decode_message(Message) ->
         Class:Reason:_Stack -> {error, gleam_error({erlang_error, {Class, Reason}})}
     end.
 
-%% Mailbox messages: the tuples Gun sends to the process that owns the stream.
-%% They carry the connection pid and stream reference that `gun:await/3`
-%% strips, so they are reduced to the await shapes below.
-message_to_gleam({gun_inform, _ConnPid, _StreamRef, Status, Headers}) ->
-    message_to_gleam({inform, Status, Headers});
-message_to_gleam({gun_response, _ConnPid, _StreamRef, Fin, Status, Headers}) ->
-    message_to_gleam({response, Fin, Status, Headers});
-message_to_gleam({gun_data, _ConnPid, _StreamRef, Fin, Data}) ->
-    message_to_gleam({data, Fin, Data});
-message_to_gleam({gun_trailers, _ConnPid, _StreamRef, Headers}) ->
-    message_to_gleam({trailers, Headers});
-message_to_gleam({gun_push, _ConnPid, _StreamRef, NewStreamRef, Method, URI, Headers}) ->
-    message_to_gleam({push, NewStreamRef, Method, URI, Headers});
-message_to_gleam({gun_upgrade, _ConnPid, _StreamRef, Protocols, Headers}) ->
-    message_to_gleam({upgrade, Protocols, Headers});
-message_to_gleam({gun_ws, _ConnPid, _StreamRef, Frame}) ->
-    message_to_gleam({ws, Frame});
+%% Mailbox error tuples: the connection pid and stream reference are not
+%% preserved here because there is no successfully decoded `Message` to pair
+%% them with; the typed error variant (`StreamError` / `ConnectionError`) is
+%% enough context on its own. `decode_message/1` extracts identity for the
+%% other mailbox tuples before reaching this function; see above.
 message_to_gleam({gun_error, _ConnPid, _StreamRef, Reason}) ->
     message_to_gleam({error, Reason});
 message_to_gleam({gun_error, _ConnPid, Reason}) ->

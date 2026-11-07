@@ -1,5 +1,5 @@
 package = "gluegun"
-kind = "Major Release"
+kind = "Added"
 body = """
 Initial release
 

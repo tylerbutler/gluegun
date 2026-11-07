@@ -103,7 +103,7 @@ Flow credit cannot impose a strict allocation cap:
 - Gun can parse several HTTP/2 frames from a socket read before it stops stream-window updates. Data already inside the HTTP/2 window can still arrive.
 - OTP and the operating system hold socket buffers. Gun also holds parser state and buffered bytes. Gluegun does not set a maximum size for these allocations or for one `BitArray`.
 
-The local acceptance tests send a 1 MiB HTTP chunk and 4096 small chunks. They confirm that HTTP/1.1 stops delivery when the initial credit runs out and resumes after `update_flow`. The byte-policy tests reject bodies from both chunked and close-delimited responses. The caller owns the byte limit and any archive processing.
+The local acceptance tests send a 1 MiB HTTP chunk and 4096 small chunks. They confirm that HTTP/1.1 stops delivery when the initial credit runs out and resumes after `update_flow`. A local HTTP/2 peer fills Gun's advertised stream byte window, checks that finite credit prevents stream `WINDOW_UPDATE`, then confirms that replenishing data-message credit resumes delivery. It also checks the final chunk's cumulative byte count and termination cleanup with a real queued server push. The byte-policy tests reject bodies from both chunked and close-delimited responses. The caller owns the byte limit and any archive processing.
 
 ## Bounded connection setup
 

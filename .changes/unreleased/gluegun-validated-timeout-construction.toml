@@ -1,5 +1,5 @@
 package = "gluegun"
-kind = "Breaking"
+kind = "Changed"
 body = """
 Validated timeout construction
 
