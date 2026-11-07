@@ -1,5 +1,5 @@
 package = "gluegun"
-kind = "Breaking"
+kind = "Added"
 body = """
 Typed controls for bounded response streaming and connection setup
 
