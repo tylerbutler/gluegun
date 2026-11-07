@@ -140,6 +140,10 @@ Send a chunk of request body data on an open stream.
  chunk. After sending the final chunk the request body is closed, but the
  stream remains open for response messages.
 
+ Chunks must contain whole bytes; empty chunks are valid. A
+ non-byte-aligned `BitArray` returns `InvalidOptions` without sending data
+ or closing the request body, even when `fin.Fin` is supplied.
+
 ```gleam
 pub fn data(
   internal.Connection,
@@ -194,6 +198,9 @@ Send a low-level HTTP request on an open Gun connection.
  and headers cannot include a caller-supplied `Transfer-Encoding` or a
  duplicate/malformed `Content-Length`. Invalid input returns
  `InvalidOptions` instead of reaching Gun.
+
+ The body must contain whole bytes. A non-byte-aligned `BitArray` returns
+ `InvalidOptions` before Gun receives the request. Empty bodies are valid.
 
  Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.
 

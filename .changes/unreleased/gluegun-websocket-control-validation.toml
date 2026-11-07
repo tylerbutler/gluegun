@@ -1,0 +1,6 @@
+package = "gluegun"
+kind = "Fixed"
+body = """
+Validate WebSocket control frames before sending
+
+Ping and Pong payloads now have a 125-byte limit. Close reasons must contain valid UTF-8 and at most 123 bytes, with a valid close code. Invalid frames return `InvalidMessage` before Gun receives them, so they cannot crash the connection. Frame lists use complete validation before sending any frame."""
