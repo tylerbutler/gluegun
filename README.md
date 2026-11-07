@@ -312,6 +312,10 @@ Networked examples and WebSocket examples are intended for manual `gleam run` be
 
 ## Development
 
+Install the build tools pinned in `.mise.toml` with `mise install` and activate
+mise in your shell. CI installs the same tools with `jdx/mise-action`. For website
+tasks, run `corepack enable` to use the pnpm version in `website/package.json`.
+
 ```sh
 just deps         # Download dependencies
 just build        # Build project
