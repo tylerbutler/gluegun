@@ -350,11 +350,17 @@ pub fn request_with(
   {
     Ok(response) -> Ok(response)
     Error(reason) -> {
-      let _ = low_request.cleanup_stream(connection, stream)
+      let _ = cleanup_stream(connection, stream)
       Error(reason)
     }
   }
 }
+
+@external(erlang, "gluegun_ffi", "cleanup_stream")
+fn cleanup_stream(
+  connection: Connection,
+  stream: low_request.Stream,
+) -> Result(Nil, error.GluegunError)
 
 fn collect_stream_with(
   connection: Connection,

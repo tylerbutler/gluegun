@@ -195,19 +195,6 @@ pub fn cancel(
   ffi_cancel(connection, stream)
 }
 
-/// Attempt cancellation, then drain this stream's currently queued messages.
-///
-/// Used by the HTTP client after collection fails. This does not wait for
-/// cancellation or future messages. Other streams and connection events stay
-/// queued. Cleanup failures are logged; callers keep their original error.
-@internal
-pub fn cleanup_stream(
-  connection: Connection,
-  stream: Stream,
-) -> Result(Nil, error.GluegunError) {
-  ffi_cleanup_stream(connection, stream)
-}
-
 /// Update HTTP/1.1 or HTTP/2 stream flow control by the given increment.
 ///
 /// The increment must be positive. Gun rejects non-positive flow-control
@@ -273,9 +260,3 @@ fn ffi_update_flow(
 
 @external(erlang, "gluegun_ffi", "flush")
 fn ffi_flush(connection: Connection) -> Result(Nil, error.GluegunError)
-
-@external(erlang, "gluegun_ffi", "cleanup_stream")
-fn ffi_cleanup_stream(
-  connection: Connection,
-  stream: Stream,
-) -> Result(Nil, error.GluegunError)
