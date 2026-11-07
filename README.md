@@ -136,6 +136,25 @@ If you need response chunks or trailers as they arrive, continue awaiting
 `message.Data` and `message.Trailers` with `message.await` instead of collecting
 the full body with `message.await_body`.
 
+For bounded response streaming, set `request.with_initial_flow(options, 1)`
+before you send the request. Check status and `Content-Length`, then count each
+`message.Data` chunk's bytes before retaining it. Grant one more data-message
+credit with `request.update_flow(conn, stream, 1)` after each check. Credit is
+not a byte or allocation limit.
+
+Use `connection.with_address_family` to select IPv4 or IPv6 without fallback.
+Set `with_domain_lookup_timeout`, `with_connect_timeout`, and
+`with_tls_handshake_timeout` to bound separate setup stages. Construct a
+`RetryCount` with `connection.retry_count(0)` and pass it to `with_retry` to
+disable retries. These settings preserve the TLS verification defaults.
+Use a monotonic total deadline across setup and response receives.
+`connection.terminate` stops a stalled connection, waits for exit, and flushes
+its messages from the caller's mailbox.
+
+See `examples/streaming_download` and the
+[streaming guide](https://gluegun.tylerbutler.com/guides/streaming/) for a
+bounded receive loop and the limits of Gun flow control.
+
 ## Prefer HTTP/2
 
 Use TLS and put `Http2` before `Http1` to prefer HTTP/2 while allowing Gun to fall back to HTTP/1.1 when needed.

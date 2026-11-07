@@ -42,12 +42,23 @@ pub type Protocol {
   Http2
 }
 
-/// Timeout or retry duration in milliseconds, or no limit.
+/// Timeout in milliseconds, or no limit.
 pub opaque type Timeout {
   /// A finite duration in milliseconds. Must be non-negative.
   Milliseconds(Int)
   /// No upper bound. Wait indefinitely.
   Infinity
+}
+
+/// Address family for DNS lookup and socket connection, without fallback.
+pub type AddressFamily {
+  Ipv4
+  Ipv6
+}
+
+/// Number of reconnection attempts after the initial connection attempt.
+pub opaque type RetryCount {
+  RetryCount(Int)
 }
 
 /// Opaque handle for an open Gun connection.
@@ -63,23 +74,29 @@ pub type Connection =
 pub type ConnectOption {
   TransportOption(Transport)
   ProtocolsOption(List(Protocol))
-  RetryOption(Timeout)
+  RetryOption(RetryCount)
   ConnectTimeoutOption(Timeout)
+  AddressFamilyOption(AddressFamily)
+  DomainLookupTimeoutOption(Timeout)
+  TlsHandshakeTimeoutOption(Timeout)
   TlsOption(List(tls.TlsSetting))
 }
 
 /// Pure representation of connection options before FFI conversion.
 ///
-/// Build with `options()` then chain `with_transport`, `with_protocols`,
-/// `with_retry`, `with_connect_timeout`, and `with_tls_options`. Pass the
-/// result to `open(host:, port:)`.
+/// Build with `options()` and the `with_*` builders. Configure retry count,
+/// address family, separate setup timeouts, and TLS options as needed, then
+/// pass the result to `open(host:, port:)`.
 pub opaque type ConnectOptions {
   ConnectOptions(
     transport: Transport,
     protocols: Option(List(Protocol)),
-    retry: Timeout,
+    retry: RetryCount,
     connect_timeout: Timeout,
     tls_options: Option(tls.TlsOptions),
+    address_family: Option(AddressFamily),
+    domain_lookup_timeout: Option(Timeout),
+    tls_handshake_timeout: Option(Timeout),
   )
 }
 
@@ -88,10 +105,27 @@ pub fn options() -> ConnectOptions {
   ConnectOptions(
     transport: Auto,
     protocols: None,
-    retry: default_timeout(),
+    retry: default_retry_count(),
     connect_timeout: default_timeout(),
     tls_options: None,
+    address_family: None,
+    domain_lookup_timeout: None,
+    tls_handshake_timeout: None,
   )
+}
+
+/// Construct a retry count. Zero disables retries; negative values are invalid.
+pub fn retry_count(value: Int) -> Result(RetryCount, error.GluegunError) {
+  case value >= 0 {
+    True -> Ok(RetryCount(value))
+    False -> Error(error.InvalidOptions("retry count must be non-negative"))
+  }
+}
+
+/// Gun's default of five retries after the first attempt.
+@internal
+pub fn default_retry_count() -> RetryCount {
+  RetryCount(5)
 }
 
 /// Construct a finite timeout.
@@ -133,20 +167,53 @@ pub fn with_protocols(
   ConnectOptions(..options, protocols: Some(protocols))
 }
 
-/// Set Gun's retry timeout option.
+/// Set Gun's retry count, including zero to disable retries.
+///
+/// Gun waits five seconds between subsequent retries by default. This count
+/// does not set that delay or any setup timeout.
 pub fn with_retry(
   options: ConnectOptions,
-  retry retry: Timeout,
+  retry retry: RetryCount,
 ) -> ConnectOptions {
   ConnectOptions(..options, retry: retry)
 }
 
-/// Set Gun's connect timeout option.
+/// Bound socket connection across the resolved addresses in one attempt.
+///
+/// This does not cover DNS lookup or TLS handshake. Use
+/// `with_domain_lookup_timeout` and `with_tls_handshake_timeout` for those.
 pub fn with_connect_timeout(
   options: ConnectOptions,
   timeout timeout: Timeout,
 ) -> ConnectOptions {
   ConnectOptions(..options, connect_timeout: timeout)
+}
+
+/// Select only IPv4 or only IPv6 for DNS lookup and TCP connection.
+///
+/// TLS uses the same TCP setup. This does not change TLS verification or SNI.
+/// With no selection, Gun uses the runtime's default address family.
+pub fn with_address_family(
+  options: ConnectOptions,
+  family family: AddressFamily,
+) -> ConnectOptions {
+  ConnectOptions(..options, address_family: Some(family))
+}
+
+/// Bound DNS lookup per connection attempt. Gun defaults to no limit.
+pub fn with_domain_lookup_timeout(
+  options: ConnectOptions,
+  timeout timeout: Timeout,
+) -> ConnectOptions {
+  ConnectOptions(..options, domain_lookup_timeout: Some(timeout))
+}
+
+/// Bound the TLS handshake per connection attempt. Gun defaults to no limit.
+pub fn with_tls_handshake_timeout(
+  options: ConnectOptions,
+  timeout timeout: Timeout,
+) -> ConnectOptions {
+  ConnectOptions(..options, tls_handshake_timeout: Some(timeout))
 }
 
 /// Set TLS options for TLS or auto-transport connections.
@@ -172,8 +239,8 @@ pub fn protocols(options: ConnectOptions) -> Option(List(Protocol)) {
   options.protocols
 }
 
-/// Inspect retry duration.
-pub fn retry(options: ConnectOptions) -> Timeout {
+/// Inspect retry count.
+pub fn retry(options: ConnectOptions) -> RetryCount {
   options.retry
 }
 
@@ -220,21 +287,33 @@ pub fn await_up(
   ffi_await_up(connection, timeout)
 }
 
-/// Close a Gun connection cleanly.
+/// Stop a Gun connection through its supervisor.
 ///
-/// Sends Gun's shutdown signal and waits for the process to exit. Safe to
-/// call once per connection. Outstanding streams are cancelled.
+/// Gun's supervisor waits for process exit, with a supervisor shutdown
+/// timeout before forced termination. This is not a graceful HTTP drain.
+/// It does not flush the caller's mailbox. Use `terminate` for a stalled
+/// connection or deadline cleanup.
 pub fn close(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_close(connection)
 }
 
-/// Shut down a Gun connection immediately.
+/// Request graceful shutdown of a Gun connection.
 ///
-/// Terminates the Gun process without waiting for graceful close. Prefer
-/// `close` for normal teardown; use `shutdown` when the connection is
-/// suspected stuck.
+/// Sends an asynchronous cast. Gun can finish active streams before it
+/// exits; this call does not wait for exit and cannot interrupt blocked setup.
 pub fn shutdown(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_shutdown(connection)
+}
+
+/// Force termination, wait for process exit, then flush its Gun messages.
+///
+/// Use on deadline expiry, including during DNS, connect, or TLS setup.
+/// Call from the process that receives the connection's messages. On return,
+/// the Gun process cannot send more messages and its queued messages are gone.
+/// This does not drain other receiving processes or third-party forwarders.
+/// It discards all streams on this connection, not only one stream.
+pub fn terminate(connection: Connection) -> Result(Nil, error.GluegunError) {
+  ffi_terminate(connection)
 }
 
 /// Convert connection options to the typed shape the Erlang FFI expects.
@@ -252,6 +331,19 @@ pub fn options_to_ffi(options: ConnectOptions) -> List(ConnectOption) {
     Auto, None | Tcp, None | Tcp, Some(_) | Tls, None -> []
   }
 
+  let family_options = case options.address_family {
+    Some(family) -> [AddressFamilyOption(family)]
+    None -> []
+  }
+  let lookup_options = case options.domain_lookup_timeout {
+    Some(timeout) -> [DomainLookupTimeoutOption(timeout)]
+    None -> []
+  }
+  let handshake_options = case options.tls_handshake_timeout {
+    Some(timeout) -> [TlsHandshakeTimeoutOption(timeout)]
+    None -> []
+  }
+
   list.append(
     [
       TransportOption(options.transport),
@@ -259,7 +351,12 @@ pub fn options_to_ffi(options: ConnectOptions) -> List(ConnectOption) {
       ConnectTimeoutOption(options.connect_timeout),
       ..protocol_options
     ],
-    tls_options,
+    list.flatten([
+      tls_options,
+      family_options,
+      lookup_options,
+      handshake_options,
+    ]),
   )
 }
 
@@ -281,3 +378,6 @@ fn ffi_close(connection: Connection) -> Result(Nil, error.GluegunError)
 
 @external(erlang, "gluegun_ffi", "shutdown")
 fn ffi_shutdown(connection: Connection) -> Result(Nil, error.GluegunError)
+
+@external(erlang, "gluegun_ffi", "terminate")
+fn ffi_terminate(connection: Connection) -> Result(Nil, error.GluegunError)

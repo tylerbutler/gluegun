@@ -5,8 +5,9 @@
     await_up/2,
     close/1,
     shutdown/1,
-    headers/4,
-    request/5,
+    terminate/1,
+    headers/5,
+    request/6,
     data/4,
     await/3,
     await_body/3,
@@ -64,26 +65,39 @@ close(ConnPid) ->
 
 shutdown(ConnPid) -> with_normalize(connection_error, fun() -> gun:shutdown(ConnPid) end).
 
-request(ConnPid, Method, Path, Headers, Body) ->
+terminate(ConnPid) when is_pid(ConnPid), ConnPid =/= self(), node(ConnPid) =:= node() ->
+    with_normalize(connection_error, fun() ->
+        Monitor = erlang:monitor(process, ConnPid),
+        exit(ConnPid, kill),
+        receive
+            {'DOWN', Monitor, process, ConnPid, _} -> gun:flush(ConnPid)
+        end
+    end);
+terminate(_) ->
+    {error, gleam_error({invalid_options, terminate_requires_local_connection})}.
+
+request(ConnPid, Method, Path, Headers, Body, Options) ->
     try
         MethodBin = validate_request_method(Method),
         PathBin = validate_request_path(Path),
         HeadersOut = validate_request_headers(Headers),
+        GunOptions = request_options_to_gun(Options),
         with_normalize(stream_erlang, fun() ->
-            {ok, gun:request(ConnPid, MethodBin, PathBin, HeadersOut, Body, #{})}
+            {ok, gun:request(ConnPid, MethodBin, PathBin, HeadersOut, Body, GunOptions)}
         end)
     catch
         error:{invalid_options, Reason}:_Stack -> {error, gleam_error({invalid_options, Reason})};
         Class:Reason:_Stack -> {error, gleam_error({erlang_error, {Class, Reason}})}
     end.
 
-headers(ConnPid, Method, Path, Headers) ->
+headers(ConnPid, Method, Path, Headers, Options) ->
     try
         MethodBin = validate_request_method(Method),
         PathBin = validate_request_path(Path),
         HeadersOut = validate_request_headers(Headers),
+        GunOptions = request_options_to_gun(Options),
         with_normalize(stream_erlang, fun() ->
-            {ok, gun:headers(ConnPid, MethodBin, PathBin, HeadersOut, #{})}
+            {ok, gun:headers(ConnPid, MethodBin, PathBin, HeadersOut, GunOptions)}
         end)
     catch
         error:{invalid_options, Reason}:_Stack -> {error, gleam_error({invalid_options, Reason})};
@@ -276,12 +290,35 @@ connect_option_to_gun({transport_option, tcp}, GunOptions) -> GunOptions#{transp
 connect_option_to_gun({transport_option, tls}, GunOptions) -> GunOptions#{transport => tls};
 connect_option_to_gun({protocols_option, Protocols}, GunOptions) ->
     GunOptions#{protocols => [protocol_to_gun(Protocol) || Protocol <- Protocols]};
-connect_option_to_gun({retry_option, Timeout}, GunOptions) ->
-    GunOptions#{retry => timeout_to_gun(Timeout)};
+connect_option_to_gun({retry_option, {retry_count, Count}}, GunOptions)
+    when is_integer(Count), Count >= 0 ->
+    GunOptions#{retry => Count};
+connect_option_to_gun({retry_option, Value}, _GunOptions) ->
+    error({invalid_options, {retry, Value}});
 connect_option_to_gun({connect_timeout_option, Timeout}, GunOptions) ->
     GunOptions#{connect_timeout => timeout_to_gun(Timeout)};
+connect_option_to_gun({address_family_option, Family}, GunOptions) ->
+    %% Keep Gun's socket defaults when adding the family selection.
+    GunOptions#{tcp_opts => [address_family_to_gun(Family),
+        {send_timeout, 15000}, {send_timeout_close, true}]};
+connect_option_to_gun({domain_lookup_timeout_option, Timeout}, GunOptions) ->
+    GunOptions#{domain_lookup_timeout => timeout_to_gun(Timeout)};
+connect_option_to_gun({tls_handshake_timeout_option, Timeout}, GunOptions) ->
+    GunOptions#{tls_handshake_timeout => timeout_to_gun(Timeout)};
 connect_option_to_gun({tls_option, TlsSettings}, GunOptions) ->
     GunOptions#{tls_opts => tls_settings_to_gun(TlsSettings)}.
+
+address_family_to_gun(ipv4) -> inet;
+address_family_to_gun(ipv6) -> inet6;
+address_family_to_gun(Value) -> error({invalid_options, {address_family, Value}}).
+
+request_options_to_gun(Options) ->
+    lists:foldl(fun
+        ({initial_flow, Credit}, Acc) when is_integer(Credit), Credit > 0 ->
+            Acc#{flow => Credit};
+        (Value, _) ->
+            error({invalid_options, {request_option, Value}})
+    end, #{}, Options).
 
 %% --- TLS options ------------------------------------------------------------
 %%
@@ -498,7 +535,8 @@ invalid_ws_opt_name(Key) -> Key.
 %% --- Shared value conversions -----------------------------------------------
 
 timeout_to_gun(infinity) -> infinity;
-timeout_to_gun({milliseconds, Timeout}) when is_integer(Timeout) -> Timeout.
+timeout_to_gun({milliseconds, Timeout}) when is_integer(Timeout), Timeout >= 0 -> Timeout;
+timeout_to_gun(Value) -> error({invalid_options, {timeout, Value}}).
 
 protocol_to_gun(http1) -> http;
 protocol_to_gun(http2) -> http2.

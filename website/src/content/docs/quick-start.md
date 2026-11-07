@@ -90,6 +90,6 @@ If you have a full URL, parse it with `gleam/uri` before you call Gluegun. Glueg
 
 `connection.milliseconds(Int)` validates and returns a finite `Timeout`. Use `connection.infinity()` to wait without a limit. The same `Timeout` value applies to connection readiness, request bodies, and message receives.
 
-Use `connection.close` for usual teardown. Use `connection.shutdown` only when a connection seems stuck. `shutdown` stops the Gun process immediately, without a graceful close.
+Use `connection.close` to stop a connection through Gun's supervisor. `connection.shutdown` requests graceful shutdown without waiting for exit. Use `connection.terminate` for a stuck connection or deadline cleanup; it forces exit and flushes the caller's Gun messages. See [Message Flow](/advanced/message-flow/#close-and-shutdown).
 
 For full module, type, and function details, use the [API reference](/reference/).

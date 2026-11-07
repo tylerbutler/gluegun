@@ -36,7 +36,7 @@ pub fn tls_tests() -> test_tree.TestTree {
         connection.options_to_ffi(options)
         |> expect.to_equal([
           connection.TransportOption(connection.Tls),
-          connection.RetryOption(connection.default_timeout()),
+          connection.RetryOption(connection.default_retry_count()),
           connection.ConnectTimeoutOption(connection.default_timeout()),
           connection.TlsOption([
             tls.VerifySetting(tls.VerifyPeer),
@@ -71,7 +71,7 @@ pub fn tls_tests() -> test_tree.TestTree {
       |> connection.options_to_ffi
       |> expect.to_equal([
         connection.TransportOption(connection.Auto),
-        connection.RetryOption(connection.default_timeout()),
+        connection.RetryOption(connection.default_retry_count()),
         connection.ConnectTimeoutOption(connection.default_timeout()),
         connection.TlsOption([tls.VerifySetting(tls.VerifyPeer)]),
       ])
@@ -132,7 +132,7 @@ pub fn tls_tests() -> test_tree.TestTree {
       |> connection.options_to_ffi
       |> expect.to_equal([
         connection.TransportOption(connection.Tcp),
-        connection.RetryOption(connection.default_timeout()),
+        connection.RetryOption(connection.default_retry_count()),
         connection.ConnectTimeoutOption(connection.default_timeout()),
       ])
     }),

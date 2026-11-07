@@ -80,7 +80,7 @@ An extension or non-standard method. The wrapped string is sent verbatim.
 Request options passed through the low-level request API.
 
  Build with `options()` then chain `with_headers` or `add_headers` for
- option-level headers that apply to every call.
+ option-level headers. Use `with_initial_flow` for finite response credit.
 
 ```gleam
 pub type RequestOptions
@@ -155,6 +155,8 @@ Discard buffered Gun messages currently queued for the calling process.
 
  Useful after `cancel` or when recovering from an aborted flow. Returns
  `Ok(Nil)` even when no messages were buffered.
+ It does not prevent late arrivals. Use `connection.terminate` to stop the
+ sender, wait for exit, and flush this caller's connection messages.
 
 ```gleam
 pub fn flush(internal.Connection) -> Result(Nil, error.GluegunError)
@@ -215,9 +217,8 @@ Start a low-level HTTP request whose body will be streamed in chunks.
  carry an empty `BitArray` if there is no trailing payload). The stream
  remains open for response messages either way.
 
- Gun response messages are delivered to the calling process by default;
- pass an option to redirect via Gun's `reply_to` if you need another
- process to consume them.
+ Gun response messages go to the calling process. `with_initial_flow`
+ sets response credit before Gun starts the stream.
 
  The method, path, and headers are validated the same way as `request`;
  see its documentation for the rejected shapes.
@@ -241,6 +242,9 @@ Update HTTP/1.1 or HTTP/2 stream flow control by the given increment.
  The increment must be positive. Gun rejects non-positive flow-control
  increments, so this function validates the value before crossing the FFI
  boundary and returns `InvalidOptions` for zero or negative increments.
+ The unit is data messages for both HTTP/1.1 and HTTP/2, not bytes.
+ Finite credit pauses socket reads in HTTP/1.1 and stream window updates
+ in HTTP/2. It does not bound bytes in a message or data already buffered.
 
 ```gleam
 pub fn update_flow(
@@ -259,4 +263,23 @@ pub fn with_headers(
   RequestOptions,
   headers: List(#(String, String))
 ) -> RequestOptions
+```
+
+### `with_initial_flow`
+
+Set finite initial response credit in data messages, not bytes.
+
+ Credit must be positive. One permits a data message before `update_flow`.
+ Headers do not consume credit. Gun can parse several HTTP chunks or HTTP/2
+ frames from one socket read before it pauses, so credit is not a strict
+ mailbox-message or allocation limit. Check each chunk's byte size before
+ retaining it. With no setting, Gun keeps its unlimited default.
+ Use `message.await` and replenish credit yourself. Full-body collectors
+ such as `message.await_body` and `client.send` do not replenish it.
+
+```gleam
+pub fn with_initial_flow(
+  RequestOptions,
+  credit: Int
+) -> Result(RequestOptions, error.GluegunError)
 ```

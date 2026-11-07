@@ -20,7 +20,7 @@ pub fn http2_tests() -> test_tree.TestTree {
         |> connection.options_to_ffi
         |> expect.to_equal([
           connection.TransportOption(connection.Auto),
-          connection.RetryOption(connection.default_timeout()),
+          connection.RetryOption(connection.default_retry_count()),
           connection.ConnectTimeoutOption(connection.default_timeout()),
           connection.ProtocolsOption([connection.Http2, connection.Http1]),
         ])

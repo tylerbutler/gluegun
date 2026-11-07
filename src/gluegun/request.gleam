@@ -5,6 +5,7 @@
 //// Gun messages. For simple full-body responses, prefer `gluegun/client`.
 
 import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import gluegun/connection.{type Connection}
 import gluegun/error
@@ -49,14 +50,20 @@ pub type Stream =
 /// Request options passed through the low-level request API.
 ///
 /// Build with `options()` then chain `with_headers` or `add_headers` for
-/// option-level headers that apply to every call.
+/// option-level headers. Use `with_initial_flow` for finite response credit.
 pub opaque type RequestOptions {
-  RequestOptions(headers: List(Header))
+  RequestOptions(headers: List(Header), initial_flow: Option(Int))
+}
+
+/// Typed Gun request options for the FFI boundary.
+@internal
+pub type RequestOption {
+  InitialFlow(Int)
 }
 
 /// Construct default request options.
 pub fn options() -> RequestOptions {
-  RequestOptions(headers: [])
+  RequestOptions(headers: [], initial_flow: None)
 }
 
 /// Add option-level headers that are appended to per-call headers.
@@ -64,15 +71,42 @@ pub fn add_headers(
   options: RequestOptions,
   headers headers: List(Header),
 ) -> RequestOptions {
-  RequestOptions(headers: list.append(options.headers, headers))
+  RequestOptions(..options, headers: list.append(options.headers, headers))
 }
 
 /// Replace option-level headers.
 pub fn with_headers(
-  _options: RequestOptions,
+  options: RequestOptions,
   headers headers: List(Header),
 ) -> RequestOptions {
-  RequestOptions(headers: headers)
+  RequestOptions(..options, headers: headers)
+}
+
+/// Set finite initial response credit in data messages, not bytes.
+///
+/// Credit must be positive. One permits a data message before `update_flow`.
+/// Headers do not consume credit. Gun can parse several HTTP chunks or HTTP/2
+/// frames from one socket read before it pauses, so credit is not a strict
+/// mailbox-message or allocation limit. Check each chunk's byte size before
+/// retaining it. With no setting, Gun keeps its unlimited default.
+/// Use `message.await` and replenish credit yourself. Full-body collectors
+/// such as `message.await_body` and `client.send` do not replenish it.
+pub fn with_initial_flow(
+  options: RequestOptions,
+  credit credit: Int,
+) -> Result(RequestOptions, error.GluegunError) {
+  case credit > 0 {
+    True -> Ok(RequestOptions(..options, initial_flow: Some(credit)))
+    False -> Error(error.InvalidOptions("initial flow credit must be positive"))
+  }
+}
+
+@internal
+pub fn options_to_ffi(options: RequestOptions) -> List(RequestOption) {
+  case options.initial_flow {
+    Some(credit) -> [InitialFlow(credit)]
+    None -> []
+  }
 }
 
 /// Inspect option-level headers.
@@ -136,6 +170,7 @@ pub fn request(
     path,
     normalize_headers(list.append(headers, options.headers)),
     body,
+    options_to_ffi(options),
   )
 }
 
@@ -146,9 +181,8 @@ pub fn request(
 /// carry an empty `BitArray` if there is no trailing payload). The stream
 /// remains open for response messages either way.
 ///
-/// Gun response messages are delivered to the calling process by default;
-/// pass an option to redirect via Gun's `reply_to` if you need another
-/// process to consume them.
+/// Gun response messages go to the calling process. `with_initial_flow`
+/// sets response credit before Gun starts the stream.
 ///
 /// The method, path, and headers are validated the same way as `request`;
 /// see its documentation for the rejected shapes.
@@ -166,6 +200,7 @@ pub fn start_stream(
     method_to_string(method),
     path,
     normalize_headers(list.append(headers, options.headers)),
+    options_to_ffi(options),
   )
 }
 
@@ -200,6 +235,9 @@ pub fn cancel(
 /// The increment must be positive. Gun rejects non-positive flow-control
 /// increments, so this function validates the value before crossing the FFI
 /// boundary and returns `InvalidOptions` for zero or negative increments.
+/// The unit is data messages for both HTTP/1.1 and HTTP/2, not bytes.
+/// Finite credit pauses socket reads in HTTP/1.1 and stream window updates
+/// in HTTP/2. It does not bound bytes in a message or data already buffered.
 pub fn update_flow(
   connection: Connection,
   stream: Stream,
@@ -216,6 +254,8 @@ pub fn update_flow(
 ///
 /// Useful after `cancel` or when recovering from an aborted flow. Returns
 /// `Ok(Nil)` even when no messages were buffered.
+/// It does not prevent late arrivals. Use `connection.terminate` to stop the
+/// sender, wait for exit, and flush this caller's connection messages.
 pub fn flush(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_flush(connection)
 }
@@ -226,6 +266,7 @@ fn ffi_headers(
   method: String,
   path: String,
   headers: List(Header),
+  options: List(RequestOption),
 ) -> Result(Stream, error.GluegunError)
 
 @external(erlang, "gluegun_ffi", "request")
@@ -235,6 +276,7 @@ fn ffi_request(
   path: String,
   headers: List(Header),
   body: BitArray,
+  options: List(RequestOption),
 ) -> Result(Stream, error.GluegunError)
 
 @external(erlang, "gluegun_ffi", "data")
