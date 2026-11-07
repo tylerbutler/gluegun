@@ -85,7 +85,10 @@ pub fn method_to_string(method: low_request.Method) -> String {
   low_request.method_to_string(method)
 }
 
-/// Normalize header names for Gun.
+/// Lowercase header names without validation.
+///
+/// Pass original headers to request helpers so they can validate ASCII names
+/// before lowercase conversion.
 pub fn normalize_headers(
   headers: List(low_request.Header),
 ) -> List(low_request.Header) {

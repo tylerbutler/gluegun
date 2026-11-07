@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+#### Validate original outgoing header names
+
+HTTP requests now validate original header names as ASCII HTTP tokens before lowercase conversion, as WebSocket upgrades already do. Non-ASCII names, including the Kelvin sign, return `InvalidOptions` instead of reaching Gun. This applies to per-call and option-level headers for regular and streamed requests. Valid mixed-case ASCII names are still lowercased, and header values are unchanged.
+
 ## 0.2.0 - 2026-11-07
 
 ### Added
