@@ -242,11 +242,9 @@ ws_await_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose) ->
     receive
         {gun_ws, ConnPid, StreamRef, Frame} ->
             case safe_decode_message({ws, Frame}) of
-                {ok, {web_socket, close}} ->
-                    atomics:put(PeerClose, 1, 1),
-                    ws_await_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose);
-                {ok, {web_socket, {close_with_reason, _, _}}} ->
-                    atomics:put(PeerClose, 1, 1),
+                {ok, {web_socket, Close}} when Close =:= close;
+                    element(1, Close) =:= close_with_reason ->
+                    ws_record_peer_close({ok, Close}, PeerClose),
                     ws_await_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose);
                 {ok, {web_socket, _}} ->
                     ws_continue_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose);

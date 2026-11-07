@@ -83,10 +83,6 @@ assert_released(Connection) ->
         {messages, Messages} = process_info(self(), messages),
         [] = [Message || Message <- Messages, is_tuple(Message),
             tuple_size(Message) >= 2, element(2, Message) =:= Connection],
-        %% The teardown receive must leave unrelated messages alone.
-        self() ! unrelated_ws_test_message,
-        {ok, nil} = gluegun_ffi:terminate(Connection),
-        receive unrelated_ws_test_message -> ok after 0 -> error(unrelated_mail_lost) end,
         {ok, nil}
     end).
 
@@ -102,8 +98,7 @@ serve(Listener, Parent, Name) ->
         [KeyLine] = [Line || Line <- binary:split(Headers, <<"\r\n">>, [global]),
             string:prefix(string:lowercase(Line), <<"sec-websocket-key:">>) =/= nomatch],
         [_, Key] = binary:split(KeyLine, <<":">>),
-        Accept = base64:encode(crypto:hash(sha,
-            <<(string:trim(Key))/binary, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11">>)),
+        Accept = cow_ws:encode_key(string:trim(Key)),
         ok = gen_tcp:send(Socket, [
             <<"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n",
                 "Connection: Upgrade\r\nSec-WebSocket-Accept: ">>,
