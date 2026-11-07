@@ -13,4 +13,4 @@ gluegun = { path = "../.." }
 
 [dev-dependencies]
 gleescript = ">= 1.5.2 and < 2.0.0"
-startest = ">= 0.8.0 and < 1.0.0"
+unitest = ">= 1.6.1 and < 2.0.0"

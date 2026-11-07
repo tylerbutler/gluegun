@@ -17,6 +17,19 @@ gleam run -- --header "accept: application/json" https://api.github.com/
 gleam run -- --timeout 750 --body-bytes 128 https://example.com/
 ```
 
+## Tests
+
+Run the Unitest suite from this directory:
+
+```sh
+gleam test
+gleam test -- --seed 123
+gleam test -- test/webprobe_test.gleam
+```
+
+Tests use native Gleam assertions and run sequentially. From the repository root,
+`just examples-test` runs the example suites, and `just ci` includes them.
+
 ## Packaging
 
 Build a single escript file with `gleescript`:
