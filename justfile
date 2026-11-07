@@ -94,19 +94,23 @@ docs:
     gleam docs build
 
 # Generate website reference docs from Gleam docs JSON
-site-reference: docs
+site-reference:
     cd website && pnpm generate:reference
+
+# Compare committed reference pages with current Gleam metadata
+site-reference-check:
+    cd website && pnpm check:reference
 
 # Install website dependencies
 site-deps:
     cd website && pnpm install
 
 # Build website
-site-build: site-reference
+site-build:
     cd website && pnpm build
 
 # Type-check and validate website
-site-check: site-reference
+site-check:
     cd website && pnpm check:astro
 
 # Start local website dev server
@@ -154,4 +158,4 @@ ci: format-check check test test-release examples-format-check examples-test bui
 alias pr := ci
 
 # Run extended checks for main branch
-main: ci examples-build docs site-check site-build
+main: ci examples-build docs site-reference-check site-check site-build

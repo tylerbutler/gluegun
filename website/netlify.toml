@@ -1,7 +1,7 @@
 [build]
   command = "pnpm build"
   publish = "dist"
-  # Only trigger deploy preview builds when files in website/ changed against the PR base branch.
+  # Build previews for website, reference source, and build-input changes.
   ignore = "node scripts/ignore-if-website-unchanged.mjs"
 
 # Always build production deploys from main.

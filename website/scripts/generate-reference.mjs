@@ -7,9 +7,16 @@
 //   https://github.com/GearsDatapacks/gleamoire (Apache-2.0)
 // Many thanks to the gleamoire authors.
 
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+	checkReferenceState,
+	referenceHash,
+	writeReferenceState,
+} from "./reference-state.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -470,15 +477,60 @@ ${signature}
 	].join("\n\n");
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-	generateReference()
-		.then(({ pageCount }) => {
-			console.log(
-				`Generated ${pageCount} reference pages in ${path.relative(repoRoot, defaultOutputDir)}`,
+export async function checkRenderedReference({
+	docsJsonPath = defaultDocsJsonPath,
+	outputDir = defaultOutputDir,
+} = {}) {
+	const temporary = await mkdtemp(path.join(os.tmpdir(), "gluegun-reference-"));
+	try {
+		await generateReference({ docsJsonPath, outputDir: temporary });
+		if (
+			await referenceHash(temporary, ".") !==
+			await referenceHash(outputDir, ".")
+		) {
+			throw new Error(
+				"Committed reference pages differ from current Gleam metadata. Run `just site-reference` and commit the generated files.",
 			);
-		})
-		.catch((error) => {
-			console.error(error.message);
-			process.exit(1);
-		});
+		}
+	} finally {
+		await rm(temporary, { recursive: true, force: true });
+	}
+}
+
+async function main() {
+	const args = process.argv.slice(2);
+	if (args.length > 1 || (args.length === 1 && args[0] !== "--check")) {
+		throw new Error("Usage: node scripts/generate-reference.mjs [--check]");
+	}
+	const checking = args[0] === "--check";
+	if (checking) {
+		await checkReferenceState();
+	}
+	const docs = spawnSync("gleam", ["docs", "build"], {
+		cwd: repoRoot,
+		stdio: "inherit",
+	});
+	if (docs.error) {
+		throw new Error(`Could not run gleam docs build: ${docs.error.message}`);
+	}
+	if (docs.status !== 0) {
+		throw new Error("gleam docs build failed; reference pages were not updated.");
+	}
+	if (checking) {
+		await checkRenderedReference();
+		console.log("Committed reference pages match current Gleam metadata.");
+	} else {
+		const { pageCount } = await generateReference();
+		await writeReferenceState();
+		console.log(
+			`Generated ${pageCount} reference pages in ${path.relative(repoRoot, defaultOutputDir)}`,
+		);
+	}
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+	main().catch((error) => {
+		console.error(error.message);
+		process.exitCode = 1;
+	});
 }
