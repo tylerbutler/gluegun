@@ -31,8 +31,11 @@ The example targets `ws://localhost:8080/echo`.
 ## API style
 
 The source example uses `websocket.connect` to create a reusable `Socket`, then
-`websocket.send_text`, `websocket.receive_app_frame`, and `websocket.send_close_frame` for
-explicit WebSocket lifecycle steps. For scoped one-shot flows, use
+`websocket.send_text`, `websocket.receive_app_frame`, and `websocket.close` for
+explicit WebSocket lifecycle steps. It calls close after a failed exchange too.
+Close waits for the peer within the socket timeout, then releases the Gun
+process even on a handshake error. `send_close_frame` only sends a frame.
+For scoped one-shot flows, use
 `websocket.with_socket` to run a callback and close the WebSocket and connection
 afterward. Low-level `upgrade_with_protocol_and_options`, `send`, and `receive`
 remain available for advanced use.

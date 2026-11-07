@@ -130,6 +130,25 @@ pub fn await_upgrade(
 ) -> Result(Nil, error.GluegunError)
 ```
 
+### `close`
+
+Send a close frame, await the peer, then release the Gun process.
+
+ Uses one deadline: the socket's finite timeout, or five seconds for
+ `Infinity`. Other frames do not extend it. A missing peer close returns
+ `Timeout`; connection and stream failures return their typed errors.
+ Teardown still terminates the process and flushes its queued Gun messages
+ from this caller after a handshake error. The handshake error takes
+ precedence over a termination error.
+
+ An already-exited connection returns `Ok(Nil)`. Repeated close is safe.
+ Call from the socket's receiver; other receivers and external forwarders
+ need separate mailbox cleanup. Do not reuse the socket after this call.
+
+```gleam
+pub fn close(Socket) -> Result(Nil, error.GluegunError)
+```
+
 ### `connect`
 
 Open a Gun connection, perform a WebSocket upgrade, and return a reusable
@@ -138,7 +157,7 @@ Open a Gun connection, perform a WebSocket upgrade, and return a reusable
  The connection is opened with the configured connect options, awaited up
  to readiness, then upgraded. If any step fails the underlying Gun
  connection is closed automatically. On success the caller owns the
- returned `Socket` and must eventually `send_close_frame` + `connection.close`
+ returned `Socket` and must eventually call `close`
  (or use `with_socket` for scoped cleanup).
 
  Defaults to HTTP/1.1; HTTP/2 is rejected with `UnsupportedFeature`
@@ -257,7 +276,7 @@ pub fn send_binary(
 Send a close WebSocket frame using a reusable socket.
 
  This only sends the close frame; it does not close the underlying Gun
- connection. Follow with `connection.close(socket.connection)` or use
+ connection. Follow with `close(socket)` or use
  `with_socket` for automatic teardown.
 
 ```gleam

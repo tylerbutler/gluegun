@@ -117,6 +117,14 @@ Construct default TLS options.
 pub fn tls_options() -> tls.TlsOptions
 ```
 
+### `websocket_close`
+
+Complete WebSocket teardown, including bounded peer handshake and cleanup.
+
+```gleam
+pub fn websocket_close(websocket.Socket) -> Result(Nil, error.GluegunError)
+```
+
 ### `websocket_connect`
 
 Open a connection, perform a WebSocket upgrade, and return a reusable socket.

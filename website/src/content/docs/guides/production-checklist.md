@@ -63,7 +63,7 @@ Read the detailed API boundaries in [Basic Requests](/guides/basic-requests/#whe
 |---|---|---|
 | Usual teardown | The code calls `connection.close` when the work is complete. | [Quick Start: close or shutdown](/quick-start/#key-idea) |
 | Stuck connections | The receiving process calls `connection.terminate` on deadline expiry to force exit and flush queued Gun messages. `shutdown` only requests graceful shutdown. | [Limitations: close and shutdown](/advanced/limitations/#close-and-shutdown) |
-| Reusable WebSockets | The code sends a WebSocket close frame and closes the connection below it, or it uses `websocket.with_socket` for scoped cleanup. | [Troubleshooting: WebSocket connection stays open](/advanced/troubleshooting/#websocket-connection-stays-open) |
+| Reusable WebSockets | The receiver calls `websocket.close(socket)` after success or failure, or uses `websocket.with_socket` for scoped cleanup. It handles typed handshake errors after teardown. | [Troubleshooting: WebSocket connection stays open](/advanced/troubleshooting/#websocket-connection-stays-open) |
 | First diagnostic path | Runbooks tell operators to check host, port, transport, and timeout; URL path handling; the client or stream API selection; and the WebSocket upgrade order. | [Troubleshooting](/advanced/troubleshooting/) |
 
 ## Summary before you ship

@@ -17,6 +17,9 @@
     flush/1,
     ws_upgrade/4,
     ws_send/3,
+    ws_peer_close/0,
+    ws_record_peer_close/2,
+    ws_close/4,
     decode_message/1,
     safe_decode_message/1,
     protocol_result/1,
@@ -229,10 +232,86 @@ ws_send(ConnPid, StreamRef, Frames) ->
 %% Gun passes to a WebSocket protocol handler module as `user_opts`.
 identity(Value) -> Value.
 
+ws_peer_close() -> atomics:new(1, []).
+
+ws_record_peer_close({ok, Frame} = Result, PeerClose)
+    when Frame =:= close; element(1, Frame) =:= close_with_reason ->
+    atomics:put(PeerClose, 1, 1),
+    Result;
+ws_record_peer_close(Result, _) -> Result.
+
+ws_close(ConnPid, StreamRef, Timeout, PeerClose)
+    when is_pid(ConnPid), ConnPid =/= self(), node(ConnPid) =:= node() ->
+    Handshake = with_normalize(connection_error, fun() ->
+        case is_process_alive(ConnPid) of
+            false -> ok;
+            true ->
+                Monitor = erlang:monitor(process, ConnPid),
+                try
+                    Deadline = erlang:monotonic_time(millisecond) + ws_close_timeout(Timeout),
+                    case ws_send(ConnPid, StreamRef, [close]) of
+                        {ok, nil} ->
+                            ws_await_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose);
+                        {error, Error} -> {typed_error, Error}
+                    end
+                after
+                    erlang:demonitor(Monitor, [flush])
+                end
+        end
+    end),
+    Cleanup = terminate(ConnPid),
+    case Handshake of
+        {ok, nil} -> Cleanup;
+        {error, _} -> Handshake
+    end;
+ws_close(_, _, _, _) ->
+    {error, gleam_error({invalid_options, terminate_requires_local_connection})}.
+
+ws_close_timeout(infinity) -> 5000;
+ws_close_timeout({milliseconds, Milliseconds}) when Milliseconds >= 0 -> Milliseconds.
+
+ws_await_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose) ->
+    Remaining = max(0, Deadline - erlang:monotonic_time(millisecond)),
+    receive
+        {gun_ws, ConnPid, StreamRef, Frame} ->
+            case safe_decode_message({ws, Frame}) of
+                {ok, {web_socket, Close}} when Close =:= close;
+                    element(1, Close) =:= close_with_reason ->
+                    ws_record_peer_close({ok, Close}, PeerClose),
+                    ws_await_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose);
+                {ok, {web_socket, _}} ->
+                    ws_continue_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose);
+                {error, Error} -> {typed_error, Error}
+            end;
+        {gun_down, ConnPid, _, normal, _} ->
+            %% Gun also uses 'normal' for its own closing timeout.
+            case atomics:get(PeerClose, 1) of
+                1 -> ok;
+                0 -> {error, timeout}
+            end;
+        {gun_down, ConnPid, _, Reason, _} ->
+            {error, {connection_down, Reason}};
+        {gun_error, ConnPid, StreamRef, Reason} ->
+            {error, {stream_error, Reason}};
+        {gun_error, ConnPid, Reason} ->
+            {error, {connection_error, Reason}};
+        {'DOWN', Monitor, process, ConnPid, Reason} ->
+            {error, {connection_down, Reason}}
+    after Remaining ->
+        {error, timeout}
+    end.
+
+ws_continue_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose) ->
+    case erlang:monotonic_time(millisecond) >= Deadline of
+        true -> {error, timeout};
+        false -> ws_await_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose)
+    end.
+
 with_normalize(Tag, Fun) ->
     try Fun() of
         ok -> {ok, nil};
         {ok, _} = Result -> Result;
+        {typed_error, Error} -> {error, Error};
         {error, timeout} -> {error, timeout};
         {error, Reason} -> {error, gleam_error(normalize_error(Tag, Reason))};
         Other -> {error, gleam_error(normalize_error(Tag, Other))}

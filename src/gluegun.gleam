@@ -191,3 +191,10 @@ pub fn websocket_send_close_frame(
 ) -> Result(Nil, error.GluegunError) {
   websocket.send_close_frame(socket)
 }
+
+/// Complete WebSocket teardown, including bounded peer handshake and cleanup.
+pub fn websocket_close(
+  socket: websocket.Socket,
+) -> Result(Nil, error.GluegunError) {
+  websocket.close(socket)
+}

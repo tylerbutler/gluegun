@@ -27,8 +27,10 @@ With the low-level WebSocket functions, call `websocket.await_upgrade(conn, stre
 
 `websocket.send_close_frame(socket)` sends a close frame. It does not close the Gun connection below it. Do one of these:
 
-- Use `websocket.with_socket(...)` for scoped cleanup. It sends the close frame and calls `connection.close` for you.
-- When you hold the reusable `Socket` yourself, call `connection.close(socket.connection)` after `send_close_frame`. This releases the TCP/TLS connection.
+- Use `websocket.with_socket(...)` for scoped cleanup.
+- When you hold a reusable `Socket`, call `websocket.close(socket)`, including after a failed exchange.
+
+Both paths wait for the peer within the socket timeout, or five seconds for `Infinity`, then terminate the Gun process and flush this receiver's queued messages. A missing close reply returns `Timeout` after cleanup. Other handshake failures return typed errors after cleanup. Repeated close succeeds after the process exits.
 
 ## Response body is not UTF-8
 

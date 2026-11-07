@@ -14,6 +14,7 @@ Use the reusable `Socket` API when you control the lifecycle yourself.
 ```gleam
 import gleam/io
 import gleam/result
+import gluegun/error
 import gluegun/message
 import gluegun/websocket
 
@@ -27,19 +28,31 @@ pub fn ws_echo() {
     ),
   )
 
-  use _ <- result.try(websocket.send_text(socket, "hello"))
-
-  case websocket.receive_app_frame(socket) {
-    Ok(message.Text(reply)) -> io.println(reply)
-    Ok(_) -> io.println("received a non-text frame")
-    Error(_) -> io.println("websocket receive failed")
+  let exchange = {
+    use _ <- result.try(websocket.send_text(socket, "hello"))
+    case websocket.receive_app_frame(socket) {
+      Ok(message.Text(reply)) -> {
+        io.println(reply)
+        Ok(Nil)
+      }
+      Ok(_) -> Error(error.InvalidMessage("expected a text frame"))
+      Error(error) -> Error(error)
+    }
   }
 
-  websocket.send_close_frame(socket)
+  let cleanup = websocket.close(socket)
+  use _ <- result.try(exchange)
+  cleanup
 }
 ```
 
-`websocket.send_close_frame(socket)` sends a WebSocket close frame. It does not close the Gun connection below it. Use `websocket.with_socket` for scoped cleanup. With the reusable `Socket` API, close the connection yourself.
+Call `websocket.close(socket)` even after an exchange fails. It sends a close frame, waits for the peer, then terminates the Gun process and flushes this receiver's queued Gun messages. Use the root alias `gluegun.websocket_close` if you use the facade.
+
+The handshake uses one deadline: the socket's finite timeout, or five seconds for `Infinity`. Incoming frames do not extend it. If the peer does not complete the handshake, close returns `Error(Timeout)` after teardown. Connection and stream failures also trigger teardown and return typed errors. A handshake error takes precedence over a termination error. An already-exited connection returns `Ok(Nil)`, so repeated close is safe.
+
+Call from the socket's receiver. If upgrade options redirect frames to another process or an external forwarder, drain that receiver separately. Do not reuse the socket after close.
+
+`websocket.send_close_frame(socket)` only sends a close frame. It does not release the Gun process. Use `websocket.close` for reusable sockets or `websocket.with_socket` for scoped cleanup.
 
 ## Scoped sockets
 
@@ -76,7 +89,7 @@ pub fn echo_once() {
 }
 ```
 
-`Socket` is reusable and you control its lifecycle. `with_socket` is only for scoped use.
+`with_socket` calls `websocket.close` after the callback returns, including when it returns an error. Callback errors take precedence over cleanup errors. If the callback succeeds, a teardown error becomes the result of `with_socket`. A callback can close its own socket; the later scoped close remains safe.
 
 ## Control-frame limits
 
