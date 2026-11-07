@@ -1,0 +1,10 @@
+package = "gluegun"
+kind = "Breaking"
+body = """
+`message.decode` preserves stream identity to prevent cross-stream message confusion
+
+`message.decode` discarded the connection pid and stream reference carried in every Gun mailbox tuple, so a decoded `Message` could not be attributed to the stream it came from. A process handling several concurrent streams on one connection (HTTP/2 requests and server pushes sharing a mailbox, or several requests routed to one `reply_to` process) had no reliable way to tell which stream a decoded message belonged to, risking cross-stream confusion.
+
+`message.decode` now returns `Result(message.Envelope, error.GluegunError)`. `Envelope(connection:, stream:, message:)` pairs the decoded `Message` with the connection and stream Gun named for it; for `Push` messages `stream` is the existing stream that received the push notification, not the new stream carried inside `message.Push`.
+
+`decode` now only accepts the raw mailbox tuples Gun sends to the stream owner (`gun_response`, `gun_data`, `gun_inform`, `gun_trailers`, `gun_push`, `gun_upgrade`, `gun_ws`), since only those carry real stream identity; the shorter terms `gun:await/3` returns have none to preserve and are rejected with `DecodeError`. `message.await` and `message.await_body` are unaffected: their caller already supplies the connection and stream explicitly."""
