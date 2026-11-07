@@ -15,6 +15,12 @@ High-level HTTP helpers for existing Gun connections.
  with `InvalidMessage`. Use the lower-level `gluegun/message` API for
  those flows.
 
+ If collection fails, these helpers attempt to cancel the failed stream
+ and drain its queued messages, then return the original error. They keep
+ other streams and the connection open. Cancellation is asynchronous:
+ messages in transit can arrive after the drain. For strict mailbox
+ isolation, use the low-level API in a separate receiving process.
+
 ## Types
 
 ### `Request`

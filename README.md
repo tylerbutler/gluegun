@@ -92,6 +92,8 @@ fn fetch_json(conn, path, timeout) {
 }
 ```
 
+When collection fails, `client` helpers attempt to cancel that stream and drain its queued messages. They return the original error and keep other streams and the shared connection open. Cleanup failures produce a warning. Cancellation is asynchronous, so messages in transit can arrive after the drain. The high-level helpers do not return the failed stream handle; use the low-level API in a separate receiving process if you need strict mailbox isolation.
+
 ## Streaming a request body
 
 Use `gluegun/request` when the request body is produced in chunks. Start with `request.start_stream`, send zero or more chunks with `fin.NoFin`, and complete the body with `fin.Fin`. Response headers and body are separate asynchronous Gun stream messages; use `gluegun/message` helpers or your own receive loop for advanced flows.

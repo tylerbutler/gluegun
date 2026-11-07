@@ -98,6 +98,12 @@ Use `gluegun/client` for:
 
 Use `gluegun/request` and `gluegun/message` for streamed response chunks, trailers as they arrive, cancellation, flow control, upgrades, or HTTP/2 push.
 
+## Collection failures
+
+The client helpers attempt to cancel a failed stream and drain its queued messages after a timeout, invalid message, or receive failure. They return the original error, keep the connection open, and preserve other streams. Cleanup failures produce a warning.
+
+Cancellation is asynchronous. The drain does not wait for Gun to process cancellation or for future messages. Messages in transit can arrive after the helper returns. The high-level API does not return the failed stream handle; use the low-level API in a separate receiving process if you need strict mailbox isolation.
+
 ## Headers
 
 Add request headers with `client.with_header`:
