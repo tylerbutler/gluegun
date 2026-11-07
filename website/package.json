@@ -18,6 +18,8 @@
 		"check:astro": "astro check",
 		"clean": "rimraf dist *.tsbuildinfo *.done.build.log .astro",
 		"dev": "astro dev",
+		"deploy": "wrangler deploy",
+		"deploy:preview": "wrangler versions upload",
 		"generate:reference": "node scripts/generate-reference.mjs",
 		"og": "node scripts/generate-og.ts",
 		"preview": "astro preview",
@@ -46,6 +48,7 @@
 		"culori": "^4.0.2",
 		"rimraf": "^6.1.4",
 		"satori": "^0.63.2",
-		"subset-font": "^2.9.0"
+		"subset-font": "^2.9.0",
+		"wrangler": "^4.158.0"
 	}
 }
