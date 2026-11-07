@@ -6,283 +6,368 @@ import gluegun/internal
 import gluegun/message
 import gluegun/request
 import gluegun/response
-import startest
-import startest/expect
-import startest/test_tree
 
-pub fn client_tests() -> test_tree.TestTree {
-  startest.describe("HTTP client helpers", [
-    startest.describe("request builder", [
-      startest.it("sets request fields", fn() {
-        client.new(request.Get, "/")
-        |> client.with_header("accept", "application/json")
-        |> client.with_body(<<"":utf8>>)
-        |> client.with_timeout(timeout(1000))
-        |> client.inspect_request
-        |> expect.to_equal(client.RequestFields(
-          method: request.Get,
-          path: "/",
-          headers: [#("accept", "application/json")],
-          body: <<"":utf8>>,
-          options: request.options(),
-          timeout: timeout(1000),
-        ))
-      }),
-      startest.it("exposes request_options helper name", fn() {
-        compile_request_options_helper(False)
-        |> expect.to_equal(Nil)
-      }),
-      startest.it("add_headers appends request headers", fn() {
-        client.new(request.Get, "/")
-        |> client.add_headers([#("accept", "application/json")])
-        |> client.add_headers([#("x-request-id", "abc")])
-        |> client.inspect_request
-        |> expect.to_equal(client.RequestFields(
-          method: request.Get,
-          path: "/",
-          headers: [
-            #("accept", "application/json"),
-            #("x-request-id", "abc"),
-          ],
-          body: <<>>,
-          options: request.options(),
-          timeout: connection.default_timeout(),
-        ))
-      }),
-      startest.it("with_headers replaces request headers", fn() {
-        client.new(request.Get, "/")
-        |> client.add_headers([#("accept", "application/json")])
-        |> client.with_headers([#("x-request-id", "abc")])
-        |> client.inspect_request
-        |> expect.to_equal(client.RequestFields(
-          method: request.Get,
-          path: "/",
-          headers: [#("x-request-id", "abc")],
-          body: <<>>,
-          options: request.options(),
-          timeout: connection.default_timeout(),
-        ))
-      }),
-    ]),
-    startest.describe("response collection", [
-      startest.it("collects a single final body", fn() {
-        client.collect_messages([
-          Ok(
-            message.Response(fin.NoFin, 200, [#("content-type", "text/plain")]),
-          ),
-          Ok(message.Data(fin.Fin, <<"hello":utf8>>)),
-        ])
-        |> expect.to_equal(
-          Ok(
-            response.new(
-              status: 200,
-              headers: [#("content-type", "text/plain")],
-              body: <<"hello":utf8>>,
-              trailers: [],
-            ),
-          ),
-        )
-      }),
-      startest.it("collects multiple data chunks in order", fn() {
-        let assert Ok(collected_response) =
-          client.collect_messages([
-            Ok(message.Response(fin.NoFin, 200, [])),
-            Ok(message.Data(fin.NoFin, <<"chunk-1|":utf8>>)),
-            Ok(message.Data(fin.NoFin, <<"chunk-2|":utf8>>)),
-            Ok(message.Data(fin.NoFin, <<"chunk-3|":utf8>>)),
-            Ok(message.Data(fin.NoFin, <<"chunk-4|":utf8>>)),
-            Ok(message.Data(fin.Fin, <<"chunk-5":utf8>>)),
-          ])
+pub fn request_builder_sets_request_fields_test() -> Nil {
+  let actual_1 = {
+    client.new(request.Get, "/")
+    |> client.with_header("accept", "application/json")
+    |> client.with_body(<<"":utf8>>)
+    |> client.with_timeout(timeout(1000))
+    |> client.inspect_request
+  }
+  let expected_1 =
+    client.RequestFields(
+      method: request.Get,
+      path: "/",
+      headers: [#("accept", "application/json")],
+      body: <<"":utf8>>,
+      options: request.options(),
+      timeout: timeout(1000),
+    )
+  let assert #(True, _, _) = #(actual_1 == expected_1, actual_1, expected_1)
+  Nil
+}
 
-        collected_response
-        |> response.body
-        |> expect.to_equal(<<"chunk-1|chunk-2|chunk-3|chunk-4|chunk-5":utf8>>)
-      }),
-      startest.it("preserves trailers", fn() {
-        let assert Ok(collected_response) =
-          client.collect_messages([
-            Ok(message.Response(fin.NoFin, 200, [])),
-            Ok(message.Data(fin.NoFin, <<"hello":utf8>>)),
-            Ok(message.Trailers([#("expires", "soon")])),
-          ])
+pub fn request_builder_exposes_request_options_helper_name_test() -> Nil {
+  let actual_2 = compile_request_options_helper(False)
+  let expected_2 = Nil
+  let assert #(True, _, _) = #(actual_2 == expected_2, actual_2, expected_2)
+  Nil
+}
 
-        collected_response
-        |> response.trailers
-        |> expect.to_equal([#("expires", "soon")])
-      }),
-      startest.it("preserves informational responses", fn() {
-        let assert Ok(collected_response) =
-          client.collect_messages([
-            Ok(message.Inform(103, [#("link", "</style.css>; rel=preload")])),
-            Ok(message.Response(fin.Fin, 204, [#("server", "gun")])),
-          ])
+pub fn request_builder_add_headers_appends_request_headers_test() -> Nil {
+  let actual_3 = {
+    client.new(request.Get, "/")
+    |> client.add_headers([#("accept", "application/json")])
+    |> client.add_headers([#("x-request-id", "abc")])
+    |> client.inspect_request
+  }
+  let expected_3 =
+    client.RequestFields(
+      method: request.Get,
+      path: "/",
+      headers: [
+        #("accept", "application/json"),
+        #("x-request-id", "abc"),
+      ],
+      body: <<>>,
+      options: request.options(),
+      timeout: connection.default_timeout(),
+    )
+  let assert #(True, _, _) = #(actual_3 == expected_3, actual_3, expected_3)
+  Nil
+}
 
-        collected_response
-        |> response.informational
-        |> expect.to_equal([
-          response.Informational(status: 103, headers: [
-            #("link", "</style.css>; rel=preload"),
-          ]),
-        ])
-      }),
-    ]),
-    startest.describe("invalid message handling", [
-      startest.it(
-        "rejects informational responses after the final response",
-        fn() {
-          client.collect_messages([
-            Ok(message.Response(fin.NoFin, 200, [])),
-            Ok(message.Inform(103, [])),
-          ])
-          |> expect.to_equal(
-            Error(error.InvalidMessage(
-              "HTTP helper received informational response after final response",
-            )),
-          )
-        },
+pub fn request_builder_with_headers_replaces_request_headers_test() -> Nil {
+  let actual_4 = {
+    client.new(request.Get, "/")
+    |> client.add_headers([#("accept", "application/json")])
+    |> client.with_headers([#("x-request-id", "abc")])
+    |> client.inspect_request
+  }
+  let expected_4 =
+    client.RequestFields(
+      method: request.Get,
+      path: "/",
+      headers: [#("x-request-id", "abc")],
+      body: <<>>,
+      options: request.options(),
+      timeout: connection.default_timeout(),
+    )
+  let assert #(True, _, _) = #(actual_4 == expected_4, actual_4, expected_4)
+  Nil
+}
+
+pub fn response_collection_collects_a_single_final_body_test() -> Nil {
+  let actual_5 =
+    client.collect_messages([
+      Ok(message.Response(fin.NoFin, 200, [#("content-type", "text/plain")])),
+      Ok(message.Data(fin.Fin, <<"hello":utf8>>)),
+    ])
+  let expected_5 =
+    Ok(
+      response.new(
+        status: 200,
+        headers: [#("content-type", "text/plain")],
+        body: <<"hello":utf8>>,
+        trailers: [],
       ),
-      startest.it("rejects push, upgrade, and websocket messages", fn() {
-        let stream = stream_ref()
+    )
+  let assert #(True, _, _) = #(actual_5 == expected_5, actual_5, expected_5)
+  Nil
+}
 
-        client.collect_messages([
-          Ok(message.Push(stream, request.Get, "/pushed", [])),
-        ])
-        |> expect.to_equal(
-          Error(error.InvalidMessage("HTTP helper received push message")),
-        )
+pub fn response_collection_collects_multiple_data_chunks_in_order_test() -> Nil {
+  let assert Ok(collected_response) =
+    client.collect_messages([
+      Ok(message.Response(fin.NoFin, 200, [])),
+      Ok(message.Data(fin.NoFin, <<"chunk-1|":utf8>>)),
+      Ok(message.Data(fin.NoFin, <<"chunk-2|":utf8>>)),
+      Ok(message.Data(fin.NoFin, <<"chunk-3|":utf8>>)),
+      Ok(message.Data(fin.NoFin, <<"chunk-4|":utf8>>)),
+      Ok(message.Data(fin.Fin, <<"chunk-5":utf8>>)),
+    ])
 
-        client.collect_messages([Ok(message.Upgrade(["websocket"], []))])
-        |> expect.to_equal(
-          Error(error.InvalidMessage("HTTP helper received upgrade message")),
-        )
+  let actual_6 = {
+    collected_response
+    |> response.body
+  }
+  let expected_6 = <<"chunk-1|chunk-2|chunk-3|chunk-4|chunk-5":utf8>>
+  let assert #(True, _, _) = #(actual_6 == expected_6, actual_6, expected_6)
+  Nil
+}
 
-        client.collect_messages([Ok(message.WebSocket(message.Text("hello")))])
-        |> expect.to_equal(
-          Error(error.InvalidMessage("HTTP helper received websocket message")),
-        )
-      }),
-      startest.it("rejects body data before a response", fn() {
-        client.collect_messages([Ok(message.Data(fin.Fin, <<"oops":utf8>>))])
-        |> expect.to_equal(
-          Error(error.InvalidMessage(
-            "HTTP helper received body before response",
-          )),
-        )
-      }),
-      startest.it("rejects duplicate final responses", fn() {
-        client.collect_messages([
-          Ok(message.Response(fin.NoFin, 200, [])),
-          Ok(message.Response(fin.Fin, 204, [])),
-        ])
-        |> expect.to_equal(
-          Error(error.InvalidMessage("HTTP helper received duplicate response")),
-        )
-      }),
-      startest.it("rejects trailers before a response", fn() {
-        client.collect_messages([Ok(message.Trailers([#("expires", "soon")]))])
-        |> expect.to_equal(
-          Error(error.InvalidMessage(
-            "HTTP helper received trailers before response",
-          )),
-        )
-      }),
-      startest.it("propagates timeout and connection-down errors", fn() {
-        client.collect_messages([Error(error.Timeout)])
-        |> expect.to_equal(Error(error.Timeout))
+pub fn response_collection_preserves_trailers_test() -> Nil {
+  let assert Ok(collected_response) =
+    client.collect_messages([
+      Ok(message.Response(fin.NoFin, 200, [])),
+      Ok(message.Data(fin.NoFin, <<"hello":utf8>>)),
+      Ok(message.Trailers([#("expires", "soon")])),
+    ])
 
-        client.collect_messages([Error(error.ConnectionDown("closed"))])
-        |> expect.to_equal(Error(error.ConnectionDown("closed")))
-      }),
+  let actual_7 = {
+    collected_response
+    |> response.trailers
+  }
+  let expected_7 = [#("expires", "soon")]
+  let assert #(True, _, _) = #(actual_7 == expected_7, actual_7, expected_7)
+  Nil
+}
+
+pub fn response_collection_preserves_informational_responses_test() -> Nil {
+  let assert Ok(collected_response) =
+    client.collect_messages([
+      Ok(message.Inform(103, [#("link", "</style.css>; rel=preload")])),
+      Ok(message.Response(fin.Fin, 204, [#("server", "gun")])),
+    ])
+
+  let actual_8 = {
+    collected_response
+    |> response.informational
+  }
+  let expected_8 = [
+    response.Informational(status: 103, headers: [
+      #("link", "</style.css>; rel=preload"),
     ]),
-    startest.describe("response body text", [
-      startest.it("decodes UTF-8 bodies", fn() {
-        response.new(
-          status: 200,
-          headers: [],
-          body: <<"héllo":utf8>>,
-          trailers: [],
-        )
-        |> response.body_text
-        |> expect.to_equal(Ok("héllo"))
-      }),
-      startest.it("rejects invalid UTF-8 bodies", fn() {
-        response.new(status: 200, headers: [], body: <<255>>, trailers: [])
-        |> response.body_text
-        |> expect.to_equal(
-          Error(error.DecodeError("Response body is not valid UTF-8")),
-        )
-      }),
-    ]),
-    startest.describe("failed-stream cleanup", [
-      startest.it("cancels on timeout before headers", fn() {
-        failure_cleanup([Error(error.Timeout)], error.Timeout, False)
-        |> expect.to_equal(Ok(Nil))
-      }),
-      startest.it("cancels on timeout after partial body", fn() {
-        failure_cleanup(
-          [
-            Ok(message.Response(fin.NoFin, 200, [])),
-            Ok(message.Data(fin.NoFin, <<"partial">>)),
-            Error(error.Timeout),
-          ],
-          error.Timeout,
-          False,
-        )
-        |> expect.to_equal(Ok(Nil))
-      }),
-      startest.it("cancels on invalid collection messages", fn() {
-        failure_cleanup(
-          [Ok(message.Data(fin.Fin, <<"unexpected">>))],
-          error.InvalidMessage("HTTP helper received body before response"),
-          False,
-        )
-        |> expect.to_equal(Ok(Nil))
-      }),
-      startest.it("cancels on receive and decode failures", fn() {
-        failure_cleanup(
-          [Error(error.StreamError("reset"))],
-          error.StreamError("reset"),
-          False,
-        )
-        |> expect.to_equal(Ok(Nil))
-        failure_cleanup(
-          [Error(error.DecodeError("malformed"))],
-          error.DecodeError("malformed"),
-          False,
-        )
-        |> expect.to_equal(Ok(Nil))
-        failure_cleanup(
-          [Error(error.ConnectionDown("closed"))],
-          error.ConnectionDown("closed"),
-          False,
-        )
-        |> expect.to_equal(Ok(Nil))
-      }),
-      startest.it("drains even if cancel fails and keeps original error", fn() {
-        failure_cleanup([Error(error.Timeout)], error.Timeout, True)
-        |> expect.to_equal(Ok(Nil))
-      }),
-      startest.it("does not cancel successful or rejected requests", fn() {
-        no_cleanup(False) |> expect.to_equal(Ok(Nil))
-        no_cleanup(True) |> expect.to_equal(Ok(Nil))
-      }),
-      startest.it("defines the late-message drain race", fn() {
-        late_after_drain() |> expect.to_equal(Ok(Nil))
-      }),
-      startest.it("cancels delayed headers and preserves shared requests", fn() {
-        delayed_response(False) |> expect.to_equal(Ok(Nil))
-      }),
-      startest.it("cancels delayed body and preserves shared requests", fn() {
-        delayed_response(True) |> expect.to_equal(Ok(Nil))
-      }),
-      startest.it("cleans invalid messages on a shared local connection", fn() {
-        local_failure(False) |> expect.to_equal(Ok(Nil))
-      }),
-      startest.it("cleans receive failures on a shared local connection", fn() {
-        local_failure(True) |> expect.to_equal(Ok(Nil))
-      }),
-    ]),
-  ])
+  ]
+  let assert #(True, _, _) = #(actual_8 == expected_8, actual_8, expected_8)
+  Nil
+}
+
+pub fn invalid_message_handling_rejects_informational_responses_after_the_final_response_test() -> Nil {
+  let actual_9 =
+    client.collect_messages([
+      Ok(message.Response(fin.NoFin, 200, [])),
+      Ok(message.Inform(103, [])),
+    ])
+  let expected_9 =
+    Error(error.InvalidMessage(
+      "HTTP helper received informational response after final response",
+    ))
+  let assert #(True, _, _) = #(actual_9 == expected_9, actual_9, expected_9)
+  Nil
+}
+
+pub fn invalid_message_handling_rejects_push_upgrade_and_websocket_messages_test() -> Nil {
+  let stream = stream_ref()
+
+  let actual_10 =
+    client.collect_messages([
+      Ok(message.Push(stream, request.Get, "/pushed", [])),
+    ])
+  let expected_10 =
+    Error(error.InvalidMessage("HTTP helper received push message"))
+  let assert #(True, _, _) = #(actual_10 == expected_10, actual_10, expected_10)
+
+  let actual_11 =
+    client.collect_messages([Ok(message.Upgrade(["websocket"], []))])
+  let expected_11 =
+    Error(error.InvalidMessage("HTTP helper received upgrade message"))
+  let assert #(True, _, _) = #(actual_11 == expected_11, actual_11, expected_11)
+
+  let actual_12 =
+    client.collect_messages([Ok(message.WebSocket(message.Text("hello")))])
+  let expected_12 =
+    Error(error.InvalidMessage("HTTP helper received websocket message"))
+  let assert #(True, _, _) = #(actual_12 == expected_12, actual_12, expected_12)
+  Nil
+}
+
+pub fn invalid_message_handling_rejects_body_data_before_a_response_test() -> Nil {
+  let actual_13 =
+    client.collect_messages([Ok(message.Data(fin.Fin, <<"oops":utf8>>))])
+  let expected_13 =
+    Error(error.InvalidMessage("HTTP helper received body before response"))
+  let assert #(True, _, _) = #(actual_13 == expected_13, actual_13, expected_13)
+  Nil
+}
+
+pub fn invalid_message_handling_rejects_duplicate_final_responses_test() -> Nil {
+  let actual_14 =
+    client.collect_messages([
+      Ok(message.Response(fin.NoFin, 200, [])),
+      Ok(message.Response(fin.Fin, 204, [])),
+    ])
+  let expected_14 =
+    Error(error.InvalidMessage("HTTP helper received duplicate response"))
+  let assert #(True, _, _) = #(actual_14 == expected_14, actual_14, expected_14)
+  Nil
+}
+
+pub fn invalid_message_handling_rejects_trailers_before_a_response_test() -> Nil {
+  let actual_15 =
+    client.collect_messages([Ok(message.Trailers([#("expires", "soon")]))])
+  let expected_15 =
+    Error(error.InvalidMessage("HTTP helper received trailers before response"))
+  let assert #(True, _, _) = #(actual_15 == expected_15, actual_15, expected_15)
+  Nil
+}
+
+pub fn invalid_message_handling_propagates_timeout_and_connection_down_errors_test() -> Nil {
+  let actual_16 = client.collect_messages([Error(error.Timeout)])
+  let expected_16 = Error(error.Timeout)
+  let assert #(True, _, _) = #(actual_16 == expected_16, actual_16, expected_16)
+
+  let actual_17 =
+    client.collect_messages([Error(error.ConnectionDown("closed"))])
+  let expected_17 = Error(error.ConnectionDown("closed"))
+  let assert #(True, _, _) = #(actual_17 == expected_17, actual_17, expected_17)
+  Nil
+}
+
+pub fn response_body_text_decodes_utf_8_bodies_test() -> Nil {
+  let actual_18 = {
+    response.new(status: 200, headers: [], body: <<"héllo":utf8>>, trailers: [])
+    |> response.body_text
+  }
+  let expected_18 = Ok("héllo")
+  let assert #(True, _, _) = #(actual_18 == expected_18, actual_18, expected_18)
+  Nil
+}
+
+pub fn response_body_text_rejects_invalid_utf_8_bodies_test() -> Nil {
+  let actual_19 = {
+    response.new(status: 200, headers: [], body: <<255>>, trailers: [])
+    |> response.body_text
+  }
+  let expected_19 = Error(error.DecodeError("Response body is not valid UTF-8"))
+  let assert #(True, _, _) = #(actual_19 == expected_19, actual_19, expected_19)
+  Nil
+}
+
+pub fn failed_stream_cleanup_cancels_on_timeout_before_headers_test() -> Nil {
+  let actual_20 = failure_cleanup([Error(error.Timeout)], error.Timeout, False)
+  let expected_20 = Ok(Nil)
+  let assert #(True, _, _) = #(actual_20 == expected_20, actual_20, expected_20)
+  Nil
+}
+
+pub fn failed_stream_cleanup_cancels_on_timeout_after_partial_body_test() -> Nil {
+  let actual_21 =
+    failure_cleanup(
+      [
+        Ok(message.Response(fin.NoFin, 200, [])),
+        Ok(message.Data(fin.NoFin, <<"partial">>)),
+        Error(error.Timeout),
+      ],
+      error.Timeout,
+      False,
+    )
+  let expected_21 = Ok(Nil)
+  let assert #(True, _, _) = #(actual_21 == expected_21, actual_21, expected_21)
+  Nil
+}
+
+pub fn failed_stream_cleanup_cancels_on_invalid_collection_messages_test() -> Nil {
+  let actual_22 =
+    failure_cleanup(
+      [Ok(message.Data(fin.Fin, <<"unexpected">>))],
+      error.InvalidMessage("HTTP helper received body before response"),
+      False,
+    )
+  let expected_22 = Ok(Nil)
+  let assert #(True, _, _) = #(actual_22 == expected_22, actual_22, expected_22)
+  Nil
+}
+
+pub fn failed_stream_cleanup_cancels_on_receive_and_decode_failures_test() -> Nil {
+  let actual_23 =
+    failure_cleanup(
+      [Error(error.StreamError("reset"))],
+      error.StreamError("reset"),
+      False,
+    )
+  let expected_23 = Ok(Nil)
+  let assert #(True, _, _) = #(actual_23 == expected_23, actual_23, expected_23)
+  let actual_24 =
+    failure_cleanup(
+      [Error(error.DecodeError("malformed"))],
+      error.DecodeError("malformed"),
+      False,
+    )
+  let expected_24 = Ok(Nil)
+  let assert #(True, _, _) = #(actual_24 == expected_24, actual_24, expected_24)
+  let actual_25 =
+    failure_cleanup(
+      [Error(error.ConnectionDown("closed"))],
+      error.ConnectionDown("closed"),
+      False,
+    )
+  let expected_25 = Ok(Nil)
+  let assert #(True, _, _) = #(actual_25 == expected_25, actual_25, expected_25)
+  Nil
+}
+
+pub fn failed_stream_cleanup_drains_even_if_cancel_fails_and_keeps_original_error_test() -> Nil {
+  let actual_26 = failure_cleanup([Error(error.Timeout)], error.Timeout, True)
+  let expected_26 = Ok(Nil)
+  let assert #(True, _, _) = #(actual_26 == expected_26, actual_26, expected_26)
+  Nil
+}
+
+pub fn failed_stream_cleanup_does_not_cancel_successful_or_rejected_requests_test() -> Nil {
+  let actual_27 = no_cleanup(False)
+  let expected_27 = Ok(Nil)
+  let assert #(True, _, _) = #(actual_27 == expected_27, actual_27, expected_27)
+  let actual_28 = no_cleanup(True)
+  let expected_28 = Ok(Nil)
+  let assert #(True, _, _) = #(actual_28 == expected_28, actual_28, expected_28)
+  Nil
+}
+
+pub fn failed_stream_cleanup_defines_the_late_message_drain_race_test() -> Nil {
+  let actual_29 = late_after_drain()
+  let expected_29 = Ok(Nil)
+  let assert #(True, _, _) = #(actual_29 == expected_29, actual_29, expected_29)
+  Nil
+}
+
+pub fn failed_stream_cleanup_cancels_delayed_headers_and_preserves_shared_requests_test() -> Nil {
+  let actual_30 = delayed_response(False)
+  let expected_30 = Ok(Nil)
+  let assert #(True, _, _) = #(actual_30 == expected_30, actual_30, expected_30)
+  Nil
+}
+
+pub fn failed_stream_cleanup_cancels_delayed_body_and_preserves_shared_requests_test() -> Nil {
+  let actual_31 = delayed_response(True)
+  let expected_31 = Ok(Nil)
+  let assert #(True, _, _) = #(actual_31 == expected_31, actual_31, expected_31)
+  Nil
+}
+
+pub fn failed_stream_cleanup_cleans_invalid_messages_on_a_shared_local_connection_test() -> Nil {
+  let actual_32 = local_failure(False)
+  let expected_32 = Ok(Nil)
+  let assert #(True, _, _) = #(actual_32 == expected_32, actual_32, expected_32)
+  Nil
+}
+
+pub fn failed_stream_cleanup_cleans_receive_failures_on_a_shared_local_connection_test() -> Nil {
+  let actual_33 = local_failure(True)
+  let expected_33 = Ok(Nil)
+  let assert #(True, _, _) = #(actual_33 == expected_33, actual_33, expected_33)
+  Nil
 }
 
 fn timeout(milliseconds: Int) -> connection.Timeout {

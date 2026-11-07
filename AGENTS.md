@@ -10,6 +10,7 @@ just build         # gleam build
 just build-strict  # gleam build --warnings-as-errors
 just check         # gleam check
 just test          # gleam test
+just examples-test # test standalone examples with test directories
 just format        # gleam format src test
 just format-check  # gleam format --check src test
 just docs          # gleam docs build
@@ -19,18 +20,19 @@ just site-check    # validate website
 just site-dev      # start local website dev server
 just site-preview  # preview built website
 just site-clean    # remove website build artifacts
-just ci            # format-check, check, test, build-strict
-just main          # ci, examples-format-check, examples-build, docs, site-check, site-build
+just ci            # format-check, check, test, examples-format-check, examples-test, build-strict, trellis-doctor
+just main          # ci, examples-build, docs, site-check, site-build
 ```
 
-Run a single Startest test or suite after building:
+Run a test file or a single Unitest test:
 
 ```sh
-gleam build
-gleam test -- test/client_test.gleam --test-name-filter="collects a single final body"
+gleam test -- test/client_test.gleam
+gleam test -- --test client_test.response_collection_collects_a_single_final_body_test
+gleam test -- --seed 123
 ```
 
-Replace the file path and `--test-name-filter` value with the Startest suite or test name you want to run.
+Use `--test module.function` to select a public test function, or append `:LINE` to a file path to select the test at that line. Unitest reports its random seed; pass `--seed` to repeat the order. Tests run sequentially by default. Do not pass `--workers` for normal checks: even `--workers 1` runs tests concurrently within modules, and shared TLS cache checks and tight integration deadlines need sequential execution.
 
 ## High-level architecture
 
@@ -49,7 +51,7 @@ The Erlang FFI boundary is centralized in `src/gluegun_ffi.erl` and the `@extern
 
 `Connection` and `Stream` are external foreign types declared in `gluegun/internal.gleam`: they name a Gun connection process identifier and a Gun stream reference, have no Gleam constructors, and can only come from Gun (or, in tests, from typed constructors in `test/gluegun_ffi_test.erl`).
 
-Examples under `examples/` are standalone Erlang-target Gleam packages; each can be built with `gleam build` and run with `gleam run` from its directory. Root `just` recipes `examples-deps`, `examples-format-check`, and `examples-build` operate on examples; `just main` includes example validation.
+Examples under `examples/` are standalone Erlang-target Gleam packages; each can be built with `gleam build` and run with `gleam run` from its directory. Root `just` recipes `examples-deps`, `examples-format-check`, `examples-test`, and `examples-build` operate on examples. `just ci` checks example formatting and runs their tests; `just main` also builds examples.
 
 ## Key conventions
 
@@ -61,5 +63,5 @@ Examples under `examples/` are standalone Erlang-target Gleam packages; each can
 - Use `client` helpers only for regular HTTP responses collected in memory. Streaming bodies, HTTP/2 push, upgrades, WebSocket messages, cancellation, and flow-control updates belong in `request`/`message`.
 - WebSocket support is HTTP/1.1 only. Prefer `websocket.upgrade_with_protocol` after `connection.await_up`; it rejects `Http2` before calling Gun. After a successful HTTP/1.1 upgrade, treat that connection as exclusively WebSocket.
 - Erlang FFI helpers should build Gleam values directly (messages, frames, errors), convert iodata to binaries where needed, lowercase header names, and validate WebSocket text frames as UTF-8.
-- Tests use Startest with public describe functions ending in `_tests` under `test/`. Raw FFI shape and WebSocket frame tests use Erlang helper modules in `test/*.erl`, which expose typed constructors (Gun handles, raw Gun messages and frames, typed projections of Gun option maps) rather than untyped terms.
+- Tests use Unitest with public zero-argument functions ending in `_test` under `test/`, native Gleam `assert` and `let assert`, and a `unitest.main()` entry point. Each case, including each generated payload combination, has its own test function. Raw FFI shape and WebSocket frame tests use Erlang helper modules in `test/*.erl`, which expose typed constructors (Gun handles, raw Gun messages and frames, typed projections of Gun option maps) rather than untyped terms.
 - `@internal` Gleam helpers are intentionally exposed for deterministic unit tests; avoid expanding the public API surface unless the README/docs need to expose the behavior.

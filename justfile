@@ -62,11 +62,15 @@ examples-deps:
 
 # Format every standalone example package
 examples-format:
-    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && gleam format src); fi; done
+    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && if [ -d test ]; then gleam format src test; else gleam format src; fi) || exit 1; fi; done
 
 # Check formatting for every standalone example package
 examples-format-check:
-    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && gleam format --check src); fi; done
+    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && if [ -d test ]; then gleam format --check src test; else gleam format --check src; fi) || exit 1; fi; done
+
+# Run tests for standalone example packages with test directories
+examples-test:
+    for dir in examples/*; do if [ -f "$dir/gleam.toml" ] && [ -d "$dir/test" ]; then (cd "$dir" && gleam test) || exit 1; fi; done
 
 # Build every standalone example package; package escripts for examples that depend on gleescript
 examples-build:
@@ -140,10 +144,10 @@ clean:
 # === CI ===
 
 # Run all CI checks (format, check, test, build, workspace)
-ci: format-check check test build-strict trellis-doctor
+ci: format-check check test examples-format-check examples-test build-strict trellis-doctor
 
 # Alias for PR checks
 alias pr := ci
 
 # Run extended checks for main branch
-main: ci examples-format-check examples-build docs site-check site-build
+main: ci examples-build docs site-check site-build
