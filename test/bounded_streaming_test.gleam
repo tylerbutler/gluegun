@@ -119,6 +119,15 @@ pub fn bounded_streaming_tests() -> test_tree.TestTree {
       "terminates a blocked sender and preserves unrelated mail",
       fn() { cleanup() |> expect.to_equal(Ok(Nil)) },
     ),
+    startest.it("pauses and resumes a live HTTP/2 stream byte window", fn() {
+      http2_scenario("flow") |> expect.to_equal(Ok(Nil))
+    }),
+    startest.it("checks final HTTP/2 data bytes and closes the peer", fn() {
+      http2_scenario("limit") |> expect.to_equal(Ok(Nil))
+    }),
+    startest.it("drains a real queued HTTP/2 push after termination", fn() {
+      http2_scenario("cleanup") |> expect.to_equal(Ok(Nil))
+    }),
   ])
 }
 
@@ -149,6 +158,24 @@ fn scenario(
     request.options_to_ffi(options),
   )
 }
+
+fn http2_scenario(mode: String) -> Result(Nil, error.GluegunError) {
+  let assert Ok(options) = request.with_initial_flow(request.options(), 1)
+  run_http2(
+    mode,
+    configured(connection.Ipv4)
+      |> connection.with_protocols([connection.Http2])
+      |> connection.options_to_ffi,
+    request.options_to_ffi(options),
+  )
+}
+
+@external(erlang, "gluegun_http2_test", "run")
+fn run_http2(
+  mode: String,
+  connection_options: List(connection.ConnectOption),
+  request_options: List(request.RequestOption),
+) -> Result(Nil, error.GluegunError)
 
 @external(erlang, "gluegun_bounded_test", "capture_flow")
 fn capture_flow(
