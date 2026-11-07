@@ -324,6 +324,8 @@ caught_error(connection_error, Class, Reason) -> {connection_error, {Class, Reas
 caught_error(stream, Class, Reason) -> {stream_error, {Class, Reason}};
 caught_error(stream_erlang, Class, Reason) -> {erlang_error, {Class, Reason}}.
 
+normalize_error(_Tag, {options, Reason}) -> {invalid_options, Reason};
+normalize_error(_Tag, {down, Reason}) -> {connection_down, Reason};
 normalize_error(_Tag, {invalid_options, _} = Error) -> Error;
 normalize_error(_Tag, {connection_down, _} = Error) -> Error;
 normalize_error(_Tag, {connection_error, _} = Error) -> Error;
@@ -728,9 +730,10 @@ normalize_stream_error(Reason) -> {stream_error, Reason}.
 %% stream owner are accepted, because only those carry the connection pid and
 %% stream reference a message came from. A process that owns several
 %% concurrent streams (HTTP/2 requests, server pushes) cannot otherwise tell
-%% which stream a decoded message belongs to. Every accepted shape is paired
+%% which stream a decoded message belongs to. Every successful shape is paired
 %% with that identity as a Gleam `gluegun/message.Envelope`
-%% (`{envelope, ConnPid, StreamRef, Message}`); any other shape, including a
+%% (`{envelope, ConnPid, StreamRef, Message}`). Mailbox errors return typed
+%% errors without an envelope. Any other shape, including a
 %% `gun:await/3`-style term with no embedded identity, is a decode failure.
 decode_message({gun_inform, ConnPid, StreamRef, Status, Headers}) ->
     envelope(ConnPid, StreamRef, safe_decode_message({inform, Status, Headers}));
@@ -746,9 +749,23 @@ decode_message({gun_upgrade, ConnPid, StreamRef, Protocols, Headers}) ->
     envelope(ConnPid, StreamRef, safe_decode_message({upgrade, Protocols, Headers}));
 decode_message({gun_ws, ConnPid, StreamRef, Frame}) ->
     envelope(ConnPid, StreamRef, safe_decode_message({ws, Frame}));
+decode_message({gun_error, ConnPid, StreamRef, _Reason} = Message)
+    when is_pid(ConnPid), is_reference(StreamRef) ->
+    safe_decode_message(Message);
+decode_message({gun_error, ConnPid, StreamRef, _Reason} = Message)
+    when is_pid(ConnPid), is_list(StreamRef) ->
+    %% Gun also uses reference lists for streams inside CONNECT tunnels.
+    case lists:all(fun erlang:is_reference/1, StreamRef) of
+        true -> safe_decode_message(Message);
+        false -> {error, {decode_error, <<"Invalid Gun message"/utf8>>}}
+    end;
+decode_message({gun_error, ConnPid, _Reason} = Message) when is_pid(ConnPid) ->
+    safe_decode_message(Message);
+decode_message({gun_down, ConnPid, Protocol, _Reason, KilledStreams} = Message)
+    when is_pid(ConnPid), is_atom(Protocol), is_list(KilledStreams) ->
+    safe_decode_message(Message);
 decode_message(_Other) ->
-    %% Covers `gun_error` (stream- and connection-level) and any shape that
-    %% is not a recognized Gun mailbox message, including bare
+    %% Covers unrecognized Gun mailbox messages, including bare
     %% `gun:await/3`-style terms, which carry no identity to preserve.
     {error, {decode_error, <<"Invalid Gun message"/utf8>>}}.
 
@@ -759,7 +776,7 @@ decode_message(_Other) ->
 %% inside a recognized mailbox tuple (e.g. an unrecognized WebSocket frame)
 %% still collapses to the same generic decode failure `decode_message/1`
 %% returns for any other unrecognized shape, so `gluegun/message.decode`'s
-%% error contract stays a single, stable `DecodeError`.
+%% malformed-message contract stays a single, stable `DecodeError`.
 envelope(ConnPid, StreamRef, {ok, Decoded}) -> {ok, {envelope, ConnPid, StreamRef, Decoded}};
 envelope(_ConnPid, _StreamRef, {error, _}) -> {error, {decode_error, <<"Invalid Gun message"/utf8>>}}.
 
@@ -772,6 +789,8 @@ safe_decode_message(Message) ->
         error:{stream_error, Reason}:_Stack -> {error, gleam_error({stream_error, Reason})};
         error:{connection_error, Reason}:_Stack ->
             {error, gleam_error({connection_error, Reason})};
+        error:{connection_down, Reason}:_Stack ->
+            {error, gleam_error({connection_down, Reason})};
         error:timeout:_Stack -> {error, timeout};
         Class:Reason:_Stack -> {error, gleam_error({erlang_error, {Class, Reason}})}
     end.
@@ -782,9 +801,11 @@ safe_decode_message(Message) ->
 %% enough context on its own. `decode_message/1` extracts identity for the
 %% other mailbox tuples before reaching this function; see above.
 message_to_gleam({gun_error, _ConnPid, _StreamRef, Reason}) ->
-    message_to_gleam({error, Reason});
+    error({stream_error, Reason});
 message_to_gleam({gun_error, _ConnPid, Reason}) ->
     error({connection_error, Reason});
+message_to_gleam({gun_down, _ConnPid, _Protocol, Reason, _KilledStreams}) ->
+    error({connection_down, Reason});
 %% Await shapes: what `gun:await/3` returns after it strips the envelope.
 message_to_gleam({inform, Status, Headers}) ->
     {inform, Status, normalize_headers(Headers)};
@@ -803,7 +824,7 @@ message_to_gleam({ws, Frame}) ->
 message_to_gleam({error, timeout}) ->
     error(timeout);
 message_to_gleam({error, Reason}) ->
-    error({stream_error, Reason});
+    error(normalize_error(stream, Reason));
 message_to_gleam(Other) ->
     error({invalid_message, Other}).
 

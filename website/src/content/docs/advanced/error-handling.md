@@ -48,10 +48,10 @@ Cleanup preserves concurrent streams and connection-level messages. It does not 
 | Variant | Meaning | Common cause |
 | --- | --- | --- |
 | `Timeout` | An operation timed out. | The server was slow or not reachable, or the timeout was too short. |
-| `ConnectionDown(String)` | The Gun connection went down. | The remote closed the connection, or the network failed. |
+| `ConnectionDown(String)` | The Gun connection went down or its process exited. | The remote closed the connection, the network failed, or the process stopped. |
 | `ConnectionError(String)` | Connection setup or use failed. | Incorrect host, port, transport, TLS, or Gun connection state. |
 | `StreamError(String)` | A stream failure occurred. | A stream was canceled, reset, or rejected. |
-| `InvalidOptions(String)` | Gluegun rejected the typed options. | A flow-control increment that is not positive, or an unsupported option shape. |
+| `InvalidOptions(String)` | Gluegun or Gun rejected the options. | A flow-control increment that is not positive, or an unsupported option shape. |
 | `InvalidMessage(String)` | A protocol message did not agree with the API in use. | High-level client functions got an upgrade, push, or WebSocket message. Or the code received WebSocket frames before the upgrade was complete. |
 | `UnsupportedFeature(String)` | The feature is not supported. | A WebSocket upgrade on an HTTP/2 connection (Gun does not support RFC 8441). Select `Http1`. |
 | `ErlangError(String)` | An Erlang or FFI failure occurred that has no category. | An unexpected Gun or BEAM error crossed the FFI boundary. |

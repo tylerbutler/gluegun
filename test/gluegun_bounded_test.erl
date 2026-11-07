@@ -356,7 +356,7 @@ verify_tls(Options0) ->
                 try
                     case {Expected, gluegun_ffi:await_up(Conn, {milliseconds, 1500})} of
                         {success, {ok, _}} -> ok;
-                        {{failure, Marker}, {error, {connection_error, Reason}}} ->
+                        {{failure, Marker}, {error, {connection_down, Reason}}} ->
                             true = binary:match(Reason, Marker) =/= nomatch;
                         Result -> error({unexpected_tls_result, Expected, Result})
                     end
