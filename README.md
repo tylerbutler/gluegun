@@ -195,6 +195,7 @@ Use the reusable `Socket` API when you want explicit lifecycle control.
 ```gleam
 import gleam/io
 import gleam/result
+import gluegun/error
 import gluegun/message
 import gluegun/websocket
 
@@ -208,17 +209,25 @@ pub fn ws_echo() {
     ),
   )
 
-  use _ <- result.try(websocket.send_text(socket, "hello"))
-
-  case websocket.receive_app_frame(socket) {
-    Ok(message.Text(reply)) -> io.println(reply)
-    Ok(_) -> io.println("received a non-text frame")
-    Error(_) -> io.println("websocket receive failed")
+  let exchange = {
+    use _ <- result.try(websocket.send_text(socket, "hello"))
+    case websocket.receive_app_frame(socket) {
+      Ok(message.Text(reply)) -> {
+        io.println(reply)
+        Ok(Nil)
+      }
+      Ok(_) -> Error(error.InvalidMessage("expected a text frame"))
+      Error(error) -> Error(error)
+    }
   }
 
-  websocket.send_close_frame(socket)
+  let cleanup = websocket.close(socket)
+  use _ <- result.try(exchange)
+  cleanup
 }
 ```
+
+Call `websocket.close(socket)` from the receiver to release the Gun process and flush its queued messages, including after an exchange fails. It waits for the peer within the socket timeout, or five seconds for `Infinity`. A timeout or handshake error still triggers teardown. Repeated close succeeds after the process exits. `send_close_frame` only sends a frame.
 
 For shorter one-shot flows, `with_socket` opens the socket, runs a callback, then closes the WebSocket and connection.
 
@@ -253,7 +262,7 @@ pub fn echo_once() {
 }
 ```
 
-`Socket` is reusable and lifecycle-explicit. `with_socket` is convenience-only for scoped use. Low-level `upgrade_with_protocol_and_options`, `send`, and `receive` remain available for advanced flows. The root facade stays intentionally minimal; import `gluegun/websocket` directly for `send_text`, `receive_app_frame`, `send_close_frame`, and `with_socket`.
+`Socket` is reusable and you control its lifecycle. `with_socket` calls the same teardown path and gives callback errors precedence over cleanup errors. Low-level `upgrade_with_protocol_and_options`, `send`, and `receive` remain available for advanced flows. The root facade provides `websocket_connect`, `websocket_send_text`, `websocket_receive_app_frame`, and `websocket_close` for the common path.
 
 See `examples/websocket_echo` for a fuller WebSocket example.
 

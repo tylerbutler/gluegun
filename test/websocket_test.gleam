@@ -528,7 +528,7 @@ pub fn websocket_tests() -> test_tree.TestTree {
       startest.it(
         "returns callback value when callback and cleanup succeed",
         fn() {
-          websocket.with_socket_result(Ok("done"), Ok(Nil), Ok(Nil))
+          websocket.with_socket_result(Ok("done"), Ok(Nil))
           |> expect.to_equal(Ok("done"))
         },
       ),
@@ -538,7 +538,6 @@ pub fn websocket_tests() -> test_tree.TestTree {
           websocket.with_socket_result(
             Ok("done"),
             Error(error.StreamError("close frame failed")),
-            Ok(Nil),
           )
           |> expect.to_equal(Error(error.StreamError("close frame failed")))
         },
@@ -548,7 +547,6 @@ pub fn websocket_tests() -> test_tree.TestTree {
         fn() {
           websocket.with_socket_result(
             Ok("done"),
-            Ok(Nil),
             Error(error.ConnectionError("connection close failed")),
           )
           |> expect.to_equal(
@@ -561,7 +559,6 @@ pub fn websocket_tests() -> test_tree.TestTree {
         fn() {
           websocket.with_socket_result(
             Error(error.InvalidMessage("callback failed")),
-            Error(error.StreamError("close frame failed")),
             Error(error.ConnectionError("connection close failed")),
           )
           |> expect.to_equal(Error(error.InvalidMessage("callback failed")))
