@@ -40,6 +40,10 @@ build-strict:
 test:
     gleam test
 
+# Check release preparation without GitHub writes or release commands
+test-release:
+    python3 -B -m unittest discover -s test -p release_pr_test.py
+
 # === CODE QUALITY ===
 
 # Format source code
@@ -140,7 +144,7 @@ clean:
 # === CI ===
 
 # Run all CI checks (format, check, test, build, workspace)
-ci: format-check check test build-strict trellis-doctor
+ci: format-check check test test-release build-strict trellis-doctor
 
 # Alias for PR checks
 alias pr := ci

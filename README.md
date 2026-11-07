@@ -362,8 +362,43 @@ just change --kind Added --body "Describe the change"
 ```
 
 Preview the next release with `just changelog-preview`. Trellis creates release
-pull requests from pending fragments on `main`, then tags and publishes merged
-releases.
+pull requests from pending fragments on `main`. Merge `release/pending` to create
+an exact `v{version}` tag and a GitHub release. Tag pushes run CI. Both candidate
+and stable releases are Git-only: Hex publication is disabled in the Trellis
+configuration and there is no Hex publish job.
+
+### Release candidates
+
+Run the **Trellis Release** workflow manually on `main` to change release mode:
+
+| Action | `pre` input | `version` input |
+| --- | --- | --- |
+| Start a candidate cycle | `rc` | Target stable version, for example `1.0.0` |
+| Prepare the next candidate | `rc` | Leave empty |
+| Promote the current candidate to stable | `none` | Leave empty |
+| Prepare a normal stable release | Leave empty | Leave empty, or set a target version |
+
+A new cycle starts at `rc.0`. Merge each candidate PR before preparing the next
+candidate. Trellis retains changelog fragments during the cycle and consumes
+them on stable promotion. Candidate GitHub releases are marked as prereleases.
+
+Automatic pushes to `main` preserve the mode and target of an open release PR.
+If no release PR is open and the current version is a candidate, a push prepares
+another candidate only when the unreleased fragments have changed since that
+candidate's version commit. Automatic pushes do not promote candidates.
+
+Preview candidates locally without changing files:
+
+```sh
+just changelog-preview --set gluegun=1.0.0 --pre rc
+just changelog-preview --pre rc
+just changelog-preview --pre none
+```
+
+The last two commands require a candidate version in the local manifest.
+The **Auto-tag release** workflow also supports a manual run on `main` to recover
+missing tags or GitHub releases. Release preparation requires the
+`RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` Actions secrets; no Hex key is used.
 
 ## License
 
