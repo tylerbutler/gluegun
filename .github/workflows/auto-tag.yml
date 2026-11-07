@@ -4,10 +4,23 @@ on:
   pull_request:
     types: [closed]
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: trellis-tag
+  cancel-in-progress: false
 
 jobs:
   auto-tag:
-    if: github.event.pull_request.merged && github.event.pull_request.head.ref == 'release/pending'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.pull_request.merged == true &&
+       github.event.pull_request.head.ref == 'release/pending' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     steps:
       - name: Generate app token
@@ -19,6 +32,7 @@ jobs:
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || 'main' }}
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
@@ -30,4 +44,4 @@ jobs:
       - name: Create tags and GitHub release
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: trellis tag create --github-release
+        run: mise exec -- trellis tag create --github-release
