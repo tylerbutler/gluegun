@@ -11,6 +11,7 @@
     await/3,
     await_body/3,
     cancel/2,
+    cleanup_stream/2,
     update_flow/3,
     flush/1,
     ws_upgrade/4,
@@ -121,6 +122,27 @@ cancel(ConnPid, StreamRef) ->
     with_normalize(stream, fun() ->
         gun:cancel(ConnPid, StreamRef)
     end).
+
+cleanup_stream(ConnPid, StreamRef) ->
+    Cancel = cancel(ConnPid, StreamRef),
+    Drain = with_normalize(stream, fun() -> flush_stream(StreamRef) end),
+    lists:foreach(fun
+        ({error, Reason}) ->
+            logger:warning("Gluegun HTTP failed-stream cleanup failed: ~p", [Reason]);
+        ({ok, nil}) -> ok
+    end, [Cancel, Drain]),
+    case Cancel of
+        {error, _} -> Cancel;
+        {ok, nil} -> Drain
+    end.
+
+flush_stream(StreamRef) ->
+    gun:flush(StreamRef),
+    %% Gun 2.2 flush_ref matches an eight-field push, but sends seven fields.
+    receive
+        {gun_push, _, StreamRef, _, _, _, _} -> flush_stream(StreamRef)
+    after 0 -> ok
+    end.
 
 update_flow(ConnPid, StreamRef, Increment) ->
     with_normalize(stream, fun() ->

@@ -9,6 +9,12 @@
 //// Protocol messages for server push, upgrades, and WebSockets are rejected
 //// with `InvalidMessage`. Use the lower-level `gluegun/message` API for
 //// those flows.
+////
+//// If collection fails, these helpers attempt to cancel the failed stream
+//// and drain its queued messages, then return the original error. They keep
+//// other streams and the connection open. Cancellation is asynchronous:
+//// messages in transit can arrive after the drain. For strict mailbox
+//// isolation, use the low-level API in a separate receiving process.
 
 import gleam/bit_array
 import gleam/list
@@ -333,13 +339,21 @@ pub fn request_with(
     body,
     options,
   ))
-  collect_stream_with(
-    connection,
-    stream,
-    AwaitingResponse([]),
-    timeout,
-    await_fn,
-  )
+  case
+    collect_stream_with(
+      connection,
+      stream,
+      AwaitingResponse([]),
+      timeout,
+      await_fn,
+    )
+  {
+    Ok(response) -> Ok(response)
+    Error(reason) -> {
+      let _ = low_request.cleanup_stream(connection, stream)
+      Error(reason)
+    }
+  }
 }
 
 fn collect_stream_with(
