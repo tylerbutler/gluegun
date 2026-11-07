@@ -19,11 +19,13 @@
 		"check:reference": "node scripts/generate-reference.mjs --check",
 		"clean": "rimraf dist *.tsbuildinfo *.done.build.log .astro",
 		"dev": "node scripts/reference-state.mjs && astro dev",
+		"deploy": "wrangler deploy",
+		"deploy:preview": "wrangler versions upload",
 		"generate:reference": "node scripts/generate-reference.mjs",
 		"og": "node scripts/generate-og.ts",
 		"preview": "node scripts/reference-state.mjs && astro preview",
 		"start": "node scripts/reference-state.mjs && astro dev",
-		"test:reference": "node --test scripts/generate-reference.test.mjs scripts/reference-state.test.mjs scripts/ignore-if-website-unchanged.test.mjs"
+		"test:reference": "node --test scripts/generate-reference.test.mjs scripts/reference-state.test.mjs"
 	},
 	"dependencies": {
 		"@astrojs/check": "^0.9.12",
@@ -47,6 +49,7 @@
 		"culori": "^4.0.2",
 		"rimraf": "^6.1.4",
 		"satori": "^0.63.2",
-		"subset-font": "^2.9.0"
+		"subset-font": "^2.9.0",
+		"wrangler": "^4.158.0"
 	}
 }

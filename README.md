@@ -399,12 +399,15 @@ From `website/`, use `pnpm generate:reference` to regenerate or
 The comparison does not change committed pages. CI runs this comparison and
 the reference tests before it checks and builds the website.
 
-Netlify uses `website/` as the site base, runs `pnpm build`, and publishes `dist`.
+Cloudflare Workers Builds uses `website/` as the build root, runs `pnpm build`,
+and deploys the static assets in `dist`. See [website deployment](website/README.md)
+for the build and preview configuration.
 Production and deploy-preview builds need Node and pnpm only. The build checks
 the committed source and page hashes before Astro runs and stops if output is
 stale or missing. Local `astro`, `build`, `check:astro`, `dev`, `start`, and `preview`
-scripts use the same check. Netlify preview selection includes `src/`, package
-manifests, and build configuration as well as `website/`. Run `just site-build`
+scripts use the same check. Keep Cloudflare's build watch paths at `*` so source,
+package manifests, and build configuration trigger production and preview builds.
+Run `just site-build`
 before `just site-preview` to serve a current build.
 
 ### Release candidates
