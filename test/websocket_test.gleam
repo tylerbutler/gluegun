@@ -370,10 +370,7 @@ pub fn websocket_socket_helpers_send_close_frame_sends_close_through_the_wrapped
 }
 
 pub fn websocket_socket_helpers_receive_app_frame_returns_text_frames_test() -> Nil {
-  let actual_40 =
-    websocket.receive_app_frame_from([Ok(message.Text("hello"))], fn(_) {
-      Ok(Nil)
-    })
+  let actual_40 = websocket.receive_app_frame_from([Ok(message.Text("hello"))])
   let expected_40 = Ok(message.Text("hello"))
   let assert #(True, _, _) = #(actual_40 == expected_40, actual_40, expected_40)
   Nil
@@ -381,17 +378,14 @@ pub fn websocket_socket_helpers_receive_app_frame_returns_text_frames_test() -> 
 
 pub fn websocket_socket_helpers_receive_app_frame_returns_binary_frames_test() -> Nil {
   let actual_41 =
-    websocket.receive_app_frame_from([Ok(message.Binary(<<1, 2, 3>>))], fn(_) {
-      Ok(Nil)
-    })
+    websocket.receive_app_frame_from([Ok(message.Binary(<<1, 2, 3>>))])
   let expected_41 = Ok(message.Binary(<<1, 2, 3>>))
   let assert #(True, _, _) = #(actual_41 == expected_41, actual_41, expected_41)
   Nil
 }
 
 pub fn websocket_socket_helpers_receive_app_frame_returns_close_frames_test() -> Nil {
-  let actual_42 =
-    websocket.receive_app_frame_from([Ok(message.Close)], fn(_) { Ok(Nil) })
+  let actual_42 = websocket.receive_app_frame_from([Ok(message.Close)])
   let expected_42 = Ok(message.Close)
   let assert #(True, _, _) = #(actual_42 == expected_42, actual_42, expected_42)
   Nil
@@ -399,10 +393,9 @@ pub fn websocket_socket_helpers_receive_app_frame_returns_close_frames_test() ->
 
 pub fn websocket_socket_helpers_receive_app_frame_returns_close_with_reason_frames_test() -> Nil {
   let actual_43 =
-    websocket.receive_app_frame_from(
-      [Ok(message.CloseWithReason(1000, <<"bye":utf8>>))],
-      fn(_) { Ok(Nil) },
-    )
+    websocket.receive_app_frame_from([
+      Ok(message.CloseWithReason(1000, <<"bye":utf8>>)),
+    ])
   let expected_43 = Ok(message.CloseWithReason(1000, <<"bye":utf8>>))
   let assert #(True, _, _) = #(actual_43 == expected_43, actual_43, expected_43)
   Nil
@@ -410,47 +403,34 @@ pub fn websocket_socket_helpers_receive_app_frame_returns_close_with_reason_fram
 
 pub fn websocket_socket_helpers_receive_app_frame_skips_pong_frames_test() -> Nil {
   let actual_44 =
-    websocket.receive_app_frame_from(
-      [
-        Ok(message.Pong(<<"ignored":utf8>>)),
-        Ok(message.Text("after pong")),
-      ],
-      fn(_) { Ok(Nil) },
-    )
+    websocket.receive_app_frame_from([
+      Ok(message.Pong(<<"ignored":utf8>>)),
+      Ok(message.Text("after pong")),
+    ])
   let expected_44 = Ok(message.Text("after pong"))
   let assert #(True, _, _) = #(actual_44 == expected_44, actual_44, expected_44)
   Nil
 }
 
-pub fn websocket_socket_helpers_receive_app_frame_replies_to_ping_and_returns_the_next_app_frame_test() -> Nil {
+pub fn websocket_socket_helpers_receive_app_frame_skips_ping_and_returns_the_next_app_frame_test() -> Nil {
   let actual_45 =
-    websocket.receive_app_frame_from(
-      [
-        Ok(message.Ping(<<"payload":utf8>>)),
-        Ok(message.Text("after ping")),
-      ],
-      fn(payload) {
-        case payload {
-          <<"payload":utf8>> -> Ok(Nil)
-          _ -> Error(error.InvalidMessage("unexpected pong payload"))
-        }
-      },
-    )
+    websocket.receive_app_frame_from([
+      Ok(message.Ping(<<"payload":utf8>>)),
+      Ok(message.Text("after ping")),
+    ])
   let expected_45 = Ok(message.Text("after ping"))
   let assert #(True, _, _) = #(actual_45 == expected_45, actual_45, expected_45)
   Nil
 }
 
-pub fn websocket_socket_helpers_receive_app_frame_returns_pong_send_errors_immediately_test() -> Nil {
+pub fn websocket_socket_helpers_receive_app_frame_returns_receive_errors_immediately_test() -> Nil {
   let actual_46 =
-    websocket.receive_app_frame_from(
-      [
-        Ok(message.Ping(<<"payload":utf8>>)),
-        Ok(message.Text("unreached")),
-      ],
-      fn(_) { Error(error.StreamError("send failed")) },
-    )
-  let expected_46 = Error(error.StreamError("send failed"))
+    websocket.receive_app_frame_from([
+      Ok(message.Ping(<<"payload":utf8>>)),
+      Error(error.StreamError("receive failed")),
+      Ok(message.Text("unreached")),
+    ])
+  let expected_46 = Error(error.StreamError("receive failed"))
   let assert #(True, _, _) = #(actual_46 == expected_46, actual_46, expected_46)
   Nil
 }

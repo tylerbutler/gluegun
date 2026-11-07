@@ -814,6 +814,8 @@ frame_from_gun({text, Data}) ->
     end;
 frame_from_gun({binary, Data}) -> {binary, iolist_to_binary(Data)};
 frame_from_gun({close, Code, Reason}) -> {close_with_reason, Code, iolist_to_binary(Reason)};
+frame_from_gun(ping) -> {ping, <<>>};
+frame_from_gun(pong) -> {pong, <<>>};
 frame_from_gun({ping, Data}) -> {ping, iolist_to_binary(Data)};
 frame_from_gun({pong, Data}) -> {pong, iolist_to_binary(Data)};
 frame_from_gun(close) -> close;
