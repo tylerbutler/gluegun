@@ -70,11 +70,21 @@ terminate(ConnPid) when is_pid(ConnPid), ConnPid =/= self(), node(ConnPid) =:= n
         Monitor = erlang:monitor(process, ConnPid),
         exit(ConnPid, kill),
         receive
-            {'DOWN', Monitor, process, ConnPid, _} -> gun:flush(ConnPid)
+            {'DOWN', Monitor, process, ConnPid, _} ->
+                gun:flush(ConnPid),
+                flush_connection_pushes(ConnPid)
         end
     end);
 terminate(_) ->
     {error, gleam_error({invalid_options, terminate_requires_local_connection})}.
+
+%% Gun 2.1/2.2 flush matches an eight-field push, but emits seven fields.
+flush_connection_pushes(ConnPid) ->
+    receive
+        {gun_push, ConnPid, _, _, _, _, _} -> flush_connection_pushes(ConnPid)
+    after 0 ->
+        ok
+    end.
 
 request(ConnPid, Method, Path, Headers, Body, Options) ->
     try
