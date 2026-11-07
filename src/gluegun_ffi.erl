@@ -225,10 +225,33 @@ inspect(Reason) -> gleam@string:inspect(Reason).
 gleam_frame_to_gun({text, Data}) -> {text, validate_text_frame_data(Data)};
 gleam_frame_to_gun({binary, Data}) -> {binary, Data};
 gleam_frame_to_gun(close) -> close;
-gleam_frame_to_gun({close_with_reason, Code, Reason}) -> {close, Code, Reason};
-gleam_frame_to_gun({ping, Data}) -> {ping, Data};
-gleam_frame_to_gun({pong, Data}) -> {pong, Data};
+gleam_frame_to_gun({close_with_reason, Code, Reason}) ->
+    validate_close_code(Code),
+    ValidReason = validate_control_frame_data(close, Reason, 123),
+    case validate_utf8(ValidReason) of
+        {ok, Text} -> {close, Code, Text};
+        {error, invalid_utf8} -> error({invalid_frame, {close, invalid_utf8}})
+    end;
+gleam_frame_to_gun({ping, Data}) ->
+    {ping, validate_control_frame_data(ping, Data, 125)};
+gleam_frame_to_gun({pong, Data}) ->
+    {pong, validate_control_frame_data(pong, Data, 125)};
 gleam_frame_to_gun(Other) -> error({invalid_frame, Other}).
+
+validate_control_frame_data(_Tag, Data, Limit) when is_binary(Data), byte_size(Data) =< Limit ->
+    Data;
+validate_control_frame_data(Tag, Data, Limit) when is_binary(Data) ->
+    error({invalid_frame, {Tag, {payload_too_large, byte_size(Data), Limit}}});
+validate_control_frame_data(Tag, _Data, _Limit) ->
+    error({invalid_frame, {Tag, non_byte_aligned_payload}}).
+
+validate_close_code(Code) when is_integer(Code),
+    ((Code >= 1000 andalso Code =< 1003) orelse
+     (Code >= 1007 andalso Code =< 1014) orelse
+     (Code >= 3000 andalso Code =< 4999)) ->
+    ok;
+validate_close_code(Code) ->
+    error({invalid_frame, {close, {invalid_code, Code}}}).
 
 validate_text_frame_data(Data) ->
     case validate_utf8(Data) of

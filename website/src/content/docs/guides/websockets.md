@@ -78,6 +78,17 @@ pub fn echo_once() {
 
 `Socket` is reusable and you control its lifecycle. `with_socket` is only for scoped use.
 
+## Control-frame limits
+
+You can send up to 125 bytes in a Ping or Pong payload. A `CloseWithReason`
+reason must contain valid UTF-8 and at most 123 bytes. The close code uses two
+more bytes. Gluegun accepts close codes 1000-1003, 1007-1014, and 3000-4999.
+Use `Close` to send a close frame without a code or reason.
+
+Invalid control frames return `InvalidMessage` before Gluegun calls Gun.
+`send_many` checks the complete list before sending any frame. After a rejected
+send, you can continue to use the connection.
+
 ## Low-level upgrade flow
 
 Use the low-level functions when you already control the connection lifecycle, or when you must check the negotiated protocol before the upgrade.
