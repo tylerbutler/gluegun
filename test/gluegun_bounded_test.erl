@@ -253,10 +253,8 @@ send_response(_Socket, <<"headers_stall">>) ->
 send_response(Socket, <<"status">>) ->
     ok = gen_tcp:send(Socket, <<"HTTP/1.1 403 Forbidden\r\nContent-Length: 1048576\r\n\r\n">>),
     receive stop -> ok end;
-send_response(Socket, <<"length">>) ->
-    ok = gen_tcp:send(Socket, <<"HTTP/1.1 200 OK\r\nContent-Length: 1048576\r\n\r\n">>),
-    receive stop -> ok end;
-send_response(Socket, <<"body_stall">>) ->
+send_response(Socket, Name)
+    when Name =:= <<"length">>; Name =:= <<"body_stall">> ->
     ok = gen_tcp:send(Socket, <<"HTTP/1.1 200 OK\r\nContent-Length: 1048576\r\n\r\n">>),
     receive stop -> ok end;
 send_response(Socket, Name) ->

@@ -344,20 +344,18 @@ pub fn options_to_ffi(options: ConnectOptions) -> List(ConnectOption) {
     None -> []
   }
 
-  list.append(
+  list.flatten([
     [
       TransportOption(options.transport),
       RetryOption(options.retry),
       ConnectTimeoutOption(options.connect_timeout),
-      ..protocol_options
     ],
-    list.flatten([
-      tls_options,
-      family_options,
-      lookup_options,
-      handshake_options,
-    ]),
-  )
+    protocol_options,
+    tls_options,
+    family_options,
+    lookup_options,
+    handshake_options,
+  ])
 }
 
 @external(erlang, "gluegun_ffi", "open")
