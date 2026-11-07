@@ -1,6 +1,0 @@
-package = "gluegun"
-kind = "Added"
-body = """
-Public teardown for reusable WebSocket sockets
-
-Add `websocket.close(socket)` and `gluegun.websocket_close` to wait for a peer close within one finite deadline, terminate the Gun process, and flush the receiver's queued Gun messages. Cleanup still runs after handshake timeout or failure, and repeated close is safe. Reuse teardown in `with_socket` while preserving callback-error precedence. Keep `send_close_frame` as a frame-send operation and update the reusable-socket guidance and echo example."""

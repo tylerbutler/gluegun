@@ -1,6 +1,0 @@
-package = "gluegun"
-kind = "Fixed"
-body = """
-Cancel failed HTTP client streams and drain their queued messages
-
-High-level HTTP helpers now attempt stream-local cleanup after collection errors, including timeouts, invalid messages, and receive failures. They preserve the original error, concurrent streams, and the shared connection. Cleanup failures produce a warning. Cancellation remains asynchronous: the drain removes currently queued messages, but messages in transit can arrive afterward. Use a separate receiving process with the low-level API when strict mailbox isolation is required."""

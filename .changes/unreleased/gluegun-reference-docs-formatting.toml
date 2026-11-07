@@ -1,6 +1,0 @@
-package = "gluegun"
-kind = "Changed"
-body = """
-Better-formatted reference docs
-
-Reference docs render Gleam-formatted code blocks: typed example variables (a/b/c), current-module qualifiers elided, multi-line constructors and function params, sum-type blocks, and deprecation admonitions."""
