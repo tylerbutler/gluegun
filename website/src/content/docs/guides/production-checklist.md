@@ -62,7 +62,7 @@ Read the detailed API boundaries in [Basic Requests](/guides/basic-requests/#whe
 | Decision | Ready for production when | Read next |
 |---|---|---|
 | Usual teardown | The code calls `connection.close` when the work is complete. | [Quick Start: close or shutdown](/quick-start/#key-idea) |
-| Stuck connections | The code uses `connection.shutdown` only for connections that seem stuck, because `shutdown` stops the Gun process immediately. | [Limitations: close and shutdown](/advanced/limitations/#close-and-shutdown) |
+| Stuck connections | The receiving process calls `connection.terminate` on deadline expiry to force exit and flush queued Gun messages. `shutdown` only requests graceful shutdown. | [Limitations: close and shutdown](/advanced/limitations/#close-and-shutdown) |
 | Reusable WebSockets | The code sends a WebSocket close frame and closes the connection below it, or it uses `websocket.with_socket` for scoped cleanup. | [Troubleshooting: WebSocket connection stays open](/advanced/troubleshooting/#websocket-connection-stays-open) |
 | First diagnostic path | Runbooks tell operators to check host, port, transport, and timeout; URL path handling; the client or stream API selection; and the WebSocket upgrade order. | [Troubleshooting](/advanced/troubleshooting/) |
 
@@ -76,6 +76,6 @@ Before you deploy, the integration must have explicit answers to these questions
 4. What occurs on `Timeout`, `ConnectionDown`, `InvalidMessage`, and unexpected Erlang errors?
 5. How does each runtime environment supply the TLS trust roots?
 6. Are WebSocket connections limited to HTTP/1.1 and closed fully?
-7. Does the service close usual connections and use shutdown only for stuck ones?
+7. Does the receiving process terminate stalled connections and remove queued messages?
 
 If an answer is not clear, read [Error Handling](/advanced/error-handling/), [Limitations](/advanced/limitations/), and [Troubleshooting](/advanced/troubleshooting/) before you ship.

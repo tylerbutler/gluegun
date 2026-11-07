@@ -72,7 +72,7 @@ stream_ref() -> make_ref().
 %% --- Typed error results ----------------------------------------------------
 
 erlang_error_result() ->
-    gluegun_ffi:request(invalid_connection(), <<"GET">>, <<"/">>, [], <<>>).
+    gluegun_ffi:request(invalid_connection(), <<"GET">>, <<"/">>, [], <<>>, []).
 
 stream_error_result() ->
     gluegun_ffi:safe_decode_message({error, boom}).
@@ -85,13 +85,13 @@ invalid_utf8_websocket_result() ->
 
 %% A method that is not a binary, atom, list, or integer, so `to_binary/1`
 %% raises `{invalid_binary, Value}` while validating the method inside
-%% `gluegun_ffi:request/5`, before Gun is ever called. This only happens by
+%% `gluegun_ffi:request/6`, before Gun is ever called. This only happens by
 %% calling the FFI directly with a raw Erlang term; Gleam's `request.request`
 %% always passes a `String` for the method. It exercises the catch-all
 %% clause that turns any exception raised during request validation into a
 %% typed `ErlangError` instead of letting it crash the caller.
 invalid_binary_method_result() ->
-    gluegun_ffi:request(current_connection(), 3.14, <<"/">>, [], <<>>).
+    gluegun_ffi:request(current_connection(), 3.14, <<"/">>, [], <<>>, []).
 
 %% --- Raw Gun messages -------------------------------------------------------
 

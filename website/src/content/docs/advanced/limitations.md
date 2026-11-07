@@ -13,7 +13,11 @@ Gun process ownership is important. Requests and WebSocket frames are asynchrono
 
 ## `close` and `shutdown`
 
-Use `connection.close` for usual teardown. Gun sends its shutdown signal and waits for the process to exit. Use `connection.shutdown` only when a connection seems stuck. `shutdown` stops the Gun process immediately, without a graceful close. In both cases, open streams are canceled.
+Use `connection.close` to stop a connection through Gun's supervisor. It waits for process exit, but does not drain HTTP streams or flush your mailbox. `connection.shutdown` requests graceful shutdown without waiting; it cannot interrupt blocked setup. Use `connection.terminate` for deadline cleanup: it forces exit, waits, then flushes the caller's Gun messages. See [Message Flow](/advanced/message-flow/#close-and-shutdown).
+
+## Flow credit is not a byte limit
+
+Finite initial flow credit counts data messages. Gun and OTP can allocate socket buffers or parse several frames before flow control pauses reads or window updates. Check actual bytes before retaining data; do not treat credit as a strict memory cap. See [Streaming](/guides/streaming/#finite-response-credit).
 
 ## High-level client functions collect bodies in memory
 

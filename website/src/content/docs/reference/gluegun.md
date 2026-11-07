@@ -203,12 +203,12 @@ pub fn with_protocols(
 
 ### `with_retry`
 
-Set Gun retry timeout on connection options.
+Set Gun retry count on connection options.
 
 ```gleam
 pub fn with_retry(
   connection.ConnectOptions,
-  retry: connection.Timeout
+  retry: connection.RetryCount
 ) -> connection.ConnectOptions
 ```
 

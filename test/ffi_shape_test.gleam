@@ -12,8 +12,9 @@ pub fn ffi_shape_tests() -> test_tree.TestTree {
   startest.describe("FFI shape decoding", [
     startest.describe("typed option conversion", [
       startest.it("converts timeouts", fn() {
+        let assert Ok(retries) = connection.retry_count(123)
         connection.options()
-        |> connection.with_retry(timeout(123))
+        |> connection.with_retry(retries)
         |> connection.with_connect_timeout(connection.infinity())
         |> connection.options_to_ffi
         |> gun_retry_and_connect_timeout
@@ -328,11 +329,6 @@ fn gun_retry_and_connect_timeout(
   options: List(connection.ConnectOption),
 ) -> #(String, String) {
   #(gun_retry(options), gun_connect_timeout(options))
-}
-
-fn timeout(milliseconds: Int) -> connection.Timeout {
-  let assert Ok(timeout) = connection.milliseconds(milliseconds)
-  timeout
 }
 
 @external(erlang, "gluegun_ffi_test", "gun_protocols")

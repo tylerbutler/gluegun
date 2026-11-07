@@ -31,9 +31,11 @@ The returned `Protocol` is the protocol that Gun selected. For TLS connections, 
 
 ## `close` and `shutdown`
 
-`connection.close` is graceful. Gun sends its shutdown signal, stops new work on that connection, and waits for the process to exit. Use `close` when you control the connection lifecycle and the peer must see a clean end of the connection.
+`connection.close` calls Gun's supervisor to stop the connection process. The supervisor waits for exit, then forces termination after its shutdown timeout (five seconds in Gun 2.1/2.2). This is not an HTTP stream drain. The call does not flush your mailbox.
 
-`connection.shutdown` is immediate. It stops the Gun process without a graceful close. Use `shutdown` only when a connection seems stuck. Open streams are canceled in both cases.
+`connection.shutdown` sends an asynchronous graceful-shutdown request. Gun can finish active streams before it exits. The call does not wait for exit and cannot interrupt a blocked setup stage.
+
+Use `connection.terminate` when a deadline expires or setup stalls. It sends an untrappable kill signal, waits for process exit, then flushes that connection's Gun messages from the calling process. Call it from the receiving process. After it returns, the Gun process cannot send more messages. Other receivers and third-party message forwarders need their own cleanup. Forced termination can produce a Gun supervisor report with reason `killed`.
 
 ## `Fin` and `NoFin`: HTTP is half-closed
 
@@ -45,15 +47,15 @@ On the response side, `message.Response(fin, status, headers)` tells you if the 
 
 ## Cancellation
 
-`request.cancel(conn, stream)` cancels one stream, not the full connection. After a successful cancellation, no more messages arrive for that stream. The Gun connection stays open. You can use it for other requests or streams.
+`request.cancel(conn, stream)` sends an asynchronous cancellation for one stream. Queued messages and late arrivals can remain while Gun processes it. The connection stays open for other streams.
 
-Thus cancellation is a stream-local cleanup tool. Cancel the work that you do not use. Then continue to use the connection that you already opened.
+`request.flush(conn)` removes only messages queued at that instant. For terminal cleanup, cancel the stream if needed, then call `connection.terminate(conn)` from the receiver. Termination discards all streams on the connection.
 
 ## Flow control
 
-Gun keeps flow control for each stream. `request.update_flow(conn, stream, increment)` tells the peer that it can send more data.
+Set finite credit with `request.with_initial_flow(options, credit)` before `request.request` or `request.start_stream`. Without it, Gun starts with unlimited credit; a later `update_flow` cannot change unlimited credit to finite credit.
 
-For HTTP/2 streams, the increment is in bytes. Gun starts from its default initial window (the HTTP/2 default of `65535` bytes, unless configured differently). HTTP/1.1 has no window for each stream, so `update_flow` has no effect on the protocol. Use it only when your application controls how much response data the peer can send next.
+With Gun's default data handler, one credit permits one data message in both HTTP/1.1 and HTTP/2. Headers do not consume credit. `request.update_flow(conn, stream, increment)` adds credit in the same unit. HTTP/1.1 pauses socket reads when credit runs out. HTTP/2 stops replenishing the stream's byte window; it can still process frames already in that window or socket read. Credit is not the HTTP/2 byte window and does not impose a strict message-count or memory bound. See the [streaming guide](/guides/streaming/#finite-response-credit) for allocation limits.
 
 ## WebSocket frame model
 

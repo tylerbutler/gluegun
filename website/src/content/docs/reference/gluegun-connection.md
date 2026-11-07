@@ -11,13 +11,24 @@ Connection management for Erlang Gun.
 
 ## Types
 
+### `AddressFamily`
+
+Address family for DNS lookup and socket connection, without fallback.
+
+```gleam
+pub type AddressFamily {
+  Ipv4
+  Ipv6
+}
+```
+
 ### `ConnectOptions`
 
 Pure representation of connection options before FFI conversion.
 
- Build with `options()` then chain `with_transport`, `with_protocols`,
- `with_retry`, `with_connect_timeout`, and `with_tls_options`. Pass the
- result to `open(host:, port:)`.
+ Build with `options()` and the `with_*` builders. Configure retry count,
+ address family, separate setup timeouts, and TLS options as needed, then
+ pass the result to `open(host:, port:)`.
 
 ```gleam
 pub type ConnectOptions
@@ -51,9 +62,17 @@ HTTP/1.1. Required for WebSocket upgrades.
 
 HTTP/2. Negotiated via ALPN when paired with TLS.
 
+### `RetryCount`
+
+Number of reconnection attempts after the initial connection attempt.
+
+```gleam
+pub type RetryCount
+```
+
 ### `Timeout`
 
-Timeout or retry duration in milliseconds, or no limit.
+Timeout in milliseconds, or no limit.
 
 ```gleam
 pub type Timeout
@@ -125,10 +144,12 @@ pub fn await_up(
 
 ### `close`
 
-Close a Gun connection cleanly.
+Stop a Gun connection through its supervisor.
 
- Sends Gun's shutdown signal and waits for the process to exit. Safe to
- call once per connection. Outstanding streams are cancelled.
+ Gun's supervisor waits for process exit, with a supervisor shutdown
+ timeout before forced termination. This is not a graceful HTTP drain.
+ It does not flush the caller's mailbox. Use `terminate` for a stalled
+ connection or deadline cleanup.
 
 ```gleam
 pub fn close(internal.Connection) -> Result(Nil, error.GluegunError)
@@ -198,22 +219,43 @@ pub fn protocols(ConnectOptions) -> option.Option(List(Protocol))
 
 ### `retry`
 
-Inspect retry duration.
+Inspect retry count.
 
 ```gleam
-pub fn retry(ConnectOptions) -> Timeout
+pub fn retry(ConnectOptions) -> RetryCount
+```
+
+### `retry_count`
+
+Construct a retry count. Zero disables retries; negative values are invalid.
+
+```gleam
+pub fn retry_count(Int) -> Result(RetryCount, error.GluegunError)
 ```
 
 ### `shutdown`
 
-Shut down a Gun connection immediately.
+Request graceful shutdown of a Gun connection.
 
- Terminates the Gun process without waiting for graceful close. Prefer
- `close` for normal teardown; use `shutdown` when the connection is
- suspected stuck.
+ Sends an asynchronous cast. Gun can finish active streams before it
+ exits; this call does not wait for exit and cannot interrupt blocked setup.
 
 ```gleam
 pub fn shutdown(internal.Connection) -> Result(Nil, error.GluegunError)
+```
+
+### `terminate`
+
+Force termination, wait for process exit, then flush its Gun messages.
+
+ Use on deadline expiry, including during DNS, connect, or TLS setup.
+ Call from the process that receives the connection's messages. On return,
+ the Gun process cannot send more messages and its queued messages are gone.
+ This does not drain other receiving processes or third-party forwarders.
+ It discards all streams on this connection, not only one stream.
+
+```gleam
+pub fn terminate(internal.Connection) -> Result(Nil, error.GluegunError)
 ```
 
 ### `tls_options`
@@ -232,12 +274,40 @@ Inspect configured transport. Intended for tests and later FFI conversion.
 pub fn transport(ConnectOptions) -> Transport
 ```
 
+### `with_address_family`
+
+Select only IPv4 or only IPv6 for DNS lookup and TCP connection.
+
+ TLS uses the same TCP setup. This does not change TLS verification or SNI.
+ With no selection, Gun uses the runtime's default address family.
+
+```gleam
+pub fn with_address_family(
+  ConnectOptions,
+  family: AddressFamily
+) -> ConnectOptions
+```
+
 ### `with_connect_timeout`
 
-Set Gun's connect timeout option.
+Bound socket connection across the resolved addresses in one attempt.
+
+ This does not cover DNS lookup or TLS handshake. Use
+ `with_domain_lookup_timeout` and `with_tls_handshake_timeout` for those.
 
 ```gleam
 pub fn with_connect_timeout(
+  ConnectOptions,
+  timeout: Timeout
+) -> ConnectOptions
+```
+
+### `with_domain_lookup_timeout`
+
+Bound DNS lookup per connection attempt. Gun defaults to no limit.
+
+```gleam
+pub fn with_domain_lookup_timeout(
   ConnectOptions,
   timeout: Timeout
 ) -> ConnectOptions
@@ -258,12 +328,26 @@ pub fn with_protocols(
 
 ### `with_retry`
 
-Set Gun's retry timeout option.
+Set Gun's retry count, including zero to disable retries.
+
+ Gun waits five seconds between subsequent retries by default. This count
+ does not set that delay or any setup timeout.
 
 ```gleam
 pub fn with_retry(
   ConnectOptions,
-  retry: Timeout
+  retry: RetryCount
+) -> ConnectOptions
+```
+
+### `with_tls_handshake_timeout`
+
+Bound the TLS handshake per connection attempt. Gun defaults to no limit.
+
+```gleam
+pub fn with_tls_handshake_timeout(
+  ConnectOptions,
+  timeout: Timeout
 ) -> ConnectOptions
 ```
 
