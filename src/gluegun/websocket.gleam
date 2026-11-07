@@ -566,6 +566,11 @@ pub fn send_close_frame(socket: Socket) -> Result(Nil, error.GluegunError) {
 ///
 /// Gun accepts either a single frame or a list of frames. `send` delegates to
 /// this function with a one-element list.
+///
+/// Binary, ping, pong, and close-reason payloads must contain whole bytes.
+/// Empty payloads are valid. A non-byte-aligned `BitArray` returns
+/// `InvalidMessage` before Gun receives any frame in the list. Payloads are
+/// never padded or truncated, and the connection remains usable.
 pub fn send_many(
   connection: Connection,
   stream: Stream,

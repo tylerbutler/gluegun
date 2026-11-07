@@ -69,10 +69,13 @@ request(ConnPid, Method, Path, Headers, Body) ->
         MethodBin = validate_request_method(Method),
         PathBin = validate_request_path(Path),
         HeadersOut = validate_request_headers(Headers),
+        BodyOut = validate_byte_payload(Body),
         with_normalize(stream_erlang, fun() ->
-            {ok, gun:request(ConnPid, MethodBin, PathBin, HeadersOut, Body, #{})}
+            {ok, gun:request(ConnPid, MethodBin, PathBin, HeadersOut, BodyOut, #{})}
         end)
     catch
+        error:{invalid_payload, Reason}:_Stack ->
+            {error, gleam_error({invalid_options, {payload, Reason}})};
         error:{invalid_options, Reason}:_Stack -> {error, gleam_error({invalid_options, Reason})};
         Class:Reason:_Stack -> {error, gleam_error({erlang_error, {Class, Reason}})}
     end.
@@ -91,9 +94,15 @@ headers(ConnPid, Method, Path, Headers) ->
     end.
 
 data(ConnPid, StreamRef, Fin, Data) ->
-    with_normalize(stream, fun() ->
-        gun:data(ConnPid, StreamRef, fin_to_gun(Fin), Data)
-    end).
+    try
+        DataOut = validate_byte_payload(Data),
+        with_normalize(stream, fun() ->
+            gun:data(ConnPid, StreamRef, fin_to_gun(Fin), DataOut)
+        end)
+    catch
+        error:{invalid_payload, Reason}:_Stack ->
+            {error, gleam_error({invalid_options, {payload, Reason}})}
+    end.
 
 await(ConnPid, StreamRef, Timeout) ->
     case
@@ -163,6 +172,8 @@ ws_send(ConnPid, StreamRef, Frames) ->
             gun:ws_send(ConnPid, StreamRef, GunFrames)
         end)
     catch
+        error:{invalid_payload, non_byte_aligned}:_Stack ->
+            {error, gleam_error({invalid_message, {invalid_frame, non_byte_aligned_payload}})};
         error:{invalid_frame, Reason}:_Stack ->
             {error, gleam_error({invalid_message, {invalid_frame, Reason}})};
         Class:Reason:_Stack -> {error, gleam_error({erlang_error, {Class, Reason}})}
@@ -223,12 +234,16 @@ inspect(Reason) -> gleam@string:inspect(Reason).
 %%   Ping(B)               -> {ping, B}
 %%   Pong(B)               -> {pong, B}
 gleam_frame_to_gun({text, Data}) -> {text, validate_text_frame_data(Data)};
-gleam_frame_to_gun({binary, Data}) -> {binary, Data};
+gleam_frame_to_gun({binary, Data}) -> {binary, validate_byte_payload(Data)};
 gleam_frame_to_gun(close) -> close;
-gleam_frame_to_gun({close_with_reason, Code, Reason}) -> {close, Code, Reason};
-gleam_frame_to_gun({ping, Data}) -> {ping, Data};
-gleam_frame_to_gun({pong, Data}) -> {pong, Data};
+gleam_frame_to_gun({close_with_reason, Code, Reason}) ->
+    {close, Code, validate_byte_payload(Reason)};
+gleam_frame_to_gun({ping, Data}) -> {ping, validate_byte_payload(Data)};
+gleam_frame_to_gun({pong, Data}) -> {pong, validate_byte_payload(Data)};
 gleam_frame_to_gun(Other) -> error({invalid_frame, Other}).
+
+validate_byte_payload(Data) when is_binary(Data) -> Data;
+validate_byte_payload(_Data) -> error({invalid_payload, non_byte_aligned}).
 
 validate_text_frame_data(Data) ->
     case validate_utf8(Data) of
