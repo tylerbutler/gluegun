@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Use the current TLS options builder in the source documentation and TLS guide examples."

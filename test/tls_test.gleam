@@ -193,11 +193,34 @@ pub fn lets_user_set_tls_fields_override_the_secure_baseline_test() -> Nil {
   Nil
 }
 
+pub fn documented_custom_ca_options_use_the_public_tls_builder_test() -> Nil {
+  let tls_options =
+    tls.options()
+    |> tls.with_versions(versions: [tls.TlsV13])
+    |> tls.with_cacertfile(cacertfile: "/etc/ssl/cert.pem")
+    |> tls.with_depth(depth: 5)
+
+  let options =
+    connection.options()
+    |> connection.with_transport(transport: connection.Tls)
+    |> connection.with_tls_options(tls_options: tls_options)
+    |> connection.options_to_ffi
+
+  let actual = options |> gun_tls_options
+  let expected = [
+    #("versions", ["tlsv1.3"]),
+    #("cacertfile", ["/etc/ssl/cert.pem"]),
+    #("depth", ["5"]),
+  ]
+  let assert #(True, _, _) = #(actual == expected, actual, expected)
+  Nil
+}
+
 pub fn tls_insecure_suppresses_the_secure_baseline_test() -> Nil {
   let options =
     connection.options()
     |> connection.with_transport(transport: connection.Tls)
-    |> connection.with_tls_options(tls.insecure())
+    |> connection.with_tls_options(tls_options: tls.insecure())
     |> connection.options_to_ffi
 
   let actual_11 = gun_secure_tls_summary("example.com", options)
