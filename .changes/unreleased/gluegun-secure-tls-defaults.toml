@@ -1,5 +1,5 @@
 package = "gluegun"
-kind = "Breaking"
+kind = "Fixed"
 body = """
 TLS connections are now **secure by default**
 

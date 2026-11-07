@@ -1,5 +1,5 @@
 package = "gluegun"
-kind = "Breaking"
+kind = "Fixed"
 body = """
 `message.decode` preserves stream identity to prevent cross-stream message confusion
 
