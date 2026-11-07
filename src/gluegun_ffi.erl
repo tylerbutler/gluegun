@@ -25,6 +25,8 @@
     protocol_result/1,
     identity/1,
     connect_options_to_gun/1,
+    prepare_connect_options/3,
+    prepare_connect_options/4,
     apply_secure_tls_defaults/2,
     apply_secure_tls_defaults/3
 ]).
@@ -39,7 +41,7 @@
 
 open(Host, Port, Options) ->
     try
-        GunOptions = apply_secure_tls_defaults(Host, connect_options_to_gun(Options)),
+        GunOptions = prepare_connect_options(Host, Port, Options),
         with_normalize(connection, fun() ->
             gun:open(normalize_host(Host), Port, GunOptions)
         end)
@@ -417,16 +419,30 @@ connect_options_to_gun(Options) when is_list(Options) ->
 connect_options_to_gun(Options) ->
     error({invalid_options, Options}).
 
-%% Auto transport (`transport_option, auto`) leaves the `transport` key out of
-%% `GunOptions` on purpose, so Gun falls back to its own port-based default:
-%% TLS on port 443, plain TCP everywhere else. That default silently drops
-%% any `tls_opts` the caller configured whenever the port is not 443.
+%% Resolve Auto before consulting TLS dependencies. Explicit TLS options,
+%% including an empty list, are already resolved by option-only conversion.
+prepare_connect_options(Host, Port, Options) ->
+    prepare_connect_options(Host, Port, Options, #{}).
+
+prepare_connect_options(Host, Port, Options, Deps) ->
+    GunOptions = connect_options_to_gun(Options),
+    Resolved = case maps:is_key(transport, GunOptions) of
+        true -> GunOptions;
+        false when Port =:= 443 -> GunOptions#{transport => tls};
+        false -> GunOptions#{transport => tcp}
+    end,
+    apply_secure_tls_defaults(Host, Resolved, Deps).
+
+%% Option-only conversion leaves Auto (`transport_option, auto`) unresolved.
+%% Port-aware preparation then selects TLS on 443 and TCP elsewhere, matching
+%% Gun's default. Leaving configured `tls_opts` unresolved would silently
+%% discard the caller's TLS intent on non-443 ports.
 %%
 %% When TLS options were explicitly configured (`tls_opts` present) and the
 %% transport is still unresolved, the caller has stated TLS intent, so force
 %% `transport => tls` regardless of port. Auto connections without TLS
-%% options are untouched: `transport` stays unset and Gun keeps choosing by
-%% port, preserving ordinary Auto behavior.
+%% options remain unresolved until port-aware preparation, which preserves
+%% Gun's ordinary Auto behavior before applying secure TLS defaults.
 resolve_auto_transport(GunOptions) ->
     case {maps:is_key(transport, GunOptions), maps:is_key(tls_opts, GunOptions)} of
         {false, true} -> GunOptions#{transport => tls};
@@ -497,7 +513,7 @@ server_name_indication_to_gun({server_name, Hostname}) -> unicode_value_to_list(
 
 %% --- Secure TLS defaults ----------------------------------------------------
 %%
-%% When a connection uses TLS (transport `tls` or `auto`), fill in any TLS
+%% When a connection uses resolved TLS (transport `tls`), fill in any TLS
 %% option fields the caller did not set with a secure baseline: peer +
 %% hostname verification, the OS trust store, SNI from the target host,
 %% TLS 1.2/1.3, and a hostname match function.
@@ -521,9 +537,8 @@ apply_secure_tls_defaults(Host, GunOptions, Deps) ->
     end.
 
 tls_defaults_apply_to_transport(GunOptions) ->
-    case maps:get(transport, GunOptions, auto) of
+    case maps:get(transport, GunOptions, undefined) of
         tls -> true;
-        auto -> true;
         _ -> false
     end.
 

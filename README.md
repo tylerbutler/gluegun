@@ -31,6 +31,11 @@ Gluegun is **secure by default** for TLS. Whenever a connection uses TLS
 secure baseline at connection time: peer and hostname verification, system CA
 certificates, TLS 1.2/1.3, SNI for DNS hosts, and HTTPS hostname matching.
 
+With `connection.Auto`, connections without TLS options use TLS on port 443
+and plain TCP on all other ports. Plain TCP does not load TLS trust roots.
+If you configure TLS options under Auto, the connection uses TLS on each
+port. TLS setup failures return errors without a fallback to plaintext.
+
 The minimal HTTPS setup is just `connection.options() |> connection.with_transport(transport: connection.Tls)`. Override individual fields with the `tls.with_*` builders; user-supplied values always win.
 
 For development against self-signed endpoints, use `tls.insecure()`, which disables verification and SNI. Do not ship it.

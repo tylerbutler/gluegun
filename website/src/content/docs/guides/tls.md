@@ -44,8 +44,12 @@ case, supply your own CA bundle with `tls.with_cacertfile` or
 
 ## Auto transport keeps configured TLS options
 
-`connection.Auto` (the default transport) usually lets Gun select TLS on
-port 443 and plain TCP on all other ports. If you set TLS options with
+`connection.Auto` (the default transport) uses TLS on port 443 and plain
+TCP on all other ports when you do not configure TLS options. Gluegun
+resolves this transport before it applies TLS defaults. Plain TCP does
+not load CA certificates or apply other TLS defaults.
+
+If you set TLS options with
 `with_tls_options` when `Auto` is active, Gluegun reads this as explicit TLS
 intent. The connection then uses TLS on each port, not only on 443. This
 prevents a fallback to plaintext on an incorrect or non-standard TLS port
@@ -65,8 +69,9 @@ pub fn open_secure_on_custom_port() {
 }
 ```
 
-`Auto` connections without TLS options do not change: Gun selects the
-transport only from the port number.
+TLS setup failures return errors. Gluegun does not retry a failed TLS
+connection as plaintext. Explicit `connection.Tcp` and `connection.Tls`
+use the selected transport on each port.
 
 ## Change the baseline
 
