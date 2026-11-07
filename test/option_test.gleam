@@ -137,7 +137,7 @@ pub fn option_tests() -> test_tree.TestTree {
       }),
       startest.it("decodes response messages", fn() {
         response_message(fin.NoFin, 201, [#("Content-Type", "text/plain")])
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(
           Ok(
             message.Response(fin.NoFin, 201, [#("content-type", "text/plain")]),
@@ -146,12 +146,12 @@ pub fn option_tests() -> test_tree.TestTree {
       }),
       startest.it("decodes data messages", fn() {
         data_message(fin.Fin, <<"ok":utf8>>)
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(Ok(message.Data(fin.Fin, <<"ok":utf8>>)))
       }),
       startest.it("decodes informational messages", fn() {
         inform_message(102, [#("Server", "gun")])
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(Ok(message.Inform(102, [#("server", "gun")])))
       }),
       startest.it("matches unsupported feature errors", fn() {
@@ -163,12 +163,12 @@ pub fn option_tests() -> test_tree.TestTree {
       }),
       startest.it("decodes trailer messages", fn() {
         trailers_message([#("Expires", "soon")])
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(Ok(message.Trailers([#("expires", "soon")])))
       }),
       startest.it("decodes upgrade messages", fn() {
         upgrade_message(["websocket"], [#("Connection", "upgrade")])
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(
           Ok(message.Upgrade(["websocket"], [#("connection", "upgrade")])),
         )
@@ -179,7 +179,7 @@ pub fn option_tests() -> test_tree.TestTree {
         push_message(stream, "POST", "/assets/app.css", [
           #("Accept", "text/css"),
         ])
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(
           Ok(
             message.Push(stream, request.Post, "/assets/app.css", [
@@ -192,7 +192,7 @@ pub fn option_tests() -> test_tree.TestTree {
         let stream = stream_ref()
 
         push_message(stream, "PropFind", "/collection", [])
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(
           Ok(
             message.Push(stream, request.Custom("PropFind"), "/collection", []),
@@ -203,24 +203,34 @@ pub fn option_tests() -> test_tree.TestTree {
         let stream = stream_ref()
 
         push_message(stream, "get", "/", [])
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(Ok(message.Push(stream, request.Get, "/", [])))
       }),
       startest.it("rejects unknown message tags", fn() {
         unknown_message()
-        |> message.decode
-        |> expect.to_equal(Error(error.DecodeError("Invalid Gun message")))
+        |> safe_decode_message
+        |> expect.to_equal(Error(error.InvalidMessage("Mystery(\"unknown\")")))
       }),
       startest.it("rejects unknown websocket frame tags", fn() {
         unknown_websocket_frame_message()
-        |> message.decode
-        |> expect.to_equal(Error(error.DecodeError("Invalid Gun message")))
+        |> safe_decode_message
+        |> expect.to_equal(
+          Error(error.InvalidMessage("Ws(Mystery(\"unknown\"))")),
+        )
       }),
       startest.it("decodes websocket messages", fn() {
         websocket_frame_message(text_frame(<<"hello":utf8>>))
-        |> message.decode
+        |> safe_decode_message
         |> expect.to_equal(Ok(message.WebSocket(message.Text("hello"))))
       }),
+      startest.it(
+        "message.decode rejects gun:await/3-style terms with no embedded stream",
+        fn() {
+          response_message(fin.NoFin, 200, [])
+          |> message.decode
+          |> expect.to_equal(Error(error.DecodeError("Invalid Gun message")))
+        },
+      ),
     ]),
   ])
 }
@@ -230,6 +240,11 @@ type GunFrame
 
 @external(erlang, "gluegun_ffi_test", "stream_ref")
 fn stream_ref() -> internal.Stream
+
+@external(erlang, "gluegun_ffi", "safe_decode_message")
+fn safe_decode_message(
+  message: message.GunMessage,
+) -> Result(message.Message, error.GluegunError)
 
 @external(erlang, "gluegun_ffi_test", "inform_message")
 fn inform_message(
