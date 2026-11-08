@@ -52,10 +52,11 @@
     gun_retry/1,
     gun_connect_timeout/1,
     gun_tls_opts/1,
-    secure_tls_opts_summary/2,
-    secure_tls_opts_with_empty_cacerts/2,
-    secure_tls_opts_with_hostname_match_failure/2,
-    secure_tls_opts_caches_cacerts/2
+    secure_tls_opts_summary/3,
+    secure_tls_opts_with_empty_cacerts/3,
+    prepared_options_with_empty_cacerts/3,
+    secure_tls_opts_with_hostname_match_failure/3,
+    secure_tls_opts_caches_cacerts/3
 ]).
 
 %% --- Connection and stream handles ------------------------------------------
@@ -264,59 +265,87 @@ render(Value) when is_list(Value) -> unicode:characters_to_binary(Value).
 %% Apply secure defaults and project the resulting tls_opts to a Gleam tuple of
 %% `{Verify, Versions, Depth, Sni, HasCACerts, HasHostnameCheck}`, where the
 %% first four are `gleam/option.Option` values.
-secure_tls_opts_summary(Host, Options) ->
-    Gun = gluegun_ffi:apply_secure_tls_defaults(Host, gluegun_ffi:connect_options_to_gun(Options)),
-    summarize_secure_tls_opts(Gun).
-
-secure_tls_opts_with_empty_cacerts(Host, Options) ->
+secure_tls_opts_summary(Host, Port, Options) ->
     CacheKey = make_ref(),
     try
-        Gun = gluegun_ffi:apply_secure_tls_defaults(
-            Host,
-            gluegun_ffi:connect_options_to_gun(Options),
-            #{cacerts_fun => fun() -> [] end, cacerts_cache_key => CacheKey}
-        ),
-        {ok, summarize_secure_tls_opts(Gun)}
-    catch
-        error:{invalid_options, Reason}:_Stack -> {error, {invalid_options, inspect(Reason)}};
-        Class:Reason:_Stack -> {error, {erlang_error, inspect({Class, Reason})}}
+        Gun = gluegun_ffi:prepare_connect_options(Host, Port, Options, #{
+            cacerts_fun => fun() -> [<<"fake-der-ca">>] end,
+            cacerts_cache_key => CacheKey
+        }),
+        summarize_secure_tls_opts(Gun)
+    after
+        persistent_term:erase(CacheKey)
     end.
 
-secure_tls_opts_with_hostname_match_failure(Host, Options) ->
-    try
-        Gun = gluegun_ffi:apply_secure_tls_defaults(
-            Host,
-            gluegun_ffi:connect_options_to_gun(Options),
-            #{hostname_match_fun => fun(_Protocol) -> error(test_hostname_match_failure) end}
-        ),
-        {ok, summarize_secure_tls_opts(Gun)}
-    catch
-        error:{invalid_options, Reason}:_Stack -> {error, {invalid_options, inspect(Reason)}};
-        Class:Reason:_Stack -> {error, {erlang_error, inspect({Class, Reason})}}
+secure_tls_opts_with_empty_cacerts(Host, Port, Options) ->
+    case prepared_options_with_empty_cacerts(Host, Port, Options) of
+        {{ok, {_Transport, Summary}}, _Count} -> {ok, Summary};
+        {{error, _} = Error, _Count} -> Error
     end.
 
-secure_tls_opts_caches_cacerts(Host, Options) ->
+%% Return {Result({Transport, TlsSummary}, GluegunError), LoadCount}.
+%% Correlate observations and isolate the cache even if preparation fails.
+prepared_options_with_empty_cacerts(Host, Port, Options) ->
+    CacheKey = make_ref(),
     Parent = self(),
+    Result = try
+        Gun = gluegun_ffi:prepare_connect_options(
+            Host,
+            Port,
+            Options,
+            #{cacerts_fun => fun() -> Parent ! {cacerts_loaded, CacheKey}, [] end,
+                cacerts_cache_key => CacheKey}
+        ),
+        {ok, {render(maps:get(transport, Gun)), summarize_secure_tls_opts(Gun)}}
+    catch
+        error:{invalid_options, Reason}:_Stack -> {error, {invalid_options, inspect(Reason)}};
+        Class:Reason:_Stack -> {error, {erlang_error, inspect({Class, Reason})}}
+    after
+        persistent_term:erase(CacheKey)
+    end,
+    {Result, count_cacerts_loaded(CacheKey, 0)}.
+
+secure_tls_opts_with_hostname_match_failure(Host, Port, Options) ->
+    CacheKey = make_ref(),
+    try
+        Gun = gluegun_ffi:prepare_connect_options(
+            Host,
+            Port,
+            Options,
+            #{hostname_match_fun => fun(_Protocol) -> error(test_hostname_match_failure) end,
+                cacerts_fun => fun() -> [<<"fake-der-ca">>] end,
+                cacerts_cache_key => CacheKey}
+        ),
+        {ok, summarize_secure_tls_opts(Gun)}
+    catch
+        error:{invalid_options, Reason}:_Stack -> {error, {invalid_options, inspect(Reason)}};
+        Class:Reason:_Stack -> {error, {erlang_error, inspect({Class, Reason})}}
+    after
+        persistent_term:erase(CacheKey)
+    end.
+
+secure_tls_opts_caches_cacerts(Host, Port, Options) ->
+    Parent = self(),
+    CacheKey = make_ref(),
     CACertsFun = fun() ->
-        Parent ! cacerts_loaded,
+        Parent ! {cacerts_loaded, CacheKey},
         [<<"fake-der-ca">>]
     end,
-    GunOptions = gluegun_ffi:connect_options_to_gun(Options),
-    CacheKey = make_ref(),
-    _ = gluegun_ffi:apply_secure_tls_defaults(Host, GunOptions, #{
+    Deps = #{
         cacerts_fun => CACertsFun,
         cacerts_cache_key => CacheKey
-    }),
-    _ = gluegun_ffi:apply_secure_tls_defaults(Host, GunOptions, #{
-        cacerts_fun => CACertsFun,
-        cacerts_cache_key => CacheKey
-    }),
-    persistent_term:erase(CacheKey),
-    count_cacerts_loaded(0).
+    },
+    try
+        _ = gluegun_ffi:prepare_connect_options(Host, Port, Options, Deps),
+        _ = gluegun_ffi:prepare_connect_options(Host, Port, Options, Deps),
+        count_cacerts_loaded(CacheKey, 0)
+    after
+        persistent_term:erase(CacheKey)
+    end.
 
-count_cacerts_loaded(Count) ->
+count_cacerts_loaded(CacheKey, Count) ->
     receive
-        cacerts_loaded -> count_cacerts_loaded(Count + 1)
+        {cacerts_loaded, CacheKey} -> count_cacerts_loaded(CacheKey, Count + 1)
     after 0 ->
         Count
     end.

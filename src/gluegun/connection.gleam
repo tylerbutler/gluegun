@@ -15,7 +15,8 @@ import gluegun/tls
 /// This type is closed; new variants are a breaking change. Pin to a major
 /// version.
 pub type Transport {
-  /// Let Gun choose TLS for TLS ports and TCP otherwise.
+  /// Use TLS on port 443 and TCP on all other ports.
+  /// TCP connections do not load TLS trust roots.
   ///
   /// If TLS options are configured with `with_tls_options`, Auto uses TLS
   /// on every port instead: configured TLS options are treated as explicit

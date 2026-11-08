@@ -1,7 +1,11 @@
 import gleam/option.{type Option, None, Some}
 import gluegun/connection
 import gluegun/error
+import gluegun/fin
+import gluegun/message
+import gluegun/request
 import gluegun/tls
+import payload_server_test
 
 /// Gun `tls_opts()` projected back into Gleam by `gluegun_ffi_test`:
 /// `#(verify, versions, depth, server_name_indication, has_cacerts,
@@ -152,7 +156,7 @@ pub fn applies_the_secure_baseline_when_tls_is_used_and_no_options_are_set_test(
     |> connection.with_transport(transport: connection.Tls)
     |> connection.options_to_ffi
 
-  let actual_9 = gun_secure_tls_summary("example.com", options)
+  let actual_9 = gun_secure_tls_summary("example.com", 443, options)
   let expected_9 =
     secure_tls_summary(
       server_name_indication: Some("example.com"),
@@ -180,7 +184,7 @@ pub fn lets_user_set_tls_fields_override_the_secure_baseline_test() -> Nil {
     |> connection.with_tls_options(tls_options)
     |> connection.options_to_ffi
 
-  let actual_10 = gun_secure_tls_summary("example.com", options)
+  let actual_10 = gun_secure_tls_summary("example.com", 8443, options)
   let expected_10 =
     secure_tls_summary(
       server_name_indication: Some("override.example"),
@@ -223,7 +227,7 @@ pub fn tls_insecure_suppresses_the_secure_baseline_test() -> Nil {
     |> connection.with_tls_options(tls_options: tls.insecure())
     |> connection.options_to_ffi
 
-  let actual_11 = gun_secure_tls_summary("example.com", options)
+  let actual_11 = gun_secure_tls_summary("example.com", 8443, options)
   let expected_11 = insecure_tls_summary()
   let assert #(True, _, _) = #(actual_11 == expected_11, actual_11, expected_11)
   Nil
@@ -235,7 +239,7 @@ pub fn skips_sni_when_host_is_an_ip_literal_test() -> Nil {
     |> connection.with_transport(transport: connection.Tls)
     |> connection.options_to_ffi
 
-  let actual_12 = gun_secure_tls_summary("127.0.0.1", options)
+  let actual_12 = gun_secure_tls_summary("127.0.0.1", 443, options)
   let expected_12 =
     secure_tls_summary(
       server_name_indication: None,
@@ -254,7 +258,7 @@ pub fn skips_sni_when_host_is_a_bracketed_ipv6_literal_test() -> Nil {
     |> connection.with_transport(transport: connection.Tls)
     |> connection.options_to_ffi
 
-  let actual_13 = gun_secure_tls_summary("[::1]", options)
+  let actual_13 = gun_secure_tls_summary("[::1]", 443, options)
   let expected_13 =
     secure_tls_summary(
       server_name_indication: None,
@@ -265,7 +269,7 @@ pub fn skips_sni_when_host_is_a_bracketed_ipv6_literal_test() -> Nil {
     )
   let assert #(True, _, _) = #(actual_13 == expected_13, actual_13, expected_13)
 
-  let actual_14 = gun_secure_tls_summary("[2001:db8::1]", options)
+  let actual_14 = gun_secure_tls_summary("[2001:db8::1]", 443, options)
   let expected_14 =
     secure_tls_summary(
       server_name_indication: None,
@@ -278,12 +282,12 @@ pub fn skips_sni_when_host_is_a_bracketed_ipv6_literal_test() -> Nil {
   Nil
 }
 
-pub fn applies_the_secure_baseline_for_auto_transport_too_test() -> Nil {
+pub fn applies_the_secure_baseline_for_auto_transport_on_443_test() -> Nil {
   let options =
     connection.options()
     |> connection.options_to_ffi
 
-  let actual_15 = gun_secure_tls_summary("example.com", options)
+  let actual_15 = gun_secure_tls_summary("example.com", 443, options)
   let expected_15 =
     secure_tls_summary(
       server_name_indication: Some("example.com"),
@@ -302,7 +306,7 @@ pub fn does_not_apply_the_secure_baseline_for_tcp_transport_test() -> Nil {
     |> connection.with_transport(transport: connection.Tcp)
     |> connection.options_to_ffi
 
-  let actual_16 = gun_secure_tls_summary("example.com", options)
+  let actual_16 = gun_secure_tls_summary("example.com", 443, options)
   let expected_16 =
     tls_summary(
       verify: None,
@@ -323,7 +327,7 @@ pub fn returns_invalidoptions_when_secure_defaults_cannot_load_system_cas_test()
     |> connection.options_to_ffi
 
   let actual_17 =
-    gun_secure_tls_summary_with_empty_cacerts("example.com", options)
+    gun_secure_tls_summary_with_empty_cacerts("example.com", 8443, options)
   let expected_17 = Error(error.InvalidOptions("Tls(NoSystemCacerts(Empty))"))
   let assert #(True, _, _) = #(actual_17 == expected_17, actual_17, expected_17)
   Nil
@@ -336,7 +340,11 @@ pub fn returns_invalidoptions_when_hostname_match_function_is_unavailable_test()
     |> connection.options_to_ffi
 
   let actual_18 =
-    gun_secure_tls_summary_with_hostname_match_failure("example.com", options)
+    gun_secure_tls_summary_with_hostname_match_failure(
+      "example.com",
+      443,
+      options,
+    )
   let expected_18 =
     Error(error.InvalidOptions(
       "Tls(HostnameMatchFunUnavailable(Error(TestHostnameMatchFailure)))",
@@ -351,11 +359,155 @@ pub fn caches_system_ca_certificates_after_the_first_successful_load_test() -> N
     |> connection.with_transport(transport: connection.Tls)
     |> connection.options_to_ffi
 
-  let actual_19 = gun_secure_tls_cacerts_load_count("example.com", options)
+  let actual_19 = gun_secure_tls_cacerts_load_count("example.com", 443, options)
   let expected_19 = 1
   let assert #(True, _, _) = #(actual_19 == expected_19, actual_19, expected_19)
   Nil
 }
+
+pub fn auto_80_skips_unavailable_ca_loader_test() -> Nil {
+  assert_plain_preparation(connection.options(), 80)
+}
+
+pub fn auto_custom_plain_port_skips_unavailable_ca_loader_test() -> Nil {
+  assert_plain_preparation(connection.options(), 8080)
+}
+
+pub fn explicit_tcp_443_skips_unavailable_ca_loader_test() -> Nil {
+  assert_plain_preparation(
+    connection.options()
+      |> connection.with_transport(connection.Tcp)
+      |> connection.with_tls_options(tls.options()),
+    443,
+  )
+}
+
+pub fn auto_443_requires_system_cas_test() -> Nil {
+  assert_ca_required(connection.options(), 443)
+}
+
+pub fn explicit_tls_custom_port_requires_system_cas_test() -> Nil {
+  assert_ca_required(
+    connection.options() |> connection.with_transport(connection.Tls),
+    8443,
+  )
+}
+
+pub fn auto_configured_tls_custom_port_requires_system_cas_test() -> Nil {
+  assert_ca_required(
+    connection.options()
+      |> connection.with_tls_options(
+        tls.options() |> tls.with_verify(tls.VerifyPeer),
+      ),
+    8443,
+  )
+}
+
+pub fn auto_empty_tls_options_custom_port_requires_system_cas_test() -> Nil {
+  assert_ca_required(
+    connection.options() |> connection.with_tls_options(tls.options()),
+    8443,
+  )
+}
+
+pub fn auto_empty_tls_options_custom_port_gets_secure_baseline_test() -> Nil {
+  let options =
+    connection.options()
+    |> connection.with_tls_options(tls.options())
+    |> connection.options_to_ffi
+  let actual = gun_secure_tls_summary("example.com", 8443, options)
+  let expected =
+    secure_tls_summary(
+      server_name_indication: Some("example.com"),
+      versions: default_versions(),
+      depth: Some(10),
+      has_cacerts: True,
+      has_hostname_check: True,
+    )
+  let assert #(True, _, _) = #(actual == expected, actual, expected)
+  Nil
+}
+
+pub fn public_auto_open_serves_plain_http_on_a_local_custom_port_test() -> Nil {
+  use server, port <- with_http_server(False)
+  let assert Ok(conn) =
+    connection.options()
+    |> connection.with_protocols([connection.Http1])
+    |> connection.open(host: "127.0.0.1", port: port)
+  use <- with_http_connection(conn)
+  let assert Ok(stream) =
+    request.request(
+      conn,
+      request.Post,
+      "/auto",
+      [],
+      <<"plain HTTP":utf8>>,
+      request.options(),
+    )
+  let assert Ok(#("/auto", <<"plain HTTP":utf8>>)) = await_http(server)
+  let assert Ok(message.Response(fin.NoFin, 200, _)) =
+    message.await(conn, stream, connection.default_timeout())
+  let assert Ok(<<"plain HTTP":utf8>>) =
+    message.await_body(conn, stream, connection.default_timeout())
+  Nil
+}
+
+fn assert_plain_preparation(
+  options: connection.ConnectOptions,
+  port: Int,
+) -> Nil {
+  let actual =
+    prepared_options_with_empty_cacerts(
+      "example.com",
+      port,
+      connection.options_to_ffi(options),
+    )
+  let expected = #(
+    Ok(#("tcp", tls_summary(None, None, None, None, False, False))),
+    0,
+  )
+  let assert #(True, _, _) = #(actual == expected, actual, expected)
+  Nil
+}
+
+fn assert_ca_required(options: connection.ConnectOptions, port: Int) -> Nil {
+  let actual =
+    prepared_options_with_empty_cacerts(
+      "example.com",
+      port,
+      connection.options_to_ffi(options),
+    )
+  let expected = #(
+    Error(error.InvalidOptions("Tls(NoSystemCacerts(Empty))")),
+    1,
+  )
+  let assert #(True, _, _) = #(actual == expected, actual, expected)
+  Nil
+}
+
+@external(erlang, "gluegun_ffi_test", "prepared_options_with_empty_cacerts")
+fn prepared_options_with_empty_cacerts(
+  host: String,
+  port: Int,
+  options: List(connection.ConnectOption),
+) -> #(Result(#(String, TlsSummary), error.GluegunError), Int)
+
+@external(erlang, "gluegun_payload_server_test", "with_server")
+fn with_http_server(
+  websocket: Bool,
+  callback: fn(payload_server_test.Server, Int) -> Nil,
+) -> Nil
+
+@external(erlang, "gluegun_payload_server_test", "with_connection")
+fn with_http_connection(
+  conn: connection.Connection,
+  callback: fn() -> Nil,
+) -> Nil
+
+@external(erlang, "gluegun_payload_server_test", "await_http")
+fn await_http(
+  server: payload_server_test.Server,
+) -> Result(#(String, BitArray), String)
 
 @external(erlang, "gluegun_ffi_test", "gun_tls_opts")
 fn gun_tls_options(
@@ -370,24 +522,28 @@ fn gun_transport(options: List(connection.ConnectOption)) -> String
 @external(erlang, "gluegun_ffi_test", "secure_tls_opts_summary")
 fn gun_secure_tls_summary(
   host: String,
+  port: Int,
   options: List(connection.ConnectOption),
 ) -> TlsSummary
 
 @external(erlang, "gluegun_ffi_test", "secure_tls_opts_with_empty_cacerts")
 fn gun_secure_tls_summary_with_empty_cacerts(
   host: String,
+  port: Int,
   options: List(connection.ConnectOption),
 ) -> Result(TlsSummary, error.GluegunError)
 
 @external(erlang, "gluegun_ffi_test", "secure_tls_opts_with_hostname_match_failure")
 fn gun_secure_tls_summary_with_hostname_match_failure(
   host: String,
+  port: Int,
   options: List(connection.ConnectOption),
 ) -> Result(TlsSummary, error.GluegunError)
 
 @external(erlang, "gluegun_ffi_test", "secure_tls_opts_caches_cacerts")
 fn gun_secure_tls_cacerts_load_count(
   host: String,
+  port: Int,
   options: List(connection.ConnectOption),
 ) -> Int
 
