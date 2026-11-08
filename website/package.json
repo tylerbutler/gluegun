@@ -19,7 +19,7 @@
 		"clean": "rimraf dist *.tsbuildinfo *.done.build.log .astro",
 		"dev": "astro dev",
 		"deploy": "wrangler deploy",
-		"deploy:preview": "wrangler versions upload",
+		"deploy:preview": "wrangler preview",
 		"generate:reference": "node scripts/generate-reference.mjs",
 		"og": "node scripts/generate-og.ts",
 		"preview": "astro preview",

@@ -1,4 +1,9 @@
 [tools]
+erlang = "27.2.1"
+gleam = "1.14.0"
+just = "1.38.0"
+node = "24.19.0"
+rebar = "3.26.0"
 "github:tylerbutler/trellis" = "1.2.2"
 
 [env]

@@ -17,9 +17,11 @@ Create a Worker named `gluegun-docs` and connect it to the
 | Preview command | `pnpm run deploy:preview` |
 
 Enable builds for non-production branches to get preview URLs. The preview
-command uploads a version without changing the production deployment.
+command creates or updates a branch Preview without changing the production
+deployment. The empty `previews` block in `wrangler.jsonc` enables this command;
+static assets and compatibility settings stay at the top level.
 Cloudflare installs dependencies with the pnpm version in `package.json`.
-Set the `NODE_VERSION` build variable to the Node version in `.tool-versions`.
+Set the `NODE_VERSION` build variable to the Node version in `.mise.toml`.
 
 Keep the default build watch paths (`*`) so changes to `main` trigger
 production builds. Cloudflare applies watch paths to production and preview

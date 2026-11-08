@@ -2,7 +2,7 @@
 
 ## Build, test, and lint commands
 
-This is a Gleam package targeting Erlang only. Tool versions are pinned in `.tool-versions` and CI uses OTP 27.2.1, rebar3 3.26.0, and Gleam 1.14.0.
+This is a Gleam package targeting Erlang only. Tool versions are pinned in `.mise.toml`. The shared CI setup action uses mise to install them, including OTP 27.2.1, rebar3 3.26.0, and Gleam 1.14.0.
 
 ```sh
 just deps          # gleam deps download
