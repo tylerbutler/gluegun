@@ -56,7 +56,11 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: website
 
-      - name: Check website
+      - name: Check committed references
+        run: pnpm test:reference && pnpm check:reference
+        working-directory: website
+
+      - name: Check Astro website
         run: just site-check
 
       - name: Build website

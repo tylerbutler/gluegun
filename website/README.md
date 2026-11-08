@@ -23,10 +23,17 @@ static assets and compatibility settings stay at the top level.
 Cloudflare installs dependencies with the pnpm version in `package.json`.
 Set the `NODE_VERSION` build variable to the Node version in `.mise.toml`.
 
+Deployment builds use committed reference pages and require Node and pnpm only.
+`pnpm run build` checks source and page fingerprints before Astro runs. After
+source, package manifest, or tool-version changes, run `just site-reference`
+from the repository root and commit the generated reference pages and
+`website/reference-state.json`. Generation requires Gleam, Erlang, and rebar3.
+CI compares the committed pages with fresh Gleam metadata using
+`pnpm check:reference`.
+
 Keep the default build watch paths (`*`) so changes to `main` trigger
 production builds. Cloudflare applies watch paths to production and preview
-builds; the former Netlify configuration skipped website-unchanged previews
-but built production commits.
+builds. Include source and package manifest changes that affect reference pages.
 
 After you verify the site on its `workers.dev` URL, add
 `gluegun.tylerbutler.com` under **Settings > Domains & Routes > Custom Domain**.

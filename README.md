@@ -371,6 +371,49 @@ an exact `v{version}` tag and a GitHub release. Tag pushes run CI. Both candidat
 and stable releases are Git-only: Hex publication is disabled in the Trellis
 configuration and there is no Hex publish job.
 
+### Website reference builds
+
+Commit the generated API pages under `website/src/content/docs/reference/`
+and `website/reference-state.json` with changes to source files, `gleam.toml`,
+`manifest.toml`, the reference generator, or `.tool-versions`.
+
+Install the tools listed in `.tool-versions` and enable Corepack for the pnpm
+version in `website/package.json`. Reference generation requires Gleam, Erlang,
+and rebar3. Use these commands from the repository root:
+
+```sh
+just site-deps             # Install website dependencies
+just site-reference        # Build current Gleam metadata and regenerate pages
+just site-reference-check  # Compare committed pages with current metadata
+just site-check            # Check freshness and Astro content
+just site-build            # Check freshness and build website/dist
+just site-dev              # Check freshness and start the dev server
+just site-preview          # Check freshness and serve the last site build
+```
+
+`just site-reference` uses `website/scripts/generate-reference.mjs` to render
+`build/dev/docs/gluegun/package-interface.json`. Run it after you edit source
+documentation or a public API, then commit its output. It also records hashes
+of the source inputs and reference pages. Do not edit generated pages or the
+state record by hand. Repeat generation after a merge that changes these inputs.
+When a dev server is running, regenerate references after source edits.
+
+From `website/`, use `pnpm generate:reference` to regenerate or
+`pnpm check:reference` to compare committed pages with fresh metadata.
+The comparison does not change committed pages. CI runs this comparison and
+the reference tests before it checks and builds the website.
+
+Cloudflare Workers Builds uses `website/` as the build root, runs `pnpm build`,
+and deploys the static assets in `dist`. See [website deployment](website/README.md)
+for the build and preview configuration.
+Production and deploy-preview builds need Node and pnpm only. The build checks
+the committed source and page hashes before Astro runs and stops if output is
+stale or missing. Local `astro`, `build`, `check:astro`, `dev`, `start`, and `preview`
+scripts use the same check. Keep Cloudflare's build watch paths at `*` so source,
+package manifests, and build configuration trigger production and preview builds.
+Run `just site-build`
+before `just site-preview` to serve a current build.
+
 ### Release candidates
 
 Run the **Trellis Release** workflow manually on `main` to change release mode:
