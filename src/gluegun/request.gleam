@@ -131,7 +131,10 @@ pub fn method_to_string(method: Method) -> String {
   }
 }
 
-/// Lowercase header names for the Erlang Gun FFI boundary without changing values.
+/// Lowercase header names without changing values.
+///
+/// This helper does not validate names. Pass original headers to `request` or
+/// `start_stream`, which validate ASCII tokens before lowercasing names.
 @internal
 pub fn normalize_headers(headers: List(Header)) -> List(Header) {
   list.map(headers, fn(header) {
@@ -149,7 +152,8 @@ pub fn normalize_headers(headers: List(Header)) -> List(Header) {
 ///
 /// The method, path, and headers are validated before crossing to Gun: the
 /// method and path must be non-empty and must not contain a control byte,
-/// space, or DEL (including CR/LF); header names must be valid HTTP tokens;
+/// space, or DEL (including CR/LF); original header names must be valid ASCII
+/// HTTP tokens before they are lowercased;
 /// header values must not contain a control byte (other than HTAB) or DEL;
 /// and headers cannot include a caller-supplied `Transfer-Encoding` or a
 /// duplicate/malformed `Content-Length`. Invalid input returns
@@ -171,7 +175,7 @@ pub fn request(
     connection,
     method_to_string(method),
     path,
-    normalize_headers(list.append(headers, options.headers)),
+    list.append(headers, options.headers),
     body,
     options_to_ffi(options),
   )
@@ -202,7 +206,7 @@ pub fn start_stream(
     connection,
     method_to_string(method),
     path,
-    normalize_headers(list.append(headers, options.headers)),
+    list.append(headers, options.headers),
     options_to_ffi(options),
   )
 }
