@@ -18,8 +18,8 @@ pub type GluegunError {
   /// An operation did not complete within the configured `Timeout`. Retry,
   /// extend the timeout, or fall back to a degraded path.
   Timeout
-  /// Gun reported the connection went down. The string carries Gun's reason.
-  /// Reopen the connection before retrying.
+  /// Gun reported that the connection went down, or its process exited.
+  /// The string contains Gun's reason. Reopen the connection before retrying.
   ConnectionDown(String)
   /// Gun could not establish or maintain the connection (DNS, TCP, TLS).
   /// Inspect the reason string and adjust transport or TLS options.

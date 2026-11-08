@@ -47,8 +47,8 @@ An operation did not complete within the configured `Timeout`. Retry,
 
 ##### `ConnectionDown(String)`
 
-Gun reported the connection went down. The string carries Gun's reason.
- Reopen the connection before retrying.
+Gun reported that the connection went down, or its process exited.
+ The string contains Gun's reason. Reopen the connection before retrying.
 
 ##### `ConnectionError(String)`
 

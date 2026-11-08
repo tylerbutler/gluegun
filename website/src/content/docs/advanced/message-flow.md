@@ -23,6 +23,8 @@ The high-level `gluegun/client` functions use this flow internally for usual req
 
 For chunked bodies, see the [streaming guide](/guides/streaming/). For WebSocket upgrade flows, see the [websockets guide](/guides/websockets/).
 
+For mailbox errors, `message.decode` returns `StreamError` for a stream-level `gun_error`, `ConnectionError` for a connection-level `gun_error`, and `ConnectionDown` for `gun_down`. Each error includes Gun's reason string without an envelope. `await` and `await_body` use the same categories and return `ConnectionDown` if the connection process exits. A receive timeout returns `Timeout`.
+
 ## `await_up` and the negotiated protocol
 
 Gun `open/2` returns immediately after it starts the connection process. The socket connect and the protocol negotiation occur asynchronously. `connection.await_up` waits for the Gun `up` message and returns the negotiated `Protocol`.
