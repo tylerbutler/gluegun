@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Decode empty WebSocket ping and pong frames and prevent duplicate automatic pong replies in receive_app_frame."

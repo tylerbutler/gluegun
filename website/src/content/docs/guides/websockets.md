@@ -91,7 +91,14 @@ pub fn echo_once() {
 
 `with_socket` calls `websocket.close` after the callback returns, including when it returns an error. Callback errors take precedence over cleanup errors. If the callback succeeds, a teardown error becomes the result of `with_socket`. A callback can close its own socket; the later scoped close remains safe.
 
-## Control-frame limits
+## Control frames
+
+Gun automatically sends one matching pong for each incoming ping. The
+`silence_pings` upgrade option controls whether ping and pong frames reach the
+receiver; it does not disable automatic replies. `receive_app_frame` skips
+visible ping and pong frames, including empty payloads, and returns the next
+text, binary, or close frame. It does not send another pong. Use
+`websocket.pong` when you need to send an explicit pong.
 
 You can send up to 125 bytes in a Ping or Pong payload. A `CloseWithReason`
 reason must contain valid UTF-8 and at most 123 bytes. The close code uses two

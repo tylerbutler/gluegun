@@ -226,9 +226,10 @@ pub fn receive(
 
 Receive the next application frame, handling ping/pong control frames.
 
- Incoming pings are answered with a pong carrying the same payload. Incoming
- pongs are skipped. Text, binary, close, and close-with-reason frames are
- returned to the caller.
+ Gun automatically answers incoming pings with a matching pong. This helper
+ skips visible ping and pong frames, including empty payloads, without sending
+ another reply. Text, binary, close, and close-with-reason frames are returned
+ to the caller. Use `pong` to send an explicit pong.
 
 ```gleam
 pub fn receive_app_frame(Socket) -> Result(message.Frame, error.GluegunError)

@@ -637,17 +637,14 @@ pub fn receive_frame(socket: Socket) -> Result(Frame, error.GluegunError) {
 
 /// Receive the next application frame, handling ping/pong control frames.
 ///
-/// Incoming pings are answered with a pong carrying the same payload. Incoming
-/// pongs are skipped. Text, binary, close, and close-with-reason frames are
-/// returned to the caller.
+/// Gun automatically answers incoming pings with a matching pong. This helper
+/// skips visible ping and pong frames, including empty payloads, without sending
+/// another reply. Text, binary, close, and close-with-reason frames are returned
+/// to the caller. Use `pong` to send an explicit pong.
 pub fn receive_app_frame(socket: Socket) -> Result(Frame, error.GluegunError) {
   use frame <- result.try(receive_frame(socket))
   case frame {
-    message.Ping(payload) -> {
-      use _ <- result.try(pong(socket, payload))
-      receive_app_frame(socket)
-    }
-    message.Pong(_) -> receive_app_frame(socket)
+    message.Ping(_) | message.Pong(_) -> receive_app_frame(socket)
     message.Text(_)
     | message.Binary(_)
     | message.Close
@@ -662,7 +659,6 @@ pub fn receive_app_frame(socket: Socket) -> Result(Frame, error.GluegunError) {
 @internal
 pub fn receive_app_frame_from(
   frame_results: List(Result(Frame, error.GluegunError)),
-  send_pong: fn(BitArray) -> Result(Nil, error.GluegunError),
 ) -> Result(Frame, error.GluegunError) {
   case frame_results {
     [] ->
@@ -672,11 +668,7 @@ pub fn receive_app_frame_from(
     [frame_result, ..rest] -> {
       use frame <- result.try(frame_result)
       case frame {
-        message.Ping(payload) -> {
-          use _ <- result.try(send_pong(payload))
-          receive_app_frame_from(rest, send_pong)
-        }
-        message.Pong(_) -> receive_app_frame_from(rest, send_pong)
+        message.Ping(_) | message.Pong(_) -> receive_app_frame_from(rest)
         message.Text(_)
         | message.Binary(_)
         | message.Close
