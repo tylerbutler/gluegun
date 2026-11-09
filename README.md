@@ -380,9 +380,9 @@ configuration and there is no Hex publish job.
 
 Commit the generated API pages under `website/src/content/docs/reference/`
 and `website/reference-state.json` with changes to source files, `gleam.toml`,
-`manifest.toml`, the reference generator, or `.tool-versions`.
+`manifest.toml`, the reference generator, or `.mise.toml`.
 
-Install the tools listed in `.tool-versions` and enable Corepack for the pnpm
+Install the tools listed in `.mise.toml` and enable Corepack for the pnpm
 version in `website/package.json`. Reference generation requires Gleam, Erlang,
 and rebar3. Use these commands from the repository root:
 
@@ -402,6 +402,10 @@ documentation or a public API, then commit its output. It also records hashes
 of the source inputs and reference pages. Do not edit generated pages or the
 state record by hand. Repeat generation after a merge that changes these inputs.
 When a dev server is running, regenerate references after source edits.
+The fingerprint supports `.mise.toml` and `.tool-versions` and detects adding,
+removing, or migrating these files. It hashes the full files, so any tool
+configuration change requires regeneration. Keep at least one supported pin
+file; missing tool configuration or required source inputs stop the build.
 
 From `website/`, use `pnpm generate:reference` to regenerate or
 `pnpm check:reference` to compare committed pages with fresh metadata.
