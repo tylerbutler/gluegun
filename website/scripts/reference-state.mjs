@@ -10,6 +10,13 @@ export const repoRoot = path.resolve(
 export const referenceDir = "website/src/content/docs/reference";
 const stateFile = "website/reference-state.json";
 const refreshMessage = "Run `just site-reference` and commit the reference pages and website/reference-state.json.";
+export const sourceFiles = [
+	"gleam.toml",
+	"manifest.toml",
+	"website/scripts/generate-reference.mjs",
+	"website/scripts/reference-state.mjs",
+];
+const toolFiles = [".mise.toml", ".tool-versions"];
 
 async function filesUnder(root, directory) {
 	const entries = await readdir(path.join(root, directory), {
@@ -44,13 +51,14 @@ export async function referenceHash(root = repoRoot, directory = referenceDir) {
 }
 
 async function sourceHash(root) {
+	const tools = (await readdir(root)).filter((file) => toolFiles.includes(file));
+	if (tools.length === 0) {
+		throw new Error(`Missing reference tool configuration: expected ${toolFiles.join(" or ")}. ${refreshMessage}`);
+	}
 	return hashFiles(root, [
 		...await filesUnder(root, "src"),
-		"gleam.toml",
-		"manifest.toml",
-		".tool-versions",
-		"website/scripts/generate-reference.mjs",
-		"website/scripts/reference-state.mjs",
+		...sourceFiles,
+		...tools,
 	]);
 }
 

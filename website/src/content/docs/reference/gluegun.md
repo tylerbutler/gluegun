@@ -67,7 +67,10 @@ pub fn new_request(
 
 ### `normalize_headers`
 
-Normalize header names for Gun.
+Lowercase header names without validation.
+
+ Pass original headers to request helpers so they can validate ASCII names
+ before lowercase conversion.
 
 ```gleam
 pub fn normalize_headers(List(#(String, String))) -> List(#(String, String))

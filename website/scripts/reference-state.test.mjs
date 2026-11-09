@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { checkRenderedReference, generateReference } from "./generate-reference.mjs";
-import { checkReferenceState, referenceDir, writeReferenceState } from "./reference-state.mjs";
+import { checkReferenceState, referenceDir, sourceFiles, writeReferenceState } from "./reference-state.mjs";
 
 async function fixture(t) {
 	const root = await mkdtemp(path.join(os.tmpdir(), "gluegun-reference-state-"));
@@ -14,8 +14,7 @@ async function fixture(t) {
 		await mkdir(path.join(root, directory), { recursive: true });
 	}
 	for (const file of [
-		"src/gluegun.gleam", "gleam.toml", "manifest.toml", ".tool-versions",
-		"website/scripts/generate-reference.mjs", "website/scripts/reference-state.mjs",
+		"src/gluegun.gleam", ".mise.toml", ...sourceFiles,
 	]) {
 		await writeFile(path.join(root, file), file);
 	}
@@ -32,14 +31,52 @@ test("fresh references pass without modifying pages", async (t) => {
 });
 
 for (const file of [
-	"src/gluegun.gleam", "src/new.gleam", "gleam.toml", "manifest.toml",
-	".tool-versions", "website/scripts/generate-reference.mjs",
-	"website/scripts/reference-state.mjs",
+	"src/gluegun.gleam", "src/new.gleam", ".mise.toml", ...sourceFiles,
 ]) {
 	test(`rejects changed source input ${file}`, async (t) => {
 		const root = await fixture(t);
 		await writeFile(path.join(root, file), "Changed");
 		await assert.rejects(checkReferenceState(root), /source inputs changed.*just site-reference/);
+	});
+}
+
+for (const [from, to] of [[".mise.toml", ".tool-versions"], [".tool-versions", ".mise.toml"]]) {
+	test(`requires regeneration after migrating ${from} to ${to}`, async (t) => {
+		const root = await fixture(t);
+		await rm(path.join(root, ".mise.toml"));
+		await writeFile(path.join(root, from), "Original pins");
+		await writeReferenceState(root);
+		await rm(path.join(root, from));
+		await writeFile(path.join(root, to), "Original pins");
+		await assert.rejects(checkReferenceState(root), /source inputs changed/);
+		await writeReferenceState(root);
+		await checkReferenceState(root);
+		await writeFile(path.join(root, to), "Changed pins");
+		await assert.rejects(checkReferenceState(root), /source inputs changed/);
+	});
+}
+
+test("tracks addition and removal when both pin files are present", async (t) => {
+	const root = await fixture(t);
+	await writeFile(path.join(root, ".tool-versions"), "gleam 1.14.0\n");
+	await assert.rejects(checkReferenceState(root), /source inputs changed/);
+	await writeReferenceState(root);
+	await rm(path.join(root, ".tool-versions"));
+	await assert.rejects(checkReferenceState(root), /source inputs changed/);
+});
+
+test("reports missing tool configuration instead of accepting unpinned references", async (t) => {
+	const root = await fixture(t);
+	await rm(path.join(root, ".mise.toml"));
+	await assert.rejects(checkReferenceState(root), /Missing reference tool configuration.*just site-reference/);
+	await assert.rejects(writeReferenceState(root), /Missing reference tool configuration/);
+});
+
+for (const file of sourceFiles) {
+	test(`does not silently skip missing required input ${file}`, async (t) => {
+		const root = await fixture(t);
+		await rm(path.join(root, file));
+		await assert.rejects(checkReferenceState(root), { code: "ENOENT" });
 	});
 }
 

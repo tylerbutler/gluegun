@@ -193,7 +193,8 @@ Send a low-level HTTP request on an open Gun connection.
 
  The method, path, and headers are validated before crossing to Gun: the
  method and path must be non-empty and must not contain a control byte,
- space, or DEL (including CR/LF); header names must be valid HTTP tokens;
+ space, or DEL (including CR/LF); original header names must be valid ASCII
+ HTTP tokens before they are lowercased;
  header values must not contain a control byte (other than HTAB) or DEL;
  and headers cannot include a caller-supplied `Transfer-Encoding` or a
  duplicate/malformed `Content-Length`. Invalid input returns
