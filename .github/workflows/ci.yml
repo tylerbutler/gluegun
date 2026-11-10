@@ -52,7 +52,7 @@ jobs:
           GLEAM_VERSION: ${{ matrix.gleam }}
           ERLANG_VERSION: ${{ matrix.erlang }}
         run: |
-          mise use --local "gleam@$GLEAM_VERSION" "erlang@$ERLANG_VERSION"
+          mise use "gleam@$GLEAM_VERSION" "erlang@$ERLANG_VERSION"
           gleam --version
           erl -noshell -eval 'io:format("OTP ~s~n", [erlang:system_info(otp_release)]), halt().'
 
