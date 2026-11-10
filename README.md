@@ -22,7 +22,21 @@ For reproducible builds, replace `main` with a release tag or commit SHA.
 ## Compatibility
 
 - Erlang target only; Gluegun wraps the Erlang Gun client and does not support the JavaScript target.
-- Supports Gleam `>= 1.7.0` and Gun `>= 2.1.0 and < 3.0.0`.
+- Supports Gleam `>= 1.11.0` and Gun `>= 2.1.0 and < 3.0.0`.
+
+Request methods use `gleam/http.Method`, including `Other` for extension
+methods. Gluegun keeps its own path-only request builder and response so callers
+can access trailers and informational responses without URL parsing.
+
+Connection options default to **zero retries**. Opt in with `with_retry` when
+you need HTTP reconnection. After an `await_up` error, call
+`connection.terminate` to release any process that remains alive, including
+when you selected retries or setup has not finished.
+
+Numeric options reject invalid input with `InvalidOptions`; they do not clamp.
+Timeouts and retry counts must be non-negative, flow credit must be positive,
+TLS depth accepts 0 through 255, and ports accept 0 through 65535. Timeout
+construction returns `Result` for literals and configuration values alike.
 
 ## Security
 
@@ -47,6 +61,7 @@ See the [TLS guide](https://gluegun.tylerbutler.com/guides/tls/) for the canonic
 Open a Gun connection, wait for it to be ready, send a GET, and collect the full response in memory.
 
 ```gleam
+import gleam/http
 import gleam/int
 import gleam/io
 import gleam/result
@@ -65,7 +80,7 @@ pub fn main() {
   use _protocol <- result.try(connection.await_up(conn, timeout))
 
   use res <- result.try(
-    client.new(request.Get, "/")
+    client.new(http.Get, "/")
     |> client.with_timeout(timeout: timeout)
     |> client.send(connection: conn),
   )
@@ -86,24 +101,64 @@ pub fn main() {
 `gluegun/client` helpers are one-shot per request: they send one request on an existing connection and collect that response. Gluegun does not parse URLs; pass the host and port to `connection.open`, then pass a path to request helpers. If your input is a full URL, parse it first with the standard `gleam/uri` module and pass the parsed `host`, `port`, `path`, and `query` pieces into Gluegun.
 
 ```gleam
+import gleam/http
 import gluegun/client
 import gluegun/request
 
 fn fetch_json(conn, path, timeout) {
-  client.new(request.Get, path)
+  client.new(http.Get, path)
   |> client.with_header(name: "accept", value: "application/json")
   |> client.with_timeout(timeout: timeout)
   |> client.send(connection: conn)
 }
 ```
 
+`client.with_timeout` sets one total budget for dispatch and response
+collection. Informational messages and body chunks do not restart it.
+`Infinity` remains unlimited; a zero budget returns `Timeout`.
+
 When collection fails, `client` helpers attempt to cancel that stream and drain its queued messages. They return the original error and keep other streams and the shared connection open. Cleanup failures produce a warning. Cancellation is asynchronous, so messages in transit can arrive after the drain. The high-level helpers do not return the failed stream handle; use the low-level API in a separate receiving process if you need strict mailbox isolation.
+
+## Small HTTP facade
+
+The root `gluegun` module provides options, timeout construction, open/await,
+request/send, body text, and close/shutdown/terminate. Use `client` for header
+and body customization, or the named streaming and WebSocket modules.
+
+```gleam
+import gleam/http
+import gleam/result
+import gluegun
+
+pub fn fetch() {
+  use timeout <- result.try(gluegun.milliseconds(5000))
+  use conn <- result.try(
+    gluegun.open(gluegun.connection_options(), host: "localhost", port: 8080),
+  )
+  let exchange = {
+    use _ <- result.try(gluegun.await_up(conn, timeout))
+    use res <- result.try(
+      gluegun.new_request(http.Get, "/") |> gluegun.send(connection: conn),
+    )
+    gluegun.body_text(res)
+  }
+  let cleanup = gluegun.terminate(conn)
+  use text <- result.try(exchange)
+  use _ <- result.try(cleanup)
+  Ok(text)
+}
+```
 
 ## Streaming a request body
 
 Use `gluegun/request` when the request body is produced in chunks. Start with `request.start_stream`, send zero or more chunks with `fin.NoFin`, and complete the body with `fin.Fin`. Response headers and body are separate asynchronous Gun stream messages; use `gluegun/message` helpers or your own receive loop for advanced flows.
 
+Do not set `Content-Length` on a streamed upload. Gluegun rejects it before
+sending headers because supported Gun versions can crash on fixed-length
+chunk sequences. Use chunked uploads or send the complete body in one request.
+
 ```gleam
+import gleam/http
 import gluegun/connection
 import gluegun/error
 import gluegun/fin
@@ -117,7 +172,7 @@ pub fn upload_chunks(conn) {
   use stream <- result.try(
     request.start_stream(
       conn,
-      request.Post,
+      http.Post,
       "/upload",
       [#("content-type", "text/plain")],
       request.options(),
@@ -151,9 +206,7 @@ not a byte or allocation limit.
 
 Use `connection.with_address_family` to select IPv4 or IPv6 without fallback.
 Set `with_domain_lookup_timeout`, `with_connect_timeout`, and
-`with_tls_handshake_timeout` to bound separate setup stages. Construct a
-`RetryCount` with `connection.retry_count(0)` and pass it to `with_retry` to
-disable retries. These settings preserve the TLS verification defaults.
+`with_tls_handshake_timeout` to bound separate setup stages. These settings preserve the TLS verification defaults.
 Use a monotonic total deadline across setup and response receives.
 `connection.terminate` stops a stalled connection, waits for exit, and flushes
 its messages from the caller's mailbox.
@@ -195,7 +248,10 @@ pub fn get_over_http2() {
 
 ## WebSocket echo
 
-Gun supports WebSocket over HTTP/1.1 only. Gluegun's high-level WebSocket options default to HTTP/1.1, and the low-level `upgrade_with_protocol` helpers reject HTTP/2 before calling Gun.
+Gun supports WebSocket over HTTP/1.1 only. `websocket.connect` forces HTTP/1.1
+and zero retries after applying your connection options, including TLS
+settings. A dropped connection returns `ConnectionDown`; automatic HTTP
+reconnection cannot restore a WebSocket upgrade.
 
 Use the reusable `Socket` API when you want explicit lifecycle control.
 
@@ -269,7 +325,11 @@ pub fn echo_once() {
 }
 ```
 
-`Socket` is reusable and you control its lifecycle. `with_socket` calls the same teardown path and gives callback errors precedence over cleanup errors. Low-level `upgrade_with_protocol_and_options`, `send`, and `receive` remain available for advanced flows. The root facade provides `websocket_connect`, `websocket_send_text`, `websocket_receive_app_frame`, and `websocket_close` for the common path.
+`Socket` is reusable and you control its lifecycle. `with_socket` uses the
+same teardown and gives callback errors precedence over cleanup errors.
+To upgrade an existing connection, use `websocket.upgrade` with its negotiated
+protocol and upgrade options, then `await_upgrade` and `from_upgrade`. Use
+the same Socket frame and close operations after adoption.
 
 See `examples/websocket_echo` for a fuller WebSocket example.
 
@@ -310,8 +370,15 @@ fn safe_get(conn) {
 - Erlang target only. Gluegun wraps Erlang Gun and is not available on the JavaScript target.
 - Gun process ownership matters. Requests and WebSocket frames are asynchronous messages sent to the process that owns or awaits the Gun stream unless request options redirect replies.
 - `client` helpers collect full response bodies in memory. Use low-level `request` and `message` APIs for streaming or advanced Gun flows.
-- WebSocket over HTTP/2 is unsupported by Gun. Gluegun rejects it in `websocket.upgrade_with_protocol`.
+- WebSocket over HTTP/2 is unsupported by Gun. Gluegun rejects it in `websocket.upgrade`.
 - TLS option surface is intentionally small at first. Advanced TLS options may require future typed additions.
+- Gun can leave HTTP/1.1 reads paused after cancellation with exhausted finite
+  flow credit. Terminate and replace that connection, discarding its other
+  requests. This accepted upstream limitation does not block 1.0; see
+  [#78](https://github.com/tylerbutler/gluegun/issues/78) and related
+  [ninenines/gun#56](https://github.com/ninenines/gun/issues/56).
+- Response header strings must be UTF-8. Invalid wire values return
+  `DecodeError` rather than invalid Gleam strings or silently changed bytes.
 
 ## Examples
 
@@ -375,6 +442,46 @@ pull requests from pending fragments on `main`. Merge `release/pending` to creat
 an exact `v{version}` tag and a GitHub release. Tag pushes run CI. Both candidate
 and stable releases are Git-only: Hex publication is disabled in the Trellis
 configuration and there is no Hex publish job.
+
+### Hex release setup
+
+Hex publication remains maintainer work tracked in
+[#55](https://github.com/tylerbutler/gluegun/issues/55). The changes here do
+not enable publication. Keep the Git installation instructions until an
+authorized package release exists.
+
+Before the first Hex release:
+
+1. Select the intended 1.0 candidate or stable version through the existing
+   release process. Do not overwrite or duplicate `release/pending`.
+2. Set `default = "hex"` in `[tools.trellis.publish.lifecycle]` in a
+   reviewed release change. Keep pre-1.0 Git-only releases excluded from the
+   future publishing workflow.
+3. Configure that workflow to check out an immutable approved tag, check that
+   `v{version}` matches `gleam.toml`, and require CI, compatibility, example,
+   documentation, and reference freshness checks before publication.
+4. Build and inspect with `gleam export hex-tarball`. Check `metadata.config`
+   and its nested `contents.tar.gz`: include the licence, Gleam modules, and
+   `src/gluegun_ffi.erl`; exclude test/compatibility helpers, build output,
+   credentials, and development artifacts. Review production dependencies.
+   `trellis publish --dry-run gluegun` checks selection and dependency
+   rewrites after lifecycle enablement; it does not replace the test suite.
+5. Add a scoped Hex publishing credential through the repository's approved
+   secret process. Gleam supports `HEXPM_API_KEY`; the workflow must reference
+   the configured name without printing its value. Existing
+   `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` support GitHub release
+   operations, not Hex publication. Verify access with maintainers; this
+   change does not inspect or alter secrets.
+6. Only after explicit authorization, use Trellis's Hex publication path.
+   Verify the package version and API documentation on Hex/HexDocs, then
+   update installation examples to `gleam add gluegun` and link the
+   published documentation. If documentation needs a separate upload,
+   maintainers must authorize `gleam docs publish` for the same version.
+
+If publication fails, retain the approved tag and inspect whether Hex
+accepted the version before retrying. Do not retag or overwrite a published
+version. Trellis checks existing Hex versions, but maintainers must check
+documentation completion after a partial release.
 
 ### Website reference builds
 

@@ -8,7 +8,7 @@ WebSocket helpers for Gun connections.
  ## Protocol limitations
 
  Gun supports WebSocket over HTTP/1.1 only. WebSocket over HTTP/2 (RFC 8441)
- is **not** supported by Gun. Call `upgrade_with_protocol` with the protocol
+ is **not** supported by Gun. Call `upgrade` with the protocol
  returned by `connection.await_up` to reject HTTP/2 before calling Gun.
 
  Once an HTTP/1.1 connection is upgraded to WebSocket the underlying TCP
@@ -24,57 +24,31 @@ WebSocket helpers for Gun connections.
  import gluegun/message
  import gluegun/websocket
 
- use opened_connection <- result.try(
-   connection.options()
-   |> connection.open(host: "echo.example.com", port: 80),
+ websocket.with_socket(
+   host: "echo.example.com",
+   port: 80,
+   path: "/ws",
+   options: websocket.options(),
+   callback: fn(socket) {
+     use _ <- result.try(websocket.send_frame(socket, message.Text("hello")))
+     case websocket.receive_app_frame(socket) {
+       Ok(message.Text(reply)) -> Ok(reply)
+       Ok(_) -> Error(error.InvalidMessage("expected a text frame"))
+       Error(error) -> Error(error)
+     }
+   },
  )
- use timeout <- result.try(connection.milliseconds(5000))
-
- use protocol <- result.try(connection.await_up(
-   opened_connection,
-   timeout,
- ))
-
- use stream <- result.try(websocket.upgrade_with_protocol(
-   opened_connection,
-   protocol,
-   "/ws",
-   [],
- ))
- use _ <- result.try(websocket.await_upgrade(
-   opened_connection,
-   stream,
-   timeout,
- ))
-
- use _ <- result.try(websocket.send(
-   opened_connection,
-   stream,
-   message.Text("hello"),
- ))
-
- case
-   websocket.receive(opened_connection, stream, timeout)
- {
-   Ok(message.Text(reply)) -> Ok(reply)
-   Ok(_) -> Error(error.InvalidMessage("expected a text frame"))
-   Error(error) -> Error(error)
- }
  ```
 
 ## Types
 
-### `HandlerOptions`
+### `Handshake`
 
-The value Gun forwards unchanged to a WebSocket protocol handler module as
- its `user_opts` upgrade option.
-
- Gun accepts any Erlang term here because the shape is defined by the
- handler module, not by Gun. Build one from any Gleam value with
- `gluegun/websocket/raw.handler_options`.
+Completed HTTP/1.1 WebSocket handshake, including the response headers and
+ the server's selected subprotocol (if any).
 
 ```gleam
-pub type HandlerOptions
+pub type Handshake
 ```
 
 ### `Options`
@@ -105,8 +79,9 @@ pub type Socket
 Typed options for Gun WebSocket upgrades.
 
  Build with `upgrade_options()` then chain `with_closing_timeout`,
- `with_compress`, `with_default_protocol`, `with_flow`, `with_keepalive`,
- `with_protocols`, `with_silence_pings`, etc.
+ `with_compress`, `with_flow`, `with_keepalive`, `with_subprotocols`, and
+ `with_silence_pings`. The fallible `with_flow` builder rejects nonpositive
+ credit.
 
 ```gleam
 pub type UpgradeOptions
@@ -118,16 +93,16 @@ pub type UpgradeOptions
 
 Wait for the WebSocket upgrade confirmation (`101 Switching Protocols`).
 
- Call this after `upgrade/3`. Returns `Ok(Nil)` when the server confirms
- the WebSocket handshake. Returns an error on timeout, connection failure,
- or if a non-upgrade message arrives first.
+ Call this after `upgrade`. Informational responses are skipped under one
+ absolute deadline; a zero timeout returns `Timeout` without polling.
+ Successful handshakes retain the response headers and selected subprotocol.
 
 ```gleam
 pub fn await_upgrade(
-  internal.Connection,
-  internal.Stream,
-  connection.Timeout
-) -> Result(Nil, error.GluegunError)
+  connection: internal.Connection,
+  stream: internal.Stream,
+  timeout: connection.Timeout
+) -> Result(Handshake, error.GluegunError)
 ```
 
 ### `close`
@@ -146,7 +121,7 @@ Send a close frame, await the peer, then release the Gun process.
  need separate mailbox cleanup. Do not reuse the socket after this call.
 
 ```gleam
-pub fn close(Socket) -> Result(Nil, error.GluegunError)
+pub fn close(socket: Socket) -> Result(Nil, error.GluegunError)
 ```
 
 ### `connect`
@@ -172,6 +147,46 @@ pub fn connect(
 ) -> Result(Socket, error.GluegunError)
 ```
 
+### `from_upgrade`
+
+Adopt a completed upgrade. Call immediately after `await_upgrade`, in the
+ process receiving this stream's Gun messages. This process owns receives
+ and close; do not consume frames through another API or receiver, since
+ close tracks delivered frames to restore finite flow credit during teardown.
+
+```gleam
+pub fn from_upgrade(
+  connection: internal.Connection,
+  stream: internal.Stream,
+  handshake: Handshake,
+  timeout: connection.Timeout
+) -> Socket
+```
+
+### `handshake`
+
+Inspect the completed handshake retained by a socket.
+
+```gleam
+pub fn handshake(Socket) -> Handshake
+```
+
+### `handshake_headers`
+
+Inspect the upgrade response headers, with normalized header names.
+
+```gleam
+pub fn handshake_headers(Handshake) -> List(#(String, String))
+```
+
+### `handshake_subprotocol`
+
+Inspect the selected subprotocol in a completed handshake.
+
+```gleam
+pub fn handshake_subprotocol(Handshake) -> option.Option(String)
+```
+
 ### `options`
 
 Construct default high-level WebSocket connection options.
@@ -186,8 +201,8 @@ Send a ping WebSocket frame using a reusable socket.
 
 ```gleam
 pub fn ping(
-  Socket,
-  BitArray
+  socket: Socket,
+  data: BitArray
 ) -> Result(Nil, error.GluegunError)
 ```
 
@@ -197,29 +212,9 @@ Send a pong WebSocket frame using a reusable socket.
 
 ```gleam
 pub fn pong(
-  Socket,
-  BitArray
+  socket: Socket,
+  data: BitArray
 ) -> Result(Nil, error.GluegunError)
-```
-
-### `receive`
-
-Receive the next WebSocket frame from the stream.
-
- Returns `Ok(frame)` when a WebSocket frame arrives.
- Returns `Error(InvalidMessage(...))` if a non-WebSocket message arrives
- (e.g. an HTTP response or upgrade acknowledgement that arrived out of order).
- Returns `Error(Timeout)` or stream errors on failures.
-
- If the upgrade acknowledgement has not yet been received, call
- `await_upgrade/3` before calling `receive`.
-
-```gleam
-pub fn receive(
-  internal.Connection,
-  internal.Stream,
-  connection.Timeout
-) -> Result(message.Frame, error.GluegunError)
 ```
 
 ### `receive_app_frame`
@@ -232,33 +227,30 @@ Receive the next application frame, handling ping/pong control frames.
  to the caller. Use `pong` to send an explicit pong.
 
 ```gleam
-pub fn receive_app_frame(Socket) -> Result(message.Frame, error.GluegunError)
+pub fn receive_app_frame(socket: Socket) -> Result(message.Frame, error.GluegunError)
 ```
 
 ### `receive_frame`
 
 Receive the next WebSocket frame using a reusable socket.
 
+ Returns `Ok(frame)` when a WebSocket frame arrives.
+ Returns `Error(InvalidMessage(...))` if a non-WebSocket message arrives
+ (e.g. an HTTP response or upgrade acknowledgement that arrived out of order).
+ Returns `DecodeError` for malformed incoming values, `Timeout` when no
+ frame arrives, and `ConnectionDown` on disconnect (even with Gun retries).
+ Only this socket's stream and connection messages are consumed.
+
 ```gleam
-pub fn receive_frame(Socket) -> Result(message.Frame, error.GluegunError)
+pub fn receive_frame(socket: Socket) -> Result(message.Frame, error.GluegunError)
 ```
 
-### `send`
+### `selected_subprotocol`
 
-Send a single WebSocket frame on the stream.
-
- Supported frame types: `Text`, `Binary`, `Ping`, `Pong`, `Close`,
- `CloseWithReason`. Invalid control frames return `InvalidMessage` before
- calling Gun. Ping and Pong payloads can contain at most 125 bytes. Close
- reasons must be valid UTF-8 and contain at most 123 bytes.
- Accepted close codes: 1000-1003, 1007-1014, and 3000-4999.
+Inspect the server-selected subprotocol.
 
 ```gleam
-pub fn send(
-  internal.Connection,
-  internal.Stream,
-  message.Frame
-) -> Result(Nil, error.GluegunError)
+pub fn selected_subprotocol(Socket) -> option.Option(String)
 ```
 
 ### `send_binary`
@@ -267,8 +259,8 @@ Send a binary WebSocket frame using a reusable socket.
 
 ```gleam
 pub fn send_binary(
-  Socket,
-  BitArray
+  socket: Socket,
+  data: BitArray
 ) -> Result(Nil, error.GluegunError)
 ```
 
@@ -281,17 +273,23 @@ Send a close WebSocket frame using a reusable socket.
  `with_socket` for automatic teardown.
 
 ```gleam
-pub fn send_close_frame(Socket) -> Result(Nil, error.GluegunError)
+pub fn send_close_frame(socket: Socket) -> Result(Nil, error.GluegunError)
 ```
 
 ### `send_frame`
 
 Send a single WebSocket frame using a reusable socket.
 
+ Supported frame types: `Text`, `Binary`, `Ping`, `Pong`, `Close`,
+ `CloseWithReason`. Invalid control frames return `InvalidMessage` before
+ calling Gun. Ping and Pong payloads can contain at most 125 bytes. Close
+ reasons must be valid UTF-8 and contain at most 123 bytes.
+ Accepted close codes: 1000-1003, 1007-1014, and 3000-4999.
+
 ```gleam
 pub fn send_frame(
-  Socket,
-  message.Frame
+  socket: Socket,
+  frame: message.Frame
 ) -> Result(Nil, error.GluegunError)
 ```
 
@@ -299,8 +297,6 @@ pub fn send_frame(
 
 Send one or more WebSocket frames on the stream.
 
- Gun accepts either a single frame or a list of frames. `send` delegates to
- this function with a one-element list.
  Validates the complete list before sending. If a frame is invalid, returns
  `InvalidMessage` without sending any frame.
 
@@ -311,9 +307,8 @@ Send one or more WebSocket frames on the stream.
 
 ```gleam
 pub fn send_many(
-  internal.Connection,
-  internal.Stream,
-  List(message.Frame)
+  socket: Socket,
+  frames: List(message.Frame)
 ) -> Result(Nil, error.GluegunError)
 ```
 
@@ -323,27 +318,26 @@ Send a text WebSocket frame using a reusable socket.
 
 ```gleam
 pub fn send_text(
-  Socket,
-  String
+  socket: Socket,
+  text: String
 ) -> Result(Nil, error.GluegunError)
 ```
 
 ### `upgrade`
 
-Initiate a WebSocket upgrade on an assumed HTTP/1.1 connection.
+Initiate a WebSocket upgrade with options when the negotiated protocol is known.
 
- Prefer `upgrade_with_protocol` after `connection.await_up` when the
- connection may negotiate HTTP/2. This function keeps the original HTTP/1.1
- default path for callers that constrain the connection to HTTP/1.1.
-
- The path and headers are validated before crossing to Gun; see
- `upgrade_with_options` for the rejected shapes.
+ Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
+ WebSocket over HTTP/2. Path, headers, and all subprotocol tokens are
+ validated before calling Gun; invalid input returns `InvalidOptions`.
 
 ```gleam
 pub fn upgrade(
-  internal.Connection,
-  String,
-  List(#(String, String))
+  connection: internal.Connection,
+  protocol: connection.Protocol,
+  path: String,
+  headers: List(#(String, String)),
+  options: UpgradeOptions
 ) -> Result(internal.Stream, error.GluegunError)
 ```
 
@@ -355,64 +349,6 @@ Construct default WebSocket upgrade options.
 pub fn upgrade_options() -> UpgradeOptions
 ```
 
-### `upgrade_with_options`
-
-Initiate a WebSocket upgrade on an assumed HTTP/1.1 connection with options.
-
- The path and headers are validated the same way as
- `gluegun/request.request`: the path must be non-empty and must not
- contain a control byte, space, or DEL (including CR/LF); header names
- must be valid HTTP tokens; header values must not contain a control byte
- (other than HTAB) or DEL; and headers cannot include a caller-supplied
- `Transfer-Encoding` or a duplicate/malformed `Content-Length`. Invalid
- input returns `InvalidOptions` instead of reaching Gun.
-
-```gleam
-pub fn upgrade_with_options(
-  internal.Connection,
-  String,
-  List(#(String, String)),
-  UpgradeOptions
-) -> Result(internal.Stream, error.GluegunError)
-```
-
-### `upgrade_with_protocol`
-
-Initiate a WebSocket upgrade when the negotiated protocol is known.
-
- Sends the WebSocket upgrade request to the server and returns the stream
- reference. Call `await_upgrade` next to confirm the handshake completed.
-
- Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
- WebSocket over HTTP/2. Use this after `connection.await_up` when protocol
- negotiation may choose HTTP/2.
-
-```gleam
-pub fn upgrade_with_protocol(
-  internal.Connection,
-  connection.Protocol,
-  String,
-  List(#(String, String))
-) -> Result(internal.Stream, error.GluegunError)
-```
-
-### `upgrade_with_protocol_and_options`
-
-Initiate a WebSocket upgrade with options when the negotiated protocol is known.
-
- Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
- WebSocket over HTTP/2.
-
-```gleam
-pub fn upgrade_with_protocol_and_options(
-  internal.Connection,
-  connection.Protocol,
-  String,
-  List(#(String, String)),
-  UpgradeOptions
-) -> Result(internal.Stream, error.GluegunError)
-```
-
 ### `with_closing_timeout`
 
 Set Gun's WebSocket closing timeout.
@@ -420,7 +356,7 @@ Set Gun's WebSocket closing timeout.
 ```gleam
 pub fn with_closing_timeout(
   UpgradeOptions,
-  connection.Timeout
+  timeout: connection.Timeout
 ) -> UpgradeOptions
 ```
 
@@ -431,7 +367,7 @@ Enable or disable WebSocket compression.
 ```gleam
 pub fn with_compress(
   UpgradeOptions,
-  Bool
+  enabled: Bool
 ) -> UpgradeOptions
 ```
 
@@ -442,30 +378,19 @@ Set Gun connection options used when opening the connection.
 ```gleam
 pub fn with_connect_options(
   Options,
-  connection.ConnectOptions
+  connect_options: connection.ConnectOptions
 ) -> Options
-```
-
-### `with_default_protocol_module`
-
-Set the default WebSocket protocol callback module.
-
-```gleam
-pub fn with_default_protocol_module(
-  UpgradeOptions,
-  String
-) -> UpgradeOptions
 ```
 
 ### `with_flow`
 
-Set the initial WebSocket flow-control allowance.
+Set a positive initial WebSocket flow-control allowance.
 
 ```gleam
 pub fn with_flow(
   UpgradeOptions,
-  Int
-) -> UpgradeOptions
+  initial_flow: Int
+) -> Result(UpgradeOptions, error.GluegunError)
 ```
 
 ### `with_headers`
@@ -475,7 +400,7 @@ Set headers sent with the WebSocket upgrade request.
 ```gleam
 pub fn with_headers(
   Options,
-  List(#(String, String))
+  headers: List(#(String, String))
 ) -> Options
 ```
 
@@ -486,19 +411,19 @@ Set Gun's WebSocket keepalive timeout.
 ```gleam
 pub fn with_keepalive(
   UpgradeOptions,
-  connection.Timeout
+  timeout: connection.Timeout
 ) -> UpgradeOptions
 ```
 
-### `with_protocol_module`
+### `with_reply_to`
 
-Add a WebSocket subprotocol callback module.
+Deliver upgrade and frame messages to this process. That receiver must
+ await the upgrade, adopt it, receive frames, and close its socket.
 
 ```gleam
-pub fn with_protocol_module(
+pub fn with_reply_to(
   UpgradeOptions,
-  String,
-  String
+  receiver: process.Pid
 ) -> UpgradeOptions
 ```
 
@@ -509,7 +434,7 @@ Enable or disable silencing automatic ping frames.
 ```gleam
 pub fn with_silence_pings(
   UpgradeOptions,
-  Bool
+  enabled: Bool
 ) -> UpgradeOptions
 ```
 
@@ -533,6 +458,18 @@ pub fn with_socket(
 ) -> Result(a, error.GluegunError)
 ```
 
+### `with_subprotocols`
+
+Offer subprotocols using Gun's standard WebSocket handler. Every token is
+ validated before sending; order and case are preserved.
+
+```gleam
+pub fn with_subprotocols(
+  UpgradeOptions,
+  protocols: List(String)
+) -> UpgradeOptions
+```
+
 ### `with_timeout`
 
 Set the timeout used when awaiting connection readiness, upgrade, and frames.
@@ -540,7 +477,7 @@ Set the timeout used when awaiting connection readiness, upgrade, and frames.
 ```gleam
 pub fn with_timeout(
   Options,
-  connection.Timeout
+  timeout: connection.Timeout
 ) -> Options
 ```
 
@@ -551,6 +488,6 @@ Set Gun WebSocket upgrade options used for the upgrade request.
 ```gleam
 pub fn with_upgrade_options(
   Options,
-  UpgradeOptions
+  upgrade_options: UpgradeOptions
 ) -> Options
 ```

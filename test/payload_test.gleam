@@ -1,3 +1,4 @@
+import gleam/http
 import gleam/list
 import gluegun/client
 import gluegun/connection
@@ -13,7 +14,7 @@ pub fn http_bodies_preserves_request_data_empty_test() -> Nil {
   let assert Ok(_) =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       payload,
@@ -30,7 +31,7 @@ pub fn http_bodies_preserves_request_data_zero_byte_test() -> Nil {
   let assert Ok(_) =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       payload,
@@ -47,7 +48,7 @@ pub fn http_bodies_preserves_request_data_three_bytes_test() -> Nil {
   let assert Ok(_) =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       payload,
@@ -142,7 +143,7 @@ pub fn http_rejection_rejects_http_payload_one_bit_test() -> Nil {
   let actual_16 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       payload,
@@ -173,7 +174,7 @@ pub fn http_rejection_rejects_http_payload_seven_bits_test() -> Nil {
   let actual_19 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       payload,
@@ -204,7 +205,7 @@ pub fn http_rejection_rejects_http_payload_byte_and_one_bit_test() -> Nil {
   let actual_22 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       payload,
@@ -235,7 +236,7 @@ pub fn http_rejection_rejects_http_payload_byte_and_seven_bits_test() -> Nil {
   let actual_25 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       payload,
@@ -274,7 +275,7 @@ pub fn client_helpers_reject_trailing_bits_before_collecting_test() -> Nil {
     Nil
   })
   let actual_29 = {
-    client.new(request.Post, "/")
+    client.new(http.Post, "/")
     |> client.with_body(body: <<255, 1:size(1)>>)
     |> client.send(connection: current_connection())
   }
@@ -409,7 +410,15 @@ pub fn websocket_bytes_preserves_frame_three_bytes_close_with_reason_test() -> N
 pub fn websocket_rejection_rejects_frame_and_batch_one_bit_binary_test() -> Nil {
   let payload = <<1:size(1)>>
   let frame = message.Binary(payload)
-  let actual_43 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_43 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_43 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_43 == expected_43, actual_43, expected_43)
   list.each(
@@ -420,7 +429,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_one_bit_binary_test() -> Nil 
     ],
     fn(frames) {
       let actual_44 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_44 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_44 == expected_44,
@@ -439,7 +455,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_one_bit_binary_test() -> Nil 
 pub fn websocket_rejection_rejects_frame_and_batch_one_bit_ping_test() -> Nil {
   let payload = <<1:size(1)>>
   let frame = message.Ping(payload)
-  let actual_46 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_46 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_46 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_46 == expected_46, actual_46, expected_46)
   list.each(
@@ -450,7 +474,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_one_bit_ping_test() -> Nil {
     ],
     fn(frames) {
       let actual_47 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_47 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_47 == expected_47,
@@ -469,7 +500,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_one_bit_ping_test() -> Nil {
 pub fn websocket_rejection_rejects_frame_and_batch_one_bit_pong_test() -> Nil {
   let payload = <<1:size(1)>>
   let frame = message.Pong(payload)
-  let actual_49 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_49 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_49 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_49 == expected_49, actual_49, expected_49)
   list.each(
@@ -480,7 +519,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_one_bit_pong_test() -> Nil {
     ],
     fn(frames) {
       let actual_50 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_50 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_50 == expected_50,
@@ -499,7 +545,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_one_bit_pong_test() -> Nil {
 pub fn websocket_rejection_rejects_frame_and_batch_one_bit_close_with_reason_test() -> Nil {
   let payload = <<1:size(1)>>
   let frame = message.CloseWithReason(1000, payload)
-  let actual_52 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_52 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_52 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_52 == expected_52, actual_52, expected_52)
   list.each(
@@ -510,7 +564,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_one_bit_close_with_reason_tes
     ],
     fn(frames) {
       let actual_53 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_53 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_53 == expected_53,
@@ -529,7 +590,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_one_bit_close_with_reason_tes
 pub fn websocket_rejection_rejects_frame_and_batch_seven_bits_binary_test() -> Nil {
   let payload = <<127:size(7)>>
   let frame = message.Binary(payload)
-  let actual_55 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_55 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_55 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_55 == expected_55, actual_55, expected_55)
   list.each(
@@ -540,7 +609,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_seven_bits_binary_test() -> N
     ],
     fn(frames) {
       let actual_56 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_56 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_56 == expected_56,
@@ -559,7 +635,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_seven_bits_binary_test() -> N
 pub fn websocket_rejection_rejects_frame_and_batch_seven_bits_ping_test() -> Nil {
   let payload = <<127:size(7)>>
   let frame = message.Ping(payload)
-  let actual_58 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_58 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_58 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_58 == expected_58, actual_58, expected_58)
   list.each(
@@ -570,7 +654,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_seven_bits_ping_test() -> Nil
     ],
     fn(frames) {
       let actual_59 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_59 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_59 == expected_59,
@@ -589,7 +680,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_seven_bits_ping_test() -> Nil
 pub fn websocket_rejection_rejects_frame_and_batch_seven_bits_pong_test() -> Nil {
   let payload = <<127:size(7)>>
   let frame = message.Pong(payload)
-  let actual_61 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_61 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_61 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_61 == expected_61, actual_61, expected_61)
   list.each(
@@ -600,7 +699,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_seven_bits_pong_test() -> Nil
     ],
     fn(frames) {
       let actual_62 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_62 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_62 == expected_62,
@@ -619,7 +725,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_seven_bits_pong_test() -> Nil
 pub fn websocket_rejection_rejects_frame_and_batch_seven_bits_close_with_reason_test() -> Nil {
   let payload = <<127:size(7)>>
   let frame = message.CloseWithReason(1000, payload)
-  let actual_64 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_64 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_64 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_64 == expected_64, actual_64, expected_64)
   list.each(
@@ -630,7 +744,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_seven_bits_close_with_reason_
     ],
     fn(frames) {
       let actual_65 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_65 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_65 == expected_65,
@@ -649,7 +770,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_seven_bits_close_with_reason_
 pub fn websocket_rejection_rejects_frame_and_batch_byte_and_one_bit_binary_test() -> Nil {
   let payload = <<255, 1:size(1)>>
   let frame = message.Binary(payload)
-  let actual_67 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_67 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_67 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_67 == expected_67, actual_67, expected_67)
   list.each(
@@ -660,7 +789,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_one_bit_binary_test(
     ],
     fn(frames) {
       let actual_68 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_68 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_68 == expected_68,
@@ -679,7 +815,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_one_bit_binary_test(
 pub fn websocket_rejection_rejects_frame_and_batch_byte_and_one_bit_ping_test() -> Nil {
   let payload = <<255, 1:size(1)>>
   let frame = message.Ping(payload)
-  let actual_70 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_70 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_70 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_70 == expected_70, actual_70, expected_70)
   list.each(
@@ -690,7 +834,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_one_bit_ping_test() 
     ],
     fn(frames) {
       let actual_71 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_71 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_71 == expected_71,
@@ -709,7 +860,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_one_bit_ping_test() 
 pub fn websocket_rejection_rejects_frame_and_batch_byte_and_one_bit_pong_test() -> Nil {
   let payload = <<255, 1:size(1)>>
   let frame = message.Pong(payload)
-  let actual_73 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_73 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_73 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_73 == expected_73, actual_73, expected_73)
   list.each(
@@ -720,7 +879,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_one_bit_pong_test() 
     ],
     fn(frames) {
       let actual_74 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_74 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_74 == expected_74,
@@ -739,7 +905,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_one_bit_pong_test() 
 pub fn websocket_rejection_rejects_frame_and_batch_byte_and_one_bit_close_with_reason_test() -> Nil {
   let payload = <<255, 1:size(1)>>
   let frame = message.CloseWithReason(1000, payload)
-  let actual_76 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_76 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_76 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_76 == expected_76, actual_76, expected_76)
   list.each(
@@ -750,7 +924,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_one_bit_close_with_r
     ],
     fn(frames) {
       let actual_77 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_77 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_77 == expected_77,
@@ -769,7 +950,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_one_bit_close_with_r
 pub fn websocket_rejection_rejects_frame_and_batch_byte_and_seven_bits_binary_test() -> Nil {
   let payload = <<255, 127:size(7)>>
   let frame = message.Binary(payload)
-  let actual_79 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_79 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_79 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_79 == expected_79, actual_79, expected_79)
   list.each(
@@ -780,7 +969,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_seven_bits_binary_te
     ],
     fn(frames) {
       let actual_80 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_80 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_80 == expected_80,
@@ -799,7 +995,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_seven_bits_binary_te
 pub fn websocket_rejection_rejects_frame_and_batch_byte_and_seven_bits_ping_test() -> Nil {
   let payload = <<255, 127:size(7)>>
   let frame = message.Ping(payload)
-  let actual_82 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_82 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_82 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_82 == expected_82, actual_82, expected_82)
   list.each(
@@ -810,7 +1014,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_seven_bits_ping_test
     ],
     fn(frames) {
       let actual_83 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_83 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_83 == expected_83,
@@ -829,7 +1040,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_seven_bits_ping_test
 pub fn websocket_rejection_rejects_frame_and_batch_byte_and_seven_bits_pong_test() -> Nil {
   let payload = <<255, 127:size(7)>>
   let frame = message.Pong(payload)
-  let actual_85 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_85 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_85 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_85 == expected_85, actual_85, expected_85)
   list.each(
@@ -840,7 +1059,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_seven_bits_pong_test
     ],
     fn(frames) {
       let actual_86 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_86 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_86 == expected_86,
@@ -859,7 +1085,15 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_seven_bits_pong_test
 pub fn websocket_rejection_rejects_frame_and_batch_byte_and_seven_bits_close_with_reason_test() -> Nil {
   let payload = <<255, 127:size(7)>>
   let frame = message.CloseWithReason(1000, payload)
-  let actual_88 = websocket.send(current_connection(), stream_ref(), frame)
+  let actual_88 =
+    websocket.send_frame(
+      websocket.socket(
+        current_connection(),
+        stream_ref(),
+        connection.default_timeout(),
+      ),
+      frame,
+    )
   let expected_88 = invalid_frame_error()
   let assert #(True, _, _) = #(actual_88 == expected_88, actual_88, expected_88)
   list.each(
@@ -870,7 +1104,14 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_seven_bits_close_wit
     ],
     fn(frames) {
       let actual_89 =
-        websocket.send_many(current_connection(), stream_ref(), frames)
+        websocket.send_many(
+          websocket.socket(
+            current_connection(),
+            stream_ref(),
+            connection.default_timeout(),
+          ),
+          frames,
+        )
       let expected_89 = invalid_frame_error()
       let assert #(True, _, _) = #(
         actual_89 == expected_89,

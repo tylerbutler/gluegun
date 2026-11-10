@@ -23,6 +23,52 @@ jobs:
       - name: Run CI checks
         run: just ci
 
+      - name: Compile standalone examples
+        run: just examples-build
+
+  compatibility:
+    runs-on: ubuntu-latest
+    name: Compatibility (${{ matrix.resolution }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - resolution: minimum
+            gleam: "1.11.0"
+            erlang: "27.0"
+          - resolution: current
+            gleam: "1.19.2"
+            erlang: "29.1"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+
+      - name: Setup tools without package development dependencies
+        uses: ./.github/actions/setup
+        with:
+          dependencies: "false"
+
+      - name: Select supported compiler and runtime
+        env:
+          GLEAM_VERSION: ${{ matrix.gleam }}
+          ERLANG_VERSION: ${{ matrix.erlang }}
+        run: |
+          mise use --local "gleam@$GLEAM_VERSION" "erlang@$ERLANG_VERSION"
+          gleam --version
+          erl -noshell -eval 'io:format("OTP ~s~n", [erlang:system_info(otp_release)]), halt().'
+
+      - name: Select exact minimum production dependencies
+        if: matrix.resolution == 'minimum'
+        working-directory: compatibility
+        run: |
+          sed -i 's/gleam_stdlib = .*/gleam_stdlib = ">= 0.53.0 and <= 0.53.0"/' gleam.toml
+          sed -i 's/gleam_erlang = .*/gleam_erlang = ">= 1.0.0 and <= 1.0.0"/' gleam.toml
+          sed -i 's/gleam_http = .*/gleam_http = ">= 4.0.0 and <= 4.0.0"/' gleam.toml
+          sed -i 's/gun = .*/gun = ">= 2.1.0 and <= 2.1.0"/' gleam.toml
+
+      - name: Build and exercise public consumer APIs
+        working-directory: compatibility
+        run: gleam build --warnings-as-errors && gleam run
+
   docs:
     runs-on: ubuntu-latest
     name: Docs

@@ -1,6 +1,133 @@
 -module(gluegun_http2_test).
+-include_lib("public_key/include/public_key.hrl").
 
--export([run/3]).
+-export([run/3, with_tls_cancel_server/1]).
+
+%% Gleam callback: fn(Int, List(BitArray)) -> Result(Nil, GluegunError).
+%% A successful second response is gated on observing CANCEL on the first
+%% stream, and both requests must arrive on this one TLS connection.
+with_tls_cancel_server(Callback) ->
+    Certificate = public_key:pkix_test_data(#{
+        root => [{digest, sha256}, {key, {rsa, 2048, 65537}}],
+        intermediates => [],
+        peer => [{digest, sha256}, {key, {rsa, 2048, 65537}}, {extensions, [
+            #'Extension'{extnID = ?'id-ce-subjectAltName',
+                extnValue = [{dNSName, "localhost"}], critical = false}
+        ]}]
+    }),
+    {ok, Listener} = ssl:listen(0, [binary, {active, false},
+        {ip, {127, 0, 0, 1}}, {reuseaddr, true},
+        {alpn_preferred_protocols, [<<"h2">>, <<"http/1.1">>]} | Certificate]),
+    {ok, {_, Port}} = ssl:sockname(Listener),
+    {Server, Monitor} = spawn_monitor(fun() -> serve_tls_cancel(Listener) end),
+    try
+        Result = Callback(Port, proplists:get_value(cacerts, Certificate)),
+        case Result of
+            {error, _} -> Result;
+            {ok, nil} ->
+                receive
+                    {'DOWN', Monitor, process, Server, normal} -> Result;
+                    {'DOWN', Monitor, process, Server, Reason} ->
+                        {error, {erlang_error, gleam@string:inspect({tls_peer_failed, Reason})}}
+                after 2000 ->
+                    {error, {erlang_error, <<"HTTP/2 TLS peer completion timeout">>}}
+                end
+        end
+    after
+        ssl:close(Listener),
+        stop_tls_peer(Server, Monitor)
+    end.
+
+serve_tls_cancel(Listener) ->
+    {ok, Transport} = ssl:transport_accept(Listener, 2000),
+    {ok, Socket} = ssl:handshake(Transport, 2000),
+    try
+        Deadline = erlang:monotonic_time(millisecond) + 5000,
+        {ok, <<"h2">>} = ssl:negotiated_protocol(Socket),
+        {ok, <<"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n">>} =
+            ssl:recv(Socket, 24, tls_remaining(Deadline)),
+        ok = ssl:send(Socket, cow_http2:settings(#{})),
+        {First, Rest0} = tls_request(Socket, <<>>, Deadline),
+        {Headers, _} = cow_hpack:encode([{<<":status">>, <<"200">>}]),
+        ok = ssl:send(Socket, [
+            cow_http2:headers(First, nofin, Headers),
+            cow_http2:data(First, nofin, <<"paused">>)]),
+        Rest1 = tls_cancel(Socket, Rest0, First, Deadline),
+        {Second, Rest2} = tls_request(Socket, Rest1, Deadline),
+        true = Second > First,
+        ok = ssl:send(Socket, [
+            cow_http2:headers(Second, nofin, Headers),
+            cow_http2:data(Second, fin, <<"reused">>)]),
+        tls_wait_closed(Socket, Rest2, Deadline)
+    after ssl:close(Socket)
+    end.
+
+tls_request(Socket, Buffer, Deadline) ->
+    {Frame, Rest} = tls_next_frame(Socket, Buffer, Deadline),
+    case Frame of
+        {headers, StreamID, fin, head_fin, _} -> {StreamID, Rest};
+        {settings, _} ->
+            ok = ssl:send(Socket, cow_http2:settings_ack()),
+            tls_request(Socket, Rest, Deadline);
+        settings_ack -> tls_request(Socket, Rest, Deadline);
+        {window_update, _} -> tls_request(Socket, Rest, Deadline);
+        {window_update, _, _} -> tls_request(Socket, Rest, Deadline);
+        Other -> error({unexpected_tls_request_frame, Other})
+    end.
+
+tls_cancel(Socket, Buffer, StreamID, Deadline) ->
+    {Frame, Rest} = tls_next_frame(Socket, Buffer, Deadline),
+    case Frame of
+        %% cow_http2 maps exactly wire error code 0x8 to the atom cancel.
+        {rst_stream, StreamID, cancel} -> Rest;
+        {settings, _} ->
+            ok = ssl:send(Socket, cow_http2:settings_ack()),
+            tls_cancel(Socket, Rest, StreamID, Deadline);
+        settings_ack -> tls_cancel(Socket, Rest, StreamID, Deadline);
+        {window_update, _} -> tls_cancel(Socket, Rest, StreamID, Deadline);
+        {window_update, _, _} -> tls_cancel(Socket, Rest, StreamID, Deadline);
+        Other -> error({expected_cancel_before_reuse, StreamID, Other})
+    end.
+
+tls_next_frame(Socket, Buffer, Deadline) ->
+    case cow_http2:parse(Buffer) of
+        {ok, Frame, Rest} -> {Frame, Rest};
+        more ->
+            {ok, Data} = ssl:recv(Socket, 0, tls_remaining(Deadline)),
+            tls_next_frame(Socket, <<Buffer/binary, Data/binary>>, Deadline);
+        Other -> error({invalid_tls_http2_frame, Other})
+    end.
+
+tls_wait_closed(Socket, Buffer, Deadline) ->
+    case cow_http2:parse(Buffer) of
+        {ok, _, Rest} -> tls_wait_closed(Socket, Rest, Deadline);
+        more ->
+            case ssl:recv(Socket, 0, tls_remaining(Deadline)) of
+                {error, closed} -> ok;
+                {ok, Data} -> tls_wait_closed(Socket, <<Buffer/binary, Data/binary>>, Deadline);
+                Other -> error({tls_connection_not_released, Other})
+            end;
+        Other -> error({invalid_tls_shutdown_frame, Other})
+    end.
+
+tls_remaining(Deadline) ->
+    case Deadline - erlang:monotonic_time(millisecond) of
+        Left when Left > 0 -> Left;
+        _ -> error(tls_peer_deadline)
+    end.
+
+stop_tls_peer(Server, Monitor) ->
+    try
+        case is_process_alive(Server) of
+            false -> ok;
+            true ->
+                exit(Server, kill),
+                receive {'DOWN', Monitor, process, Server, _} -> ok
+                after 1000 -> error(tls_peer_cleanup_timeout)
+                end
+        end
+    after erlang:demonitor(Monitor, [flush])
+    end.
 
 run(Mode, ConnectOptions, RequestOptions) ->
     try

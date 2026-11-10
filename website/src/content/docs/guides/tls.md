@@ -80,7 +80,7 @@ import gluegun/connection
 import gluegun/tls
 
 pub fn secure_options() {
-  let tls_options =
+  let assert Ok(tls_options) =
     tls.options()
     |> tls.with_versions(versions: [tls.TlsV13])
     |> tls.with_cacertfile(cacertfile: "/etc/ssl/cert.pem")
@@ -96,6 +96,15 @@ pub fn secure_options() {
 (or `with_cacerts`) replaces the system trust store. `with_depth` replaces
 `10`. The other fields keep the secure defaults (peer verification, SNI from
 the host, hostname match function).
+
+`with_depth` returns `Result` and accepts 0 through 255. Numeric builders
+reject out-of-range values; they do not clamp them. Handle the error when the
+depth comes from configuration.
+
+Gluegun rejects disabled SNI with `VerifyPeer`, including the default verifying
+mode. OTP disables hostname verification along with SNI, so this combination
+cannot meet the verifying contract. Use a valid `ServerName` for verified TLS.
+`tls.insecure()` remains a development-only verification bypass.
 
 ## Full typed option list
 

@@ -54,7 +54,11 @@ pub fn accepts_registered_and_application_close_code_ranges_test() -> Nil {
 pub fn rejects_invalid_controls_without_casting_a_frame_list_test() -> Nil {
   list.each(invalid_frames(), fn(entry) {
     let #(frame, expected_error) = entry
-    let actual_1 = websocket.send(current_connection(), stream_ref(), frame)
+    let actual_1 =
+      websocket.send_frame(
+        websocket.socket(current_connection(), stream_ref(), timeout()),
+        frame,
+      )
     let expected_1 = Error(expected_error)
     let assert #(True, _, _) = #(actual_1 == expected_1, actual_1, expected_1)
     let actual_2 = capture_frames()
@@ -69,7 +73,10 @@ pub fn rejects_invalid_controls_without_casting_a_frame_list_test() -> Nil {
       ],
       fn(frames) {
         let actual_3 =
-          websocket.send_many(current_connection(), stream_ref(), frames)
+          websocket.send_many(
+            websocket.socket(current_connection(), stream_ref(), timeout()),
+            frames,
+          )
         let expected_3 = Error(expected_error)
         let assert #(True, _, _) = #(
           actual_3 == expected_3,
@@ -95,9 +102,8 @@ pub fn counts_close_reason_bytes_rather_than_characters_test() -> Nil {
   let assert Ok(_) =
     capture_frame(message.CloseWithReason(1000, bit_array.from_string(reason)))
   let actual_5 =
-    websocket.send(
-      current_connection(),
-      stream_ref(),
+    websocket.send_frame(
+      websocket.socket(current_connection(), stream_ref(), timeout()),
       message.CloseWithReason(
         1000,
         bit_array.from_string(string.repeat("é", 62)),
@@ -116,17 +122,26 @@ pub fn exchanges_exact_limit_ping_and_pong_frames_with_a_local_server_test() -> 
   with_echo_connection(fn(conn, stream) {
     list.each([1, 125], fn(size) {
       let payload = bytes(size)
-      let actual_7 = websocket.send(conn, stream, message.Ping(payload))
+      let actual_7 =
+        websocket.send_frame(
+          websocket.socket(conn, stream, timeout()),
+          message.Ping(payload),
+        )
       let expected_7 = Ok(Nil)
       let assert #(True, _, _) = #(actual_7 == expected_7, actual_7, expected_7)
-      let actual_8 = websocket.receive(conn, stream, timeout())
+      let actual_8 =
+        websocket.receive_frame(websocket.socket(conn, stream, timeout()))
       let expected_8 = Ok(message.Pong(payload))
       let assert #(True, _, _) = #(actual_8 == expected_8, actual_8, expected_8)
 
-      let actual_9 = websocket.send_many(conn, stream, [message.Pong(payload)])
+      let actual_9 =
+        websocket.send_many(websocket.socket(conn, stream, timeout()), [
+          message.Pong(payload),
+        ])
       let expected_9 = Ok(Nil)
       let assert #(True, _, _) = #(actual_9 == expected_9, actual_9, expected_9)
-      let actual_10 = websocket.receive(conn, stream, timeout())
+      let actual_10 =
+        websocket.receive_frame(websocket.socket(conn, stream, timeout()))
       let expected_10 = Ok(message.Pong(payload))
       let assert #(True, _, _) = #(
         actual_10 == expected_10,
@@ -146,14 +161,16 @@ pub fn exchanges_an_exact_limit_close_reason_with_a_local_server_test() -> Nil {
         1000,
         bit_array.from_string(string.repeat("é", 61) <> "a"),
       )
-    let actual_11 = websocket.send(conn, stream, frame)
+    let actual_11 =
+      websocket.send_frame(websocket.socket(conn, stream, timeout()), frame)
     let expected_11 = Ok(Nil)
     let assert #(True, _, _) = #(
       actual_11 == expected_11,
       actual_11,
       expected_11,
     )
-    let actual_12 = websocket.receive(conn, stream, timeout())
+    let actual_12 =
+      websocket.receive_frame(websocket.socket(conn, stream, timeout()))
     let expected_12 = Ok(frame)
     let assert #(True, _, _) = #(
       actual_12 == expected_12,
@@ -164,14 +181,16 @@ pub fn exchanges_an_exact_limit_close_reason_with_a_local_server_test() -> Nil {
   })
   with_echo_connection(fn(conn, stream) {
     let frame = message.CloseWithReason(1000, bytes(123))
-    let actual_13 = websocket.send_many(conn, stream, [frame])
+    let actual_13 =
+      websocket.send_many(websocket.socket(conn, stream, timeout()), [frame])
     let expected_13 = Ok(Nil)
     let assert #(True, _, _) = #(
       actual_13 == expected_13,
       actual_13,
       expected_13,
     )
-    let actual_14 = websocket.receive(conn, stream, timeout())
+    let actual_14 =
+      websocket.receive_frame(websocket.socket(conn, stream, timeout()))
     let expected_14 = Ok(frame)
     let assert #(True, _, _) = #(
       actual_14 == expected_14,
@@ -187,7 +206,8 @@ pub fn keeps_a_live_connection_usable_after_each_rejected_send_test() -> Nil {
   with_echo_connection(fn(conn, stream) {
     list.each(invalid_frames(), fn(entry) {
       let #(frame, expected_error) = entry
-      let actual_15 = websocket.send(conn, stream, frame)
+      let actual_15 =
+        websocket.send_frame(websocket.socket(conn, stream, timeout()), frame)
       let expected_15 = Error(expected_error)
       let assert #(True, _, _) = #(
         actual_15 == expected_15,
@@ -197,7 +217,7 @@ pub fn keeps_a_live_connection_usable_after_each_rejected_send_test() -> Nil {
       exchange_marker(conn, stream)
 
       let actual_16 =
-        websocket.send_many(conn, stream, [
+        websocket.send_many(websocket.socket(conn, stream, timeout()), [
           message.Text("must not be sent"),
           frame,
         ])
@@ -293,10 +313,15 @@ fn timeout() -> connection.Timeout {
 }
 
 fn exchange_marker(conn: connection.Connection, stream: request.Stream) -> Nil {
-  let actual_19 = websocket.send(conn, stream, message.Text("still usable"))
+  let actual_19 =
+    websocket.send_frame(
+      websocket.socket(conn, stream, timeout()),
+      message.Text("still usable"),
+    )
   let expected_19 = Ok(Nil)
   let assert #(True, _, _) = #(actual_19 == expected_19, actual_19, expected_19)
-  let actual_20 = websocket.receive(conn, stream, timeout())
+  let actual_20 =
+    websocket.receive_frame(websocket.socket(conn, stream, timeout()))
   let expected_20 = Ok(message.Text("still usable"))
   let assert #(True, _, _) = #(actual_20 == expected_20, actual_20, expected_20)
   Nil

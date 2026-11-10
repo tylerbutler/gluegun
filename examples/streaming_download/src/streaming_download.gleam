@@ -1,5 +1,6 @@
 /// Response streaming with finite credit, a byte limit, and a total deadline.
 import gleam/bit_array
+import gleam/http
 import gleam/int
 import gleam/io
 import gleam/list
@@ -67,7 +68,7 @@ fn download(
   use options <- result.try(request.with_initial_flow(request.options(), 1))
   use stream <- result.try(request.request(
     connection,
-    request.Get,
+    http.Get,
     path,
     [],
     <<>>,

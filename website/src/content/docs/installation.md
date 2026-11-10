@@ -36,7 +36,7 @@ gleam deps download
 - Gluegun runs on the Erlang target only.
 - Gluegun is an interface to the Erlang Gun client. It does not support the JavaScript target.
 - Gluegun supports Erlang/OTP `>= 27`.
-- Gluegun supports Gleam `>= 1.7.0`.
+- Gluegun supports Gleam `>= 1.11.0`.
 - Gluegun supports Gun `>= 2.1.0 and < 3.0.0`.
 
 If your application supports more than one target, keep Gluegun code in Erlang-only modules. Set the package target when applicable:
@@ -51,7 +51,13 @@ Gluegun uses these packages:
 
 - `gleam_stdlib`
 - `gleam_erlang`
-- `gleam_otp`
+- `gleam_http`
 - `gun`
 
-The package controls these through its `gleam.toml`. Applications add only the Git dependency above.
+The package controls these through its `gleam.toml`. Declare packages that you
+import directly in your application's dependencies too.
+
+After maintainers publish the authorized 1.0 release to Hex, use
+`gleam add gluegun`. Until then, use the Git dependency above. See the
+[release setup instructions](https://github.com/tylerbutler/gluegun#hex-release-setup)
+for the steps that remain before publication.

@@ -6,8 +6,6 @@ pub fn converts_finite_credit_for_both_request_entry_points_test() -> Nil {
   let assert Ok(options) = request.options() |> request.with_initial_flow(1)
   let actual_1 = {
     options
-    |> request.with_headers([#("accept", "text/plain")])
-    |> request.add_headers([#("x-test", "flow")])
     |> request.options_to_ffi
     |> capture_flow
   }
@@ -56,7 +54,7 @@ pub fn preserves_setup_defaults_and_infinite_stage_timeouts_test() -> Nil {
     |> connection.options_to_ffi
     |> project_setup
   }
-  let expected_7 = #("default", "5", "5000", "infinity", "infinity", True)
+  let expected_7 = #("default", "0", "5000", "infinity", "infinity", True)
   let assert #(True, _, _) = #(actual_7 == expected_7, actual_7, expected_7)
   let actual_8 = {
     connection.options()
@@ -66,7 +64,7 @@ pub fn preserves_setup_defaults_and_infinite_stage_timeouts_test() -> Nil {
     |> connection.options_to_ffi
     |> project_setup
   }
-  let expected_8 = #("inet6", "5", "5000", "infinity", "0", True)
+  let expected_8 = #("inet6", "0", "5000", "infinity", "0", True)
   let assert #(True, _, _) = #(actual_8 == expected_8, actual_8, expected_8)
   Nil
 }

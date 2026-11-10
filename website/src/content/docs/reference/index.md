@@ -9,7 +9,7 @@ This site is the primary reference for `gluegun` `0.2.0`. It is generated from t
 
 ## Start here
 
-- [`gluegun`](/reference/gluegun/) — Minimal common-path facade for the Gluegun HTTP client wrapper.
+- [`gluegun`](/reference/gluegun/) — A small HTTP facade for Gluegun.
 - [`gluegun/client`](/reference/gluegun-client/) — High-level HTTP helpers for existing Gun connections.
 - [`gluegun/connection`](/reference/gluegun-connection/) — Connection management for Erlang Gun.
 - [`gluegun/request`](/reference/gluegun-request/) — Low-level HTTP request and stream operations.

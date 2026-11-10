@@ -1,4 +1,3 @@
-import gluegun
 import gluegun/connection
 import gluegun/error
 import gluegun/message
@@ -22,7 +21,7 @@ pub fn exchanges_and_releases_using_public_socket_apis_test() -> Nil {
       let actual_4 = websocket.receive_app_frame(socket)
       let expected_4 = Ok(message.Text("hello"))
       let assert #(True, _, _) = #(actual_4 == expected_4, actual_4, expected_4)
-      let actual_5 = gluegun.websocket_close(socket)
+      let actual_5 = websocket.close(socket)
       let expected_5 = Ok(Nil)
       let assert #(True, _, _) = #(actual_5 == expected_5, actual_5, expected_5)
       let actual_6 = websocket.close(socket)
@@ -315,9 +314,16 @@ fn connect_zero_timeout(
     |> connection.open(host: "127.0.0.1", port: port)
   let assert Ok(protocol) = connection.await_up(connection, timeout(500))
   let assert Ok(stream) =
-    websocket.upgrade_with_protocol(connection, protocol, "/echo", [])
-  let assert Ok(Nil) = websocket.await_upgrade(connection, stream, timeout(500))
-  Ok(websocket.socket(connection, stream, timeout(0)))
+    websocket.upgrade(
+      connection,
+      protocol,
+      "/echo",
+      [],
+      websocket.upgrade_options(),
+    )
+  let assert Ok(handshake) =
+    websocket.await_upgrade(connection, stream, timeout(500))
+  Ok(websocket.from_upgrade(connection, stream, handshake, timeout(0)))
 }
 
 fn options(milliseconds: Int) -> websocket.Options {

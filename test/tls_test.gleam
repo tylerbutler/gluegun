@@ -1,3 +1,4 @@
+import gleam/http
 import gleam/option.{type Option, None, Some}
 import gluegun/connection
 import gluegun/error
@@ -19,6 +20,26 @@ type TlsSummary =
     Bool,
     Bool,
   )
+
+pub fn depth_accepts_zero_test() -> Nil {
+  let assert Ok(_) = tls.with_depth(tls.options(), 0)
+  Nil
+}
+
+pub fn depth_accepts_255_test() -> Nil {
+  let assert Ok(_) = tls.with_depth(tls.options(), 255)
+  Nil
+}
+
+pub fn depth_rejects_negative_test() -> Nil {
+  let assert Error(error.InvalidOptions(_)) = tls.with_depth(tls.options(), -1)
+  Nil
+}
+
+pub fn depth_rejects_256_test() -> Nil {
+  let assert Error(error.InvalidOptions(_)) = tls.with_depth(tls.options(), 256)
+  Nil
+}
 
 pub fn nests_tls_options_under_transport_opts_in_connection_ffi_test() -> Nil {
   let options =
@@ -170,13 +191,13 @@ pub fn applies_the_secure_baseline_when_tls_is_used_and_no_options_are_set_test(
 }
 
 pub fn lets_user_set_tls_fields_override_the_secure_baseline_test() -> Nil {
-  let tls_options =
+  let assert Ok(tls_options) =
     tls.options()
     |> tls.with_versions(versions: [tls.TlsV13])
-    |> tls.with_depth(depth: 3)
     |> tls.with_server_name_indication(server_name_indication: tls.ServerName(
       "override.example",
     ))
+    |> tls.with_depth(depth: 3)
 
   let options =
     connection.options()
@@ -198,7 +219,7 @@ pub fn lets_user_set_tls_fields_override_the_secure_baseline_test() -> Nil {
 }
 
 pub fn documented_custom_ca_options_use_the_public_tls_builder_test() -> Nil {
-  let tls_options =
+  let assert Ok(tls_options) =
     tls.options()
     |> tls.with_versions(versions: [tls.TlsV13])
     |> tls.with_cacertfile(cacertfile: "/etc/ssl/cert.pem")
@@ -438,7 +459,7 @@ pub fn public_auto_open_serves_plain_http_on_a_local_custom_port_test() -> Nil {
   let assert Ok(stream) =
     request.request(
       conn,
-      request.Post,
+      http.Post,
       "/auto",
       [],
       <<"plain HTTP":utf8>>,
