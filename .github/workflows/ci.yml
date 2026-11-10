@@ -63,7 +63,7 @@ jobs:
           sed -i 's/gleam_stdlib = .*/gleam_stdlib = ">= 0.53.0 and <= 0.53.0"/' gleam.toml
           sed -i 's/gleam_erlang = .*/gleam_erlang = ">= 1.0.0 and <= 1.0.0"/' gleam.toml
           sed -i 's/gleam_http = .*/gleam_http = ">= 4.0.0 and <= 4.0.0"/' gleam.toml
-          sed -i 's/gun = .*/gun = ">= 2.1.0 and <= 2.1.0"/' gleam.toml
+          sed -i 's/^gun = .*/gun = ">= 2.1.0 and <= 2.1.0"/' gleam.toml
 
       - name: Build and exercise public consumer APIs
         working-directory: compatibility
