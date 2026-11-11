@@ -7,7 +7,7 @@
 ///
 /// This example uses HTTP/1.1. Gun does NOT support WebSocket over HTTP/2
 /// (RFC 8441). `websocket.options()` defaults WebSocket connections to
-/// HTTP/1.1, and low-level `websocket.upgrade_with_protocol` rejects HTTP/2
+/// HTTP/1.1, and low-level `websocket.upgrade` rejects HTTP/2
 /// before calling Gun.
 ///
 /// Once the connection is upgraded to WebSocket it is exclusively used for

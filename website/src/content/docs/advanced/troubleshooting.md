@@ -21,7 +21,10 @@ Use `gluegun/client` only for usual HTTP responses that can be collected in memo
 
 ## WebSocket receive fails immediately after upgrade
 
-With the low-level WebSocket functions, call `websocket.await_upgrade(conn, stream, timeout)` before `websocket.receive(conn, stream, timeout)`. The upgrade acknowledgement is not an application frame.
+With an existing connection, call `websocket.await_upgrade(conn, stream, timeout)`
+and adopt its handshake with `websocket.from_upgrade` before using
+`websocket.receive_frame(socket)`. The upgrade acknowledgement is not an
+application frame.
 
 ## WebSocket connection stays open
 

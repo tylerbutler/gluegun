@@ -3,10 +3,15 @@ title: WebSockets
 description: Open, use, and close WebSocket connections with Gluegun.
 ---
 
-Gun supports WebSocket over HTTP/1.1 only. The high-level WebSocket options in Gluegun use HTTP/1.1 by default. The low-level upgrade functions reject HTTP/2 before they call Gun.
+Gun supports WebSocket over HTTP/1.1 only. `websocket.connect` forces HTTP/1.1
+and zero retries after applying your connection options, including TLS
+settings. A dropped socket returns `ConnectionDown`. Reconnecting Gun as HTTP
+would not restore its WebSocket upgrade.
 
 :::caution[HTTP/2 not supported]
-Gun does not support WebSocket over HTTP/2 (RFC 8441). `websocket.connect`, `websocket.with_socket`, and `websocket.upgrade_with_protocol` return `UnsupportedFeature` when the negotiated protocol is `Http2`. Set `connection.with_protocols` to `[Http1]` (the default for `websocket.options()`), or check the protocol that `connection.await_up` returns before you upgrade.
+Gun does not support WebSocket over HTTP/2 (RFC 8441).
+`websocket.upgrade(conn, protocol, path, headers, options)` rejects `Http2`
+before calling Gun. The high-level `connect` and `with_socket` select HTTP/1.1.
 :::
 
 Use the reusable `Socket` API when you control the lifecycle yourself.
@@ -46,7 +51,7 @@ pub fn ws_echo() {
 }
 ```
 
-Call `websocket.close(socket)` even after an exchange fails. It sends a close frame, waits for the peer, then terminates the Gun process and flushes this receiver's queued Gun messages. Use the root alias `gluegun.websocket_close` if you use the facade.
+Call `websocket.close(socket)` even after an exchange fails. It sends a close frame, waits for the peer, then terminates the Gun process and flushes this receiver's queued Gun messages.
 
 The handshake uses one deadline: the socket's finite timeout, or five seconds for `Infinity`. Incoming frames do not extend it. If the peer does not complete the handshake, close returns `Error(Timeout)` after teardown. Connection and stream failures also trigger teardown and return typed errors. A handshake error takes precedence over a termination error. An already-exited connection returns `Ok(Nil)`, so repeated close is safe.
 
@@ -91,7 +96,14 @@ pub fn echo_once() {
 
 `with_socket` calls `websocket.close` after the callback returns, including when it returns an error. Callback errors take precedence over cleanup errors. If the callback succeeds, a teardown error becomes the result of `with_socket`. A callback can close its own socket; the later scoped close remains safe.
 
-## Control-frame limits
+## Control frames
+
+Gun automatically sends one matching pong for each incoming ping. The
+`silence_pings` upgrade option controls whether ping and pong frames reach the
+receiver; it does not disable automatic replies. `receive_app_frame` skips
+visible ping and pong frames, including empty payloads, and returns the next
+text, binary, or close frame. It does not send another pong. Use
+`websocket.pong` when you need to send an explicit pong.
 
 You can send up to 125 bytes in a Ping or Pong payload. A `CloseWithReason`
 reason must contain valid UTF-8 and at most 123 bytes. The close code uses two
@@ -118,20 +130,40 @@ pub fn low_level_echo(conn) {
   use protocol <- result.try(connection.await_up(conn, timeout))
 
   use stream <- result.try(
-    websocket.upgrade_with_protocol(conn, protocol, "/echo", []),
+    websocket.upgrade(conn, protocol, "/echo", [], websocket.upgrade_options()),
   )
 
-  use _ <- result.try(websocket.await_upgrade(conn, stream, timeout))
-  use _ <- result.try(websocket.send(conn, stream, message.Text("hello")))
+  use handshake <- result.try(websocket.await_upgrade(conn, stream, timeout))
+  let socket = websocket.from_upgrade(conn, stream, handshake, timeout)
+  let exchange = {
+    use _ <- result.try(websocket.send_text(socket, "hello"))
+    websocket.receive_frame(socket)
+  }
+  let cleanup = websocket.close(socket)
+  use frame <- result.try(exchange)
+  use _ <- result.try(cleanup)
 
-  case websocket.receive(conn, stream, timeout) {
-    Ok(message.Text(reply)) -> Ok(reply)
-    Ok(_) -> Error(error.InvalidMessage("received a non-text frame"))
-    Error(err) -> Error(err)
+  case frame {
+    message.Text(reply) -> Ok(reply)
+    _ -> Error(error.InvalidMessage("received a non-text frame"))
   }
 }
 ```
 
-Call `websocket.await_upgrade` before `websocket.receive`. If you do not, the upgrade acknowledgement can arrive where your code waits for a WebSocket frame.
+`await_upgrade` consumes informational responses until the upgrade completes
+under one deadline. Its handshake result retains the response headers.
+Adopt it before reading application frames, then use the Socket operations
+for send, receive, and bounded close.
+
+## Subprotocols
+
+Use `websocket.with_subprotocols(options, ["chat", "graphql-transport-ws"])`
+to request subprotocols with Gun's default handler. You do not need an Erlang
+module name. Names must be non-empty ASCII HTTP tokens; Gluegun rejects the
+complete list before sending anything if a name is invalid.
+
+Read `websocket.selected_subprotocol(socket)` after connect or adoption to
+find the server's selection. The handshake also retains other response
+headers. Custom Erlang handler modules and proxy tunnels remain internal.
 
 See the [WebSocket reference](/reference/gluegun-websocket/) for upgrade options, low-level functions, and reusable socket functions.

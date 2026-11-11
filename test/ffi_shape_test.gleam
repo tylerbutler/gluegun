@@ -137,7 +137,7 @@ pub fn message_and_error_shapes_keeps_shutdown_errors_explicit_test() -> Nil {
 
 pub fn message_and_error_shapes_rejects_invalid_utf_8_websocket_text_test() -> Nil {
   let actual_15 = gluegun_ffi_test_invalid_utf8_websocket()
-  let expected_15 = Error(error.InvalidMessage("Ws(Text(InvalidUtf8))"))
+  let expected_15 = Error(error.DecodeError("InvalidUtf8"))
   let assert #(True, _, _) = #(actual_15 == expected_15, actual_15, expected_15)
   Nil
 }

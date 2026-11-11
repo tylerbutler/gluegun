@@ -1,14 +1,75 @@
 import gleam/bit_array
+import gleam/erlang/process
 import gleam/http
 import gleam/http/response as http_response
+import gleam/option.{None, Some}
 import gluegun/client
 import gluegun/connection
 import gluegun/error
 import gluegun/fin
 import gluegun/internal
 import gluegun/message
-import gluegun/request
 import gluegun/response
+
+pub fn total_deadline_reduces_the_injected_await_budget_test() -> Nil {
+  let observed = process.new_subject()
+  let request_fn = fn(_, _, _, _, _, _) { Ok(stream_ref()) }
+  let await_fn = fn(_, _, wait) {
+    process.send(observed, connection.deadline(wait))
+    process.sleep(20)
+    Ok(message.Inform(103, []))
+  }
+  let result =
+    client.get_with(
+      invalid_connection(),
+      "/",
+      [],
+      timeout(70),
+      request_fn,
+      await_fn,
+    )
+  let assert True = result == Error(error.Timeout)
+  let assert Ok(Some(first)) = process.receive(observed, within: 0)
+  let assert Ok(Some(second)) = process.receive(observed, within: 0)
+  // Reconstructed deadlines stay fixed instead of advancing with each chunk.
+  let assert True = second <= first + 5
+  Nil
+}
+
+pub fn infinite_collection_budget_stays_unlimited_test() -> Nil {
+  let request_fn = fn(_, _, _, _, _, _) { Ok(stream_ref()) }
+  let await_fn = fn(_, _, wait) {
+    let assert True = connection.deadline(wait) == None
+    Ok(message.Response(fin.Fin, 204, []))
+  }
+  let assert Ok(res) =
+    client.get_with(
+      invalid_connection(),
+      "/",
+      [],
+      connection.infinity(),
+      request_fn,
+      await_fn,
+    )
+  let assert True = response.status(res) == 204
+  Nil
+}
+
+pub fn zero_collection_budget_does_not_receive_queued_messages_test() -> Nil {
+  let request_fn = fn(_, _, _, _, _, _) { Ok(stream_ref()) }
+  let await_fn = fn(_, _, _) { panic as "expired budget reached await" }
+  let assert True =
+    client.get_with(
+      invalid_connection(),
+      "/",
+      [],
+      timeout(0),
+      request_fn,
+      await_fn,
+    )
+    == Error(error.Timeout)
+  Nil
+}
 
 pub fn request_builder_sets_request_fields_test() -> Nil {
   let actual_1 = {
@@ -24,7 +85,6 @@ pub fn request_builder_sets_request_fields_test() -> Nil {
       path: "/",
       headers: [#("accept", "application/json")],
       body: <<"":utf8>>,
-      options: request.options(),
       timeout: timeout(1000),
     )
   let assert #(True, _, _) = #(actual_1 == expected_1, actual_1, expected_1)
@@ -54,7 +114,6 @@ pub fn request_builder_add_headers_appends_request_headers_test() -> Nil {
         #("x-request-id", "abc"),
       ],
       body: <<>>,
-      options: request.options(),
       timeout: connection.default_timeout(),
     )
   let assert #(True, _, _) = #(actual_3 == expected_3, actual_3, expected_3)
@@ -74,7 +133,6 @@ pub fn request_builder_with_headers_replaces_request_headers_test() -> Nil {
       path: "/",
       headers: [#("x-request-id", "abc")],
       body: <<>>,
-      options: request.options(),
       timeout: connection.default_timeout(),
     )
   let assert #(True, _, _) = #(actual_4 == expected_4, actual_4, expected_4)
@@ -441,8 +499,7 @@ fn timeout(milliseconds: Int) -> connection.Timeout {
 fn compile_request_options_helper(should_run: Bool) -> Nil {
   case should_run {
     True -> {
-      let _ =
-        client.request_options(invalid_connection(), "/", [], timeout(1000))
+      let _ = client.options(invalid_connection(), "/", [], timeout(1000))
       Nil
     }
     False -> Nil

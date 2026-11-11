@@ -49,30 +49,17 @@ pub fn connection_options_preserves_protocol_ordering_test() -> Nil {
   Nil
 }
 
-pub fn request_options_and_methods_with_headers_replaces_request_headers_test() -> Nil {
-  let actual_5 = {
-    request.options()
-    |> request.add_headers([#("accept", "application/json")])
-    |> request.with_headers([#("x-request-id", "abc")])
-    |> request.headers_option
-  }
-  let expected_5 = [#("x-request-id", "abc")]
-  let assert #(True, _, _) = #(actual_5 == expected_5, actual_5, expected_5)
+pub fn connection_rejects_negative_ports_before_open_test() -> Nil {
+  let assert True =
+    connection.open(connection.options(), host: "localhost", port: -1)
+    == Error(error.InvalidOptions("port must be between 0 and 65535"))
   Nil
 }
 
-pub fn request_options_and_methods_add_headers_appends_request_headers_test() -> Nil {
-  let actual_6 = {
-    request.options()
-    |> request.add_headers([#("accept", "application/json")])
-    |> request.add_headers([#("x-request-id", "abc")])
-    |> request.headers_option
-  }
-  let expected_6 = [
-    #("accept", "application/json"),
-    #("x-request-id", "abc"),
-  ]
-  let assert #(True, _, _) = #(actual_6 == expected_6, actual_6, expected_6)
+pub fn connection_rejects_oversized_ports_before_open_test() -> Nil {
+  let assert True =
+    connection.open(connection.options(), host: "localhost", port: 65_536)
+    == Error(error.InvalidOptions("port must be between 0 and 65535"))
   Nil
 }
 
@@ -310,7 +297,7 @@ pub fn responses_and_messages_rejects_unknown_message_tags_test() -> Nil {
     unknown_message()
     |> safe_decode_message
   }
-  let expected_32 = Error(error.InvalidMessage("Mystery(\"unknown\")"))
+  let expected_32 = Error(error.DecodeError("Mystery(\"unknown\")"))
   let assert #(True, _, _) = #(actual_32 == expected_32, actual_32, expected_32)
   Nil
 }
@@ -320,7 +307,7 @@ pub fn responses_and_messages_rejects_unknown_websocket_frame_tags_test() -> Nil
     unknown_websocket_frame_message()
     |> safe_decode_message
   }
-  let expected_33 = Error(error.InvalidMessage("Ws(Mystery(\"unknown\"))"))
+  let expected_33 = Error(error.DecodeError("Ws(Mystery(\"unknown\"))"))
   let assert #(True, _, _) = #(actual_33 == expected_33, actual_33, expected_33)
   Nil
 }

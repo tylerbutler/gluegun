@@ -10,9 +10,8 @@ pub fn request_ffi_shapes_normalizes_streaming_request_headers_test() -> Nil {
       current_connection(),
       http.Post,
       "/upload",
-      [#("Content-Type", "text/plain")],
-      request.options()
-        |> request.add_headers([#("X-Trace", "abc")]),
+      [#("Content-Type", "text/plain"), #("X-Trace", "abc")],
+      request.options(),
     )
 
   let actual_1 = capture_stream_headers()

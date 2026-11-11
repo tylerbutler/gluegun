@@ -4,6 +4,10 @@
 //// values rather than plain configuration: the process Gun replies to, the
 //// tunnel stream to send the upgrade through, and the opaque options Gun
 //// forwards to a protocol handler module.
+////
+//// Unsupported internal/test seams. Use `websocket.with_reply_to` for the
+//// supported receiver-ownership API. Custom handlers must not be adopted as
+//// a Socket: teardown credit accounting assumes Gun's default handler.
 
 import gleam/erlang/process.{type Pid}
 import gluegun/internal.{type Stream}
@@ -11,12 +15,14 @@ import gluegun/websocket.{type HandlerOptions, type UpgradeOptions}
 
 /// Set Gun's `reply_to` upgrade option so WebSocket messages are delivered to
 /// `reply_to` instead of the calling process.
+@internal
 pub fn with_reply_to(options: UpgradeOptions, reply_to: Pid) -> UpgradeOptions {
   websocket.with_reply_to_raw(options, reply_to)
 }
 
 /// Set Gun's `tunnel` upgrade option so the upgrade is sent through an
 /// existing tunnel stream.
+@internal
 pub fn with_tunnel(
   options: UpgradeOptions,
   tunnel tunnel: Stream,
@@ -26,6 +32,7 @@ pub fn with_tunnel(
 
 /// Set Gun's `user_opts` upgrade option, forwarded unchanged to the protocol
 /// handler module.
+@internal
 pub fn with_handler_options(
   options: UpgradeOptions,
   handler_options handler_options: HandlerOptions,
@@ -36,4 +43,5 @@ pub fn with_handler_options(
 /// Wrap any Gleam value as the `user_opts` term Gun forwards to the protocol
 /// handler module.
 @external(erlang, "gluegun_ffi", "identity")
+@internal
 pub fn handler_options(value: value) -> HandlerOptions

@@ -39,9 +39,40 @@ flow-control options, timeout validation, TLS options, and WebSocket lifecycle
 types represent behavior outside the standard HTTP records. These types
 remain Gun-specific.
 
+## HTTP/1.1 cancellation with exhausted flow credit
+
+Gun can leave socket reads paused when you cancel an HTTP/1.1 response after
+finite credit runs out. A later request can time out even after the server
+sends its response. Terminate and replace the connection in this case; do not
+rely on connection reuse. Termination also discards its other requests.
+
+Maintainers accepted this upstream limitation for 1.0. Track it in
+[Gluegun #78](https://github.com/tylerbutler/gluegun/issues/78). Related upstream
+[ninenines/gun#56](https://github.com/ninenines/gun/issues/56) discusses
+cancellation and reconnecting, but does not track this exact flow-credit stall.
+HTTP/2 cancellation does not have this limitation.
+
+## Fixed-length streamed uploads
+
+`request.start_stream` rejects `Content-Length` before sending headers.
+Supported Gun versions can crash on some fixed-length chunk sequences. Use
+chunked uploads, or send a complete body with `request.request` or `client`.
+
+## Numeric options and incoming strings
+
+Numeric builders return `InvalidOptions` for invalid values instead of
+clamping. Timeouts and retry counts must be non-negative; flow credit must be
+positive; TLS depth accepts 0 through 255; ports accept 0 through 65535.
+`connection.milliseconds(5000)` uses `Result` even for literals so configuration
+values follow the same validation rule.
+
+HTTP header values can contain bytes that are not UTF-8. Gluegun's `Header`
+uses strings, so it returns `DecodeError` for these responses rather than
+exposing an invalid Gleam string or changing the bytes.
+
 ## WebSocket over HTTP/2 is not supported
 
-Gun supports WebSocket over HTTP/1.1. `websocket.upgrade_with_protocol` checks the protocol that `connection.await_up` returns. It rejects HTTP/2 before it calls Gun.
+Gun supports WebSocket over HTTP/1.1. `websocket.upgrade` checks the protocol that `connection.await_up` returns. It rejects HTTP/2 before it calls Gun.
 
 ## The TLS option set is small by design
 

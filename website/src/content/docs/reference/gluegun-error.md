@@ -20,6 +20,9 @@ Error types returned by Gluegun effectful APIs.
 
 Errors returned by Gluegun connection, request, message, and WebSocket APIs.
 
+ Variant names and payload types are stable. Reason strings are diagnostic
+ text, not stable codes: log them, but do not parse or match their contents.
+
  Match the variants relevant to your application and keep a fallback for
  `ErlangError` / `DecodeError`, which can occur when Gun returns shapes
  Gluegun cannot normalize.
@@ -47,8 +50,8 @@ An operation did not complete within the configured `Timeout`. Retry,
 
 ##### `ConnectionDown(String)`
 
-Gun reported the connection went down. The string carries Gun's reason.
- Reopen the connection before retrying.
+Gun reported that the connection went down, or its process exited.
+ The string contains Gun's reason. Reopen the connection before retrying.
 
 ##### `ConnectionError(String)`
 
@@ -67,7 +70,7 @@ Caller passed options Gun rejected (e.g. non-positive flow window).
 
 ##### `InvalidMessage(String)`
 
-Gun delivered a message Gluegun could not classify, or the high-level
+An outgoing frame is invalid, or the high-level
  `client` helpers received push/upgrade/WebSocket on a regular request.
  Use the low-level `request`/`message` APIs for those flows.
 
@@ -83,5 +86,5 @@ A generic Erlang-side error that did not match a tagged shape. Inspect
 
 ##### `DecodeError(String)`
 
-A response body, frame, or message could not be decoded into the
- expected Gleam type. Often a UTF-8 or protocol-shape mismatch.
+Incoming data could not be decoded into the expected Gleam type,
+ including malformed Gun messages and non-UTF-8 response headers.

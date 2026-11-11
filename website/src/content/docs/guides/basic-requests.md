@@ -20,8 +20,8 @@ Use `gluegun/client` to send one usual HTTP request on an open connection. The c
 ## Builder API
 
 ```gleam
-import gluegun/client
 import gleam/http
+import gluegun/client
 
 fn fetch_json(conn, path, timeout) {
   client.new(http.Get, path)
@@ -41,8 +41,8 @@ fn fetch_json(conn, path, timeout) {
 The connection determines the scheme, host, and port. Pass an encoded request
 target such as `/items?tag=a%2Fb&tag=c`; Gluegun sends it without encoding the
 path or query again. Bodies must be byte-aligned `BitArray` values, with no
-UTF-8 requirement. `client.with_timeout` bounds each response-message wait,
-not the complete exchange.
+UTF-8 requirement. `client.with_timeout` sets one total budget for dispatch
+and response collection; informational responses and body chunks do not restart it.
 
 Gluegun retains this custom request type to avoid repeating the connection's
 destination. Standard `gleam/http/request.Request` values and converter
@@ -75,7 +75,7 @@ pub fn examples(conn) {
 }
 ```
 
-`client.request_options` sends `OPTIONS`. See the [client reference](/reference/gluegun-client/) for the full list.
+`client.options` sends `OPTIONS`. See the [client reference](/reference/gluegun-client/) for the full list.
 
 ## Examine responses
 
@@ -135,7 +135,8 @@ Update collected-response annotations from `response.Response` to
 `response.Response(BitArray)`. Replace `response.Informational(status, headers)`
 with standard `http_response.Response(status, headers, Nil)` values.
 The Gluegun status, headers, body, and text accessors remain available.
-Request paths, body builders, and timeout settings keep their existing behavior.
+Request paths and body builders keep their existing behavior. Timeouts use
+the total request budget established by the 1.0 API changes.
 
 ## When to use the client functions
 
@@ -158,6 +159,7 @@ Cancellation is asynchronous. The drain does not wait for Gun to process cancell
 Add request headers with `client.with_header`:
 
 ```gleam
+import gleam/http
 client.new(http.Get, "/api/items")
 |> client.with_header(name: "accept", value: "application/json")
 |> client.with_header(name: "user-agent", value: "my-app")

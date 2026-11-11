@@ -4,7 +4,7 @@
 //// bodies, flow-control updates, cancellation, or direct access to asynchronous
 //// Gun messages. For simple full-body responses, prefer `gluegun/client`.
 
-import gleam/http
+import gleam/http.{type Method}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
@@ -23,10 +23,10 @@ pub type Stream =
 
 /// Request options passed through the low-level request API.
 ///
-/// Build with `options()` then chain `with_headers` or `add_headers` for
-/// option-level headers. Use `with_initial_flow` for finite response credit.
+/// Build with `options()` and `with_initial_flow` for finite response credit.
+/// Pass request headers directly to `request` or `start_stream`.
 pub opaque type RequestOptions {
-  RequestOptions(headers: List(Header), initial_flow: Option(Int))
+  RequestOptions(initial_flow: Option(Int))
 }
 
 /// Typed Gun request options for the FFI boundary.
@@ -37,23 +37,7 @@ pub type RequestOption {
 
 /// Construct default request options.
 pub fn options() -> RequestOptions {
-  RequestOptions(headers: [], initial_flow: None)
-}
-
-/// Add option-level headers that are appended to per-call headers.
-pub fn add_headers(
-  options: RequestOptions,
-  headers headers: List(Header),
-) -> RequestOptions {
-  RequestOptions(..options, headers: list.append(options.headers, headers))
-}
-
-/// Replace option-level headers.
-pub fn with_headers(
-  options: RequestOptions,
-  headers headers: List(Header),
-) -> RequestOptions {
-  RequestOptions(..options, headers: headers)
+  RequestOptions(initial_flow: None)
 }
 
 /// Set finite initial response credit in data messages, not bytes.
@@ -66,11 +50,11 @@ pub fn with_headers(
 /// Use `message.await` and replenish credit yourself. Full-body collectors
 /// such as `message.await_body` and `client.send` do not replenish it.
 pub fn with_initial_flow(
-  options: RequestOptions,
+  _options: RequestOptions,
   credit credit: Int,
 ) -> Result(RequestOptions, error.GluegunError) {
   case credit > 0 {
-    True -> Ok(RequestOptions(..options, initial_flow: Some(credit)))
+    True -> Ok(RequestOptions(initial_flow: Some(credit)))
     False -> Error(error.InvalidOptions("initial flow credit must be positive"))
   }
 }
@@ -83,18 +67,16 @@ pub fn options_to_ffi(options: RequestOptions) -> List(RequestOption) {
   }
 }
 
-/// Inspect option-level headers.
-@internal
-pub fn headers_option(options: RequestOptions) -> List(Header) {
-  options.headers
-}
-
 /// Convert a method constructor to its HTTP method string.
-pub fn method_to_string(method: http.Method) -> String {
+@internal
+pub fn method_to_string(method: Method) -> String {
   http.method_to_string(method)
 }
 
-/// Lowercase header names for the Erlang Gun FFI boundary without changing values.
+/// Lowercase header names without changing values.
+///
+/// This helper does not validate names. Pass original headers to `request` or
+/// `start_stream`, which validate ASCII tokens before lowercasing names.
 @internal
 pub fn normalize_headers(headers: List(Header)) -> List(Header) {
   list.map(headers, fn(header) {
@@ -112,7 +94,8 @@ pub fn normalize_headers(headers: List(Header)) -> List(Header) {
 ///
 /// The method, path, and headers are validated before crossing to Gun: the
 /// method and path must be non-empty and must not contain a control byte,
-/// space, or DEL (including CR/LF); header names must be valid HTTP tokens;
+/// space, or DEL (including CR/LF); original header names must be valid ASCII
+/// HTTP tokens before they are lowercased;
 /// header values must not contain a control byte (other than HTAB) or DEL;
 /// and headers cannot include a caller-supplied `Transfer-Encoding` or a
 /// duplicate/malformed `Content-Length`. Invalid input returns
@@ -134,7 +117,7 @@ pub fn request(
     connection,
     method_to_string(method),
     path,
-    normalize_headers(list.append(headers, options.headers)),
+    headers,
     body,
     options_to_ffi(options),
   )
@@ -146,6 +129,10 @@ pub fn request(
 /// terminate the request with a final `data(..., fin.Fin, ...)` (which may
 /// carry an empty `BitArray` if there is no trailing payload). The stream
 /// remains open for response messages either way.
+///
+/// `Content-Length` is not supported on streamed uploads. It is rejected
+/// before sending headers because supported Gun versions can crash on
+/// fixed-length chunk sequences. Use chunked uploads or `request` instead.
 ///
 /// Gun response messages go to the calling process. `with_initial_flow`
 /// sets response credit before Gun starts the stream.
@@ -165,7 +152,7 @@ pub fn start_stream(
     connection,
     method_to_string(method),
     path,
-    normalize_headers(list.append(headers, options.headers)),
+    headers,
     options_to_ffi(options),
   )
 }
@@ -193,6 +180,10 @@ pub fn data(
 /// Sends a reset/cancel to Gun. The connection remains usable for new
 /// streams. Pending response messages for the cancelled stream may still
 /// arrive briefly and should be drained.
+///
+/// Exception: Gun can leave HTTP/1.1 reads paused after finite flow credit
+/// is exhausted. Terminate and replace that connection after cancellation;
+/// do not reuse it. This also discards its other requests. See issue #78.
 pub fn cancel(
   connection: Connection,
   stream: Stream,

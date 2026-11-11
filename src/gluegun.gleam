@@ -1,33 +1,35 @@
-//// Minimal common-path facade for the Gluegun HTTP client wrapper.
+//// A small HTTP facade for Gluegun.
 ////
-//// For full functionality import the submodules (`gluegun/connection`,
-//// `gluegun/request`, `gluegun/client`, `gluegun/websocket`,
-//// `gluegun/message`, `gluegun/response`, `gluegun/error`).
+//// Construct a timeout and connection options, open and await the connection,
+//// then build and send a request. Always close or terminate the connection,
+//// including after an error. For request customization use `gluegun/client`;
+//// for streaming use `gluegun/request` and `gluegun/message`.
+//// WebSockets have a complete lifecycle API in `gluegun/websocket`.
 
-import gleam/http
-import gluegun/client as http_client
+import gleam/http.{type Method}
+import gluegun/client
 import gluegun/connection.{
-  type ConnectOptions, type Connection, type Protocol, type RetryCount,
-  type Timeout, type Transport,
+  type ConnectOptions, type Connection, type Protocol, type Timeout,
 }
 import gluegun/error
-import gluegun/message
-import gluegun/request as low_request
-import gluegun/response as http_response
-import gluegun/tls
-import gluegun/websocket
+import gluegun/response.{type Response}
 
-/// Return the package name.
-pub fn name() -> String {
-  "gluegun"
-}
-
-/// Construct default connection options.
+/// Construct default connection options, with no automatic retries.
 pub fn connection_options() -> ConnectOptions {
   connection.options()
 }
 
-/// Open a Gun connection.
+/// Construct a non-negative timeout, or return `InvalidOptions`.
+pub fn milliseconds(value: Int) -> Result(Timeout, error.GluegunError) {
+  connection.milliseconds(value)
+}
+
+/// Construct an unlimited timeout.
+pub fn infinity() -> Timeout {
+  connection.infinity()
+}
+
+/// Open a connection. Await readiness before sending a request.
 pub fn open(
   options: ConnectOptions,
   host host: String,
@@ -36,86 +38,7 @@ pub fn open(
   connection.open(options, host: host, port: port)
 }
 
-/// Construct default TLS options.
-pub fn tls_options() -> tls.TlsOptions {
-  tls.options()
-}
-
-/// Set the transport on connection options.
-pub fn with_transport(
-  options: ConnectOptions,
-  transport transport: Transport,
-) -> ConnectOptions {
-  connection.with_transport(options, transport: transport)
-}
-
-/// Set protocol preferences on connection options.
-pub fn with_protocols(
-  options: ConnectOptions,
-  protocols protocols: List(Protocol),
-) -> ConnectOptions {
-  connection.with_protocols(options, protocols: protocols)
-}
-
-/// Set Gun retry count on connection options.
-pub fn with_retry(
-  options: ConnectOptions,
-  retry retry: RetryCount,
-) -> ConnectOptions {
-  connection.with_retry(options, retry: retry)
-}
-
-/// Set connect timeout on connection options.
-pub fn with_connect_timeout(
-  options: ConnectOptions,
-  timeout timeout: Timeout,
-) -> ConnectOptions {
-  connection.with_connect_timeout(options, timeout: timeout)
-}
-
-/// Set TLS options on connection options.
-pub fn with_tls_options(
-  options: ConnectOptions,
-  tls_options tls_options: tls.TlsOptions,
-) -> ConnectOptions {
-  connection.with_tls_options(options, tls_options: tls_options)
-}
-
-/// Convert a request method to an HTTP method string.
-pub fn method_to_string(method: http.Method) -> String {
-  low_request.method_to_string(method)
-}
-
-/// Normalize header names for Gun.
-pub fn normalize_headers(
-  headers: List(low_request.Header),
-) -> List(low_request.Header) {
-  low_request.normalize_headers(headers)
-}
-
-/// Construct a collected HTTP response.
-pub fn response(
-  status status: Int,
-  headers headers: List(low_request.Header),
-  body body: body,
-  trailers trailers: List(low_request.Header),
-) -> http_response.Response(body) {
-  http_response.new(
-    status: status,
-    headers: headers,
-    body: body,
-    trailers: trailers,
-  )
-}
-
-/// Decode a response body as UTF-8 text.
-pub fn body_text(
-  response: http_response.Response(BitArray),
-) -> Result(String, error.GluegunError) {
-  http_response.body_text(response)
-}
-
-/// Wait until a Gun connection is up.
+/// Wait for connection readiness and the negotiated HTTP protocol.
 pub fn await_up(
   connection: Connection,
   timeout: Timeout,
@@ -123,76 +46,37 @@ pub fn await_up(
   connection.await_up(connection, timeout)
 }
 
-/// Construct a `Request` builder.
-pub fn new_request(method: http.Method, path: String) -> http_client.Request {
-  http_client.new(method, path)
+/// Construct a request with an empty body and a five-second total budget.
+pub fn new_request(method: Method, path: String) -> client.Request {
+  client.new(method, path)
 }
 
-/// Send a `Request` on an open connection.
+/// Send a request and collect its complete HTTP response in memory.
 pub fn send(
-  request: http_client.Request,
+  request: client.Request,
   connection connection: Connection,
-) -> Result(http_response.Response(BitArray), error.GluegunError) {
-  http_client.send(request, connection: connection)
+) -> Result(Response(BitArray), error.GluegunError) {
+  client.send(request, connection: connection)
 }
 
-/// Construct default high-level WebSocket connection options.
-pub fn websocket_options() -> websocket.Options {
-  websocket.options()
+/// Decode the response body as UTF-8.
+pub fn body_text(
+  response: Response(BitArray),
+) -> Result(String, error.GluegunError) {
+  response.body_text(response)
 }
 
-/// Open a connection, perform a WebSocket upgrade, and return a reusable socket.
-pub fn websocket_connect(
-  host host: String,
-  port port: Int,
-  path path: String,
-  options options: websocket.Options,
-) -> Result(websocket.Socket, error.GluegunError) {
-  websocket.connect(host: host, port: port, path: path, options: options)
+/// Stop the connection through Gun's supervisor; this does not flush messages.
+pub fn close(connection: Connection) -> Result(Nil, error.GluegunError) {
+  connection.close(connection)
 }
 
-/// Open a WebSocket, run a callback, then close the WebSocket and connection.
-pub fn websocket_with_socket(
-  host host: String,
-  port port: Int,
-  path path: String,
-  options options: websocket.Options,
-  callback callback: fn(websocket.Socket) -> Result(a, error.GluegunError),
-) -> Result(a, error.GluegunError) {
-  websocket.with_socket(
-    host: host,
-    port: port,
-    path: path,
-    options: options,
-    callback: callback,
-  )
+/// Request graceful asynchronous shutdown.
+pub fn shutdown(connection: Connection) -> Result(Nil, error.GluegunError) {
+  connection.shutdown(connection)
 }
 
-/// Send a text WebSocket frame using a reusable socket.
-pub fn websocket_send_text(
-  socket: websocket.Socket,
-  text: String,
-) -> Result(Nil, error.GluegunError) {
-  websocket.send_text(socket, text)
-}
-
-/// Receive the next application WebSocket frame, handling ping/pong frames.
-pub fn websocket_receive_app_frame(
-  socket: websocket.Socket,
-) -> Result(message.Frame, error.GluegunError) {
-  websocket.receive_app_frame(socket)
-}
-
-/// Send a close WebSocket frame using a reusable socket.
-pub fn websocket_send_close_frame(
-  socket: websocket.Socket,
-) -> Result(Nil, error.GluegunError) {
-  websocket.send_close_frame(socket)
-}
-
-/// Complete WebSocket teardown, including bounded peer handshake and cleanup.
-pub fn websocket_close(
-  socket: websocket.Socket,
-) -> Result(Nil, error.GluegunError) {
-  websocket.close(socket)
+/// Force connection exit and flush its queued messages from this receiver.
+pub fn terminate(connection: Connection) -> Result(Nil, error.GluegunError) {
+  connection.terminate(connection)
 }

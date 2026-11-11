@@ -21,6 +21,7 @@ import gleam/bit_array
 import gleam/http
 import gleam/http/response as http_response
 import gleam/list
+import gleam/option.{type Option}
 import gleam/result
 import gluegun/connection.{type Connection, type Timeout}
 import gluegun/error
@@ -29,7 +30,7 @@ import gluegun/message.{type Message}
 import gluegun/request as low_request
 import gluegun/response.{type Informational, type Response}
 
-/// A connection-bound request: method, path, headers, body, options, and timeout.
+/// A connection-bound request: method, path, headers, body, and total timeout.
 ///
 /// The connection supplied to `send` determines the scheme, host, and port.
 /// Supply a request target such as `/items?page=2`, not a full URL. Gluegun
@@ -44,7 +45,6 @@ pub opaque type Request {
     path: String,
     headers: List(low_request.Header),
     body: BitArray,
-    options: low_request.RequestOptions,
     timeout: Timeout,
   )
 }
@@ -57,7 +57,6 @@ pub type RequestFields {
     path: String,
     headers: List(low_request.Header),
     body: BitArray,
-    options: low_request.RequestOptions,
     timeout: Timeout,
   )
 }
@@ -85,7 +84,6 @@ pub fn new(method: http.Method, path: String) -> Request {
     path: path,
     headers: [],
     body: <<>>,
-    options: low_request.options(),
     timeout: connection.default_timeout(),
   )
 }
@@ -120,17 +118,10 @@ pub fn with_body(request: Request, body body: BitArray) -> Request {
   Request(..request, body: body)
 }
 
-/// Replace low-level request options.
-pub fn with_options(
-  request: Request,
-  options options: low_request.RequestOptions,
-) -> Request {
-  Request(..request, options: options)
-}
-
-/// Replace the request timeout.
+/// Set the total request budget, including dispatch and all response messages.
 ///
-/// This bounds each response-message wait, not the complete exchange.
+/// Informational responses and body chunks do not restart the budget.
+/// `Infinity` has no limit. Collection still keeps the complete body in memory.
 pub fn with_timeout(request: Request, timeout timeout: Timeout) -> Request {
   Request(..request, timeout: timeout)
 }
@@ -143,7 +134,6 @@ pub fn inspect_request(request: Request) -> RequestFields {
     path: request.path,
     headers: request.headers,
     body: request.body,
-    options: request.options,
     timeout: request.timeout,
   )
 }
@@ -159,7 +149,7 @@ pub fn send(
     request.path,
     request.headers,
     request.body,
-    request.options,
+    low_request.options(),
     request.timeout,
   )
 }
@@ -191,9 +181,9 @@ pub fn send_raw(
 /// Send GET on an open connection and collect the full response.
 pub fn get(
   connection: Connection,
-  path: String,
-  headers: List(low_request.Header),
-  timeout: Timeout,
+  path path: String,
+  headers headers: List(low_request.Header),
+  timeout timeout: Timeout,
 ) -> Result(Response(BitArray), error.GluegunError) {
   new(http.Get, path)
   |> add_headers(headers: headers)
@@ -204,10 +194,10 @@ pub fn get(
 /// Send POST on an open connection and collect the full response.
 pub fn post(
   connection: Connection,
-  path: String,
-  headers: List(low_request.Header),
-  body: BitArray,
-  timeout: Timeout,
+  path path: String,
+  headers headers: List(low_request.Header),
+  body body: BitArray,
+  timeout timeout: Timeout,
 ) -> Result(Response(BitArray), error.GluegunError) {
   new(http.Post, path)
   |> add_headers(headers: headers)
@@ -219,10 +209,10 @@ pub fn post(
 /// Send PUT on an open connection and collect the full response.
 pub fn put(
   connection: Connection,
-  path: String,
-  headers: List(low_request.Header),
-  body: BitArray,
-  timeout: Timeout,
+  path path: String,
+  headers headers: List(low_request.Header),
+  body body: BitArray,
+  timeout timeout: Timeout,
 ) -> Result(Response(BitArray), error.GluegunError) {
   new(http.Put, path)
   |> add_headers(headers: headers)
@@ -234,10 +224,10 @@ pub fn put(
 /// Send PATCH on an open connection and collect the full response.
 pub fn patch(
   connection: Connection,
-  path: String,
-  headers: List(low_request.Header),
-  body: BitArray,
-  timeout: Timeout,
+  path path: String,
+  headers headers: List(low_request.Header),
+  body body: BitArray,
+  timeout timeout: Timeout,
 ) -> Result(Response(BitArray), error.GluegunError) {
   new(http.Patch, path)
   |> add_headers(headers: headers)
@@ -249,9 +239,9 @@ pub fn patch(
 /// Send DELETE on an open connection and collect the full response.
 pub fn delete(
   connection: Connection,
-  path: String,
-  headers: List(low_request.Header),
-  timeout: Timeout,
+  path path: String,
+  headers headers: List(low_request.Header),
+  timeout timeout: Timeout,
 ) -> Result(Response(BitArray), error.GluegunError) {
   new(http.Delete, path)
   |> add_headers(headers: headers)
@@ -262,9 +252,9 @@ pub fn delete(
 /// Send HEAD on an open connection and collect the full response.
 pub fn head(
   connection: Connection,
-  path: String,
-  headers: List(low_request.Header),
-  timeout: Timeout,
+  path path: String,
+  headers headers: List(low_request.Header),
+  timeout timeout: Timeout,
 ) -> Result(Response(BitArray), error.GluegunError) {
   new(http.Head, path)
   |> add_headers(headers: headers)
@@ -273,11 +263,11 @@ pub fn head(
 }
 
 /// Send OPTIONS on an open connection and collect the full response.
-pub fn request_options(
+pub fn options(
   connection: Connection,
-  path: String,
-  headers: List(low_request.Header),
-  timeout: Timeout,
+  path path: String,
+  headers headers: List(low_request.Header),
+  timeout timeout: Timeout,
 ) -> Result(Response(BitArray), error.GluegunError) {
   new(http.Options, path)
   |> add_headers(headers: headers)
@@ -344,6 +334,7 @@ pub fn request_with(
   await_fn: fn(Connection, low_request.Stream, Timeout) ->
     Result(Message, error.GluegunError),
 ) -> Result(Response(BitArray), error.GluegunError) {
+  let deadline = connection.deadline(timeout)
   use stream <- result.try(request_fn(
     connection,
     method,
@@ -357,7 +348,7 @@ pub fn request_with(
       connection,
       stream,
       AwaitingResponse([]),
-      timeout,
+      deadline,
       await_fn,
     )
   {
@@ -379,16 +370,21 @@ fn collect_stream_with(
   connection: Connection,
   stream: low_request.Stream,
   collection: Collection,
-  timeout: Timeout,
+  deadline: Option(Int),
   await_fn: fn(Connection, low_request.Stream, Timeout) ->
     Result(Message, error.GluegunError),
 ) -> Result(Response(BitArray), error.GluegunError) {
+  use _ <- result.try(case connection.expired(deadline) {
+    True -> Error(error.Timeout)
+    False -> Ok(Nil)
+  })
+  let timeout = connection.remaining(deadline)
   use awaited <- result.try(await_fn(connection, stream, timeout))
   use next <- result.try(step(collection, awaited))
   case next {
     Done(response) -> Ok(response)
     Continue(collection) ->
-      collect_stream_with(connection, stream, collection, timeout, await_fn)
+      collect_stream_with(connection, stream, collection, deadline, await_fn)
   }
 }
 

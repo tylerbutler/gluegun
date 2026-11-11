@@ -1,0 +1,11 @@
+name = "gluegun_compatibility"
+version = "1.0.0"
+target = "erlang"
+gleam = ">= 1.11.0"
+
+[dependencies]
+gluegun = { path = ".." }
+gleam_stdlib = ">= 0.53.0 and < 2.0.0"
+gleam_erlang = ">= 1.0.0 and < 2.0.0"
+gleam_http = ">= 4.0.0 and < 5.0.0"
+gun = ">= 2.1.0 and < 3.0.0"

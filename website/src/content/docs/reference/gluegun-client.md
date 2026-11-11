@@ -26,7 +26,7 @@ High-level HTTP helpers for existing Gun connections.
 
 ### `Request`
 
-A connection-bound request: method, path, headers, body, options, and timeout.
+A connection-bound request: method, path, headers, body, and total timeout.
 
  The connection supplied to `send` determines the scheme, host, and port.
  Supply a request target such as `/items?page=2`, not a full URL. Gluegun
@@ -60,9 +60,9 @@ Send DELETE on an open connection and collect the full response.
 ```gleam
 pub fn delete(
   internal.Connection,
-  String,
-  List(#(String, String)),
-  connection.Timeout
+  path: String,
+  headers: List(#(String, String)),
+  timeout: connection.Timeout
 ) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
@@ -73,9 +73,9 @@ Send GET on an open connection and collect the full response.
 ```gleam
 pub fn get(
   internal.Connection,
-  String,
-  List(#(String, String)),
-  connection.Timeout
+  path: String,
+  headers: List(#(String, String)),
+  timeout: connection.Timeout
 ) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
@@ -86,9 +86,9 @@ Send HEAD on an open connection and collect the full response.
 ```gleam
 pub fn head(
   internal.Connection,
-  String,
-  List(#(String, String)),
-  connection.Timeout
+  path: String,
+  headers: List(#(String, String)),
+  timeout: connection.Timeout
 ) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
@@ -103,6 +103,19 @@ pub fn new(
 ) -> Request
 ```
 
+### `options`
+
+Send OPTIONS on an open connection and collect the full response.
+
+```gleam
+pub fn options(
+  internal.Connection,
+  path: String,
+  headers: List(#(String, String)),
+  timeout: connection.Timeout
+) -> Result(response.Response(BitArray), error.GluegunError)
+```
+
 ### `patch`
 
 Send PATCH on an open connection and collect the full response.
@@ -110,10 +123,10 @@ Send PATCH on an open connection and collect the full response.
 ```gleam
 pub fn patch(
   internal.Connection,
-  String,
-  List(#(String, String)),
-  BitArray,
-  connection.Timeout
+  path: String,
+  headers: List(#(String, String)),
+  body: BitArray,
+  timeout: connection.Timeout
 ) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
@@ -124,10 +137,10 @@ Send POST on an open connection and collect the full response.
 ```gleam
 pub fn post(
   internal.Connection,
-  String,
-  List(#(String, String)),
-  BitArray,
-  connection.Timeout
+  path: String,
+  headers: List(#(String, String)),
+  body: BitArray,
+  timeout: connection.Timeout
 ) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
@@ -138,23 +151,10 @@ Send PUT on an open connection and collect the full response.
 ```gleam
 pub fn put(
   internal.Connection,
-  String,
-  List(#(String, String)),
-  BitArray,
-  connection.Timeout
-) -> Result(response.Response(BitArray), error.GluegunError)
-```
-
-### `request_options`
-
-Send OPTIONS on an open connection and collect the full response.
-
-```gleam
-pub fn request_options(
-  internal.Connection,
-  String,
-  List(#(String, String)),
-  connection.Timeout
+  path: String,
+  headers: List(#(String, String)),
+  body: BitArray,
+  timeout: connection.Timeout
 ) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
@@ -203,22 +203,12 @@ pub fn with_headers(
 ) -> Request
 ```
 
-### `with_options`
-
-Replace low-level request options.
-
-```gleam
-pub fn with_options(
-  Request,
-  options: request.RequestOptions
-) -> Request
-```
-
 ### `with_timeout`
 
-Replace the request timeout.
+Set the total request budget, including dispatch and all response messages.
 
- This bounds each response-message wait, not the complete exchange.
+ Informational responses and body chunks do not restart the budget.
+ `Infinity` has no limit. Collection still keeps the complete body in memory.
 
 ```gleam
 pub fn with_timeout(

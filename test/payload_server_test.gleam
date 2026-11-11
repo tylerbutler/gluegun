@@ -112,7 +112,7 @@ pub fn rejects_websocket_frames_and_whole_batches_without_partial_writes_test() 
   let conn = open(port)
   use <- with_connection(conn)
   let assert Ok(stream) =
-    websocket.upgrade_with_protocol_and_options(
+    websocket.upgrade(
       conn,
       connection.Http1,
       "/ws",
@@ -120,10 +120,8 @@ pub fn rejects_websocket_frames_and_whole_batches_without_partial_writes_test() 
       websocket.upgrade_options()
         |> websocket.with_silence_pings(False),
     )
-  let actual_15 =
+  let assert Ok(_) =
     websocket.await_upgrade(conn, stream, connection.default_timeout())
-  let expected_15 = Ok(Nil)
-  let assert #(True, _, _) = #(actual_15 == expected_15, actual_15, expected_15)
 
   list.each([<<1:size(1)>>, <<255, 1:size(1)>>], fn(body) {
     list.each(
@@ -134,7 +132,11 @@ pub fn rejects_websocket_frames_and_whole_batches_without_partial_writes_test() 
         message.CloseWithReason(1000, body),
       ],
       fn(frame) {
-        let actual_16 = websocket.send(conn, stream, frame)
+        let actual_16 =
+          websocket.send_frame(
+            websocket.socket(conn, stream, connection.default_timeout()),
+            frame,
+          )
         let expected_16 =
           Error(error.InvalidMessage("InvalidFrame(NonByteAlignedPayload)"))
         let assert #(True, _, _) = #(
@@ -143,11 +145,14 @@ pub fn rejects_websocket_frames_and_whole_batches_without_partial_writes_test() 
           expected_16,
         )
         let actual_17 =
-          websocket.send_many(conn, stream, [
-            message.Text("must not reach the server"),
-            frame,
-            message.Binary(<<99>>),
-          ])
+          websocket.send_many(
+            websocket.socket(conn, stream, connection.default_timeout()),
+            [
+              message.Text("must not reach the server"),
+              frame,
+              message.Binary(<<99>>),
+            ],
+          )
         let expected_17 =
           Error(error.InvalidMessage("InvalidFrame(NonByteAlignedPayload)"))
         let assert #(True, _, _) = #(
@@ -158,7 +163,11 @@ pub fn rejects_websocket_frames_and_whole_batches_without_partial_writes_test() 
 
         // The next frame is an ordered wire barrier for both rejected sends.
         let marker = message.Binary(<<0, 128, 255>>)
-        let actual_18 = websocket.send(conn, stream, marker)
+        let actual_18 =
+          websocket.send_frame(
+            websocket.socket(conn, stream, connection.default_timeout()),
+            marker,
+          )
         let expected_18 = Ok(Nil)
         let assert #(True, _, _) = #(
           actual_18 == expected_18,
@@ -193,7 +202,11 @@ pub fn rejects_websocket_frames_and_whole_batches_without_partial_writes_test() 
       message.Pong(<<>>),
     ],
     fn(frame) {
-      let actual_21 = websocket.send(conn, stream, frame)
+      let actual_21 =
+        websocket.send_frame(
+          websocket.socket(conn, stream, connection.default_timeout()),
+          frame,
+        )
       let expected_21 = Ok(Nil)
       let assert #(True, _, _) = #(
         actual_21 == expected_21,
@@ -235,7 +248,11 @@ pub fn rejects_websocket_frames_and_whole_batches_without_partial_writes_test() 
     },
   )
 
-  let actual_25 = websocket.send(conn, stream, message.Ping(<<>>))
+  let actual_25 =
+    websocket.send_frame(
+      websocket.socket(conn, stream, connection.default_timeout()),
+      message.Ping(<<>>),
+    )
   let expected_25 = Ok(Nil)
   let assert #(True, _, _) = #(actual_25 == expected_25, actual_25, expected_25)
   let actual_26 = await_frame(server)
@@ -243,7 +260,11 @@ pub fn rejects_websocket_frames_and_whole_batches_without_partial_writes_test() 
   let assert #(True, _, _) = #(actual_26 == expected_26, actual_26, expected_26)
 
   let close = message.CloseWithReason(1000, <<"done":utf8>>)
-  let actual_27 = websocket.send(conn, stream, close)
+  let actual_27 =
+    websocket.send_frame(
+      websocket.socket(conn, stream, connection.default_timeout()),
+      close,
+    )
   let expected_27 = Ok(Nil)
   let assert #(True, _, _) = #(actual_27 == expected_27, actual_27, expected_27)
   let actual_28 = await_frame(server)

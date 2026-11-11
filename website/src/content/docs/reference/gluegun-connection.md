@@ -97,7 +97,8 @@ pub type Transport {
 
 ##### `Auto`
 
-Let Gun choose TLS for TLS ports and TCP otherwise.
+Use TLS on port 443 and TCP on all other ports.
+ TCP connections do not load TLS trust roots.
 
  If TLS options are configured with `with_tls_options`, Auto uses TLS
  on every port instead: configured TLS options are treated as explicit
@@ -155,14 +156,6 @@ Stop a Gun connection through its supervisor.
 pub fn close(internal.Connection) -> Result(Nil, error.GluegunError)
 ```
 
-### `connect_timeout`
-
-Inspect connect timeout duration.
-
-```gleam
-pub fn connect_timeout(ConnectOptions) -> Timeout
-```
-
 ### `infinity`
 
 Construct a timeout with no upper bound.
@@ -209,22 +202,6 @@ Construct default connection options.
 pub fn options() -> ConnectOptions
 ```
 
-### `protocols`
-
-Inspect explicitly configured protocol ordering, if any.
-
-```gleam
-pub fn protocols(ConnectOptions) -> option.Option(List(Protocol))
-```
-
-### `retry`
-
-Inspect retry count.
-
-```gleam
-pub fn retry(ConnectOptions) -> RetryCount
-```
-
 ### `retry_count`
 
 Construct a retry count. Zero disables retries; negative values are invalid.
@@ -256,22 +233,6 @@ Force termination, wait for process exit, then flush its Gun messages.
 
 ```gleam
 pub fn terminate(internal.Connection) -> Result(Nil, error.GluegunError)
-```
-
-### `tls_options`
-
-Inspect explicitly configured TLS options, if any.
-
-```gleam
-pub fn tls_options(ConnectOptions) -> option.Option(tls.TlsOptions)
-```
-
-### `transport`
-
-Inspect configured transport. Intended for tests and later FFI conversion.
-
-```gleam
-pub fn transport(ConnectOptions) -> Transport
 ```
 
 ### `with_address_family`

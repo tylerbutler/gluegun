@@ -3,7 +3,6 @@ import gleam/option.{Some}
 import gleam/string
 import gluegun/client
 import gluegun/connection
-import gluegun/request
 import unitest
 import webprobe/cli
 import webprobe/report
@@ -210,7 +209,6 @@ pub fn runner_request_construction_builds_the_gluegun_request_from_parsed_config
       path: "/search?q=gleam",
       headers: [#("accept", "application/json")],
       body: <<>>,
-      options: request.options(),
       timeout: timeout(750),
     )
   let assert #(True, _, _) = #(actual_14 == expected_14, actual_14, expected_14)

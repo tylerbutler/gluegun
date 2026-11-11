@@ -177,32 +177,6 @@ A successful protocol upgrade. Subsequent messages on this stream use
 
 A decoded WebSocket frame. Only delivered after an upgrade.
 
-## Type aliases
-
-### `GluegunError`
-
-Alias for `gluegun/error.GluegunError`.
-
-```gleam
-pub type GluegunError = error.GluegunError
-```
-
-### `Header`
-
-Alias for `gluegun/request.Header` used in decoded messages.
-
-```gleam
-pub type Header = #(String, String)
-```
-
-### `Method`
-
-Alias for `gleam/http.Method` used in decoded messages.
-
-```gleam
-pub type Method = http.Method
-```
-
 ## Functions
 
 ### `await`
@@ -215,7 +189,8 @@ Await the next Gun message for a stream.
  streaming responses, server push, or any flow where you need messages as
  they arrive.
 
- Errors: `Timeout`, `ConnectionDown`, `StreamError`, `DecodeError`.
+ Errors: `Timeout`, `ConnectionDown`, `ConnectionError`, `StreamError`,
+ `InvalidMessage`, `ErlangError`.
 
 ```gleam
 pub fn await(
@@ -237,7 +212,8 @@ Await and collect the full response body for a stream.
  directly. The full body is held in memory; use the lower-level loop for
  very large responses.
 
- Errors: `Timeout`, `ConnectionDown`, `StreamError`.
+ Errors: `Timeout`, `ConnectionDown`, `ConnectionError`, `StreamError`,
+ `ErlangError`.
 
 ```gleam
 pub fn await_body(
@@ -256,10 +232,12 @@ Decode a raw Erlang Gun mailbox message into a typed `Message`, paired
  inside a custom `receive` loop that hands the message to Gluegun through
  your own Erlang FFI). Accepts the mailbox tuples Gun sends to the stream
  owner (`gun_response`, `gun_data`, `gun_inform`, `gun_trailers`,
- `gun_push`, `gun_upgrade`, `gun_ws`). Returns `DecodeError` when the term
- is not a recognized Gun mailbox message shape, including for error
- messages such as `gun_error` — handle those directly in your `receive`
- clause instead of passing them to `decode`.
+ `gun_push`, `gun_upgrade`, `gun_ws`). For `gun_error`, returns
+ `StreamError` or `ConnectionError` according to the message's scope.
+ For `gun_down`, returns `ConnectionDown` with Gun's reason.
+ Error results do not include an envelope. Returns `DecodeError` for an
+ unrecognized or malformed message, including the shorter terms returned
+ by `gun:await/3`.
 
 ```gleam
 pub fn decode(GunMessage) -> Result(Envelope, error.GluegunError)

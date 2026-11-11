@@ -12,6 +12,7 @@ Use this checklist before you ship Gluegun in a production BEAM service. It does
 | Runtime target | The service runs on Erlang. Gluegun is an interface to Erlang Gun. It does not support the JavaScript target. | [Limitations: Erlang target only](/advanced/limitations/#erlang-target-only) |
 | Connection boundary | You open a Gun connection with a host and port. Then you give paths such as `/`, `/api/items`, or `/ws` to the request functions. Gluegun does not parse full URLs. Callers that accept full URLs parse them first with `gleam/uri`. | [What Gluegun does not do](/introduction/#what-gluegun-does-not-do) |
 | Protocol readiness | The code waits for `connection.await_up` before it sends requests or upgrades WebSockets. | [Quick Start: key idea](/quick-start/#key-idea) |
+| Readiness failure | The code calls `connection.terminate` after a failed `await_up`; setup or explicitly enabled retries can leave a live process. | [Limitations](/advanced/limitations/) |
 | Connection ownership | One process owns, or waits for, the Gun stream messages for a request flow. The high-level `client` functions read messages on the calling process during `send`. | [Limitations: connection ownership](/advanced/limitations/#connection-ownership-is-important) |
 
 ## Transport and TLS
@@ -32,6 +33,8 @@ Use this checklist before you ship Gluegun in a production BEAM service. It does
 | Decision | Ready for production when | Read next |
 |---|---|---|
 | Timeout policy | Each connection, request, and message receive uses a timeout that agrees with the latency budget of the caller. `connection.infinity()` is used only for flows that can wait without a limit by design. | [Quick Start: timeout value](/quick-start/#key-idea) |
+| Collector budget | The client timeout covers dispatch and all response messages together; a slow trickle cannot reset the deadline. | [Basic Requests](/guides/basic-requests/) |
+| Retry policy | HTTP retries default to zero and require explicit opt-in. WebSocket connect always disables retries; connection loss is terminal. | [WebSockets](/guides/websockets/) |
 | Error handling | Effectful calls pattern match on `Result(_, error.GluegunError)`. Expected failures such as `Timeout` and `ConnectionDown` have explicit handling. | [Error Handling](/advanced/error-handling/) |
 | Unexpected failures | Logs keep the formatted reason for unexpected Erlang or decode errors. Then you can find missing typed wrappers or upstream Gun behavior. | [Troubleshooting: unexpected Erlang error](/advanced/troubleshooting/#unexpected-erlang-error) |
 | UTF-8 bodies | The code uses `response.body_text` only when text is expected. It uses `response.body` for binary payloads. | [Basic Requests: examine responses](/guides/basic-requests/#examine-responses) |
@@ -63,6 +66,7 @@ Read the detailed API boundaries in [Basic Requests](/guides/basic-requests/#whe
 |---|---|---|
 | Usual teardown | The code calls `connection.close` when the work is complete. | [Quick Start: close or shutdown](/quick-start/#key-idea) |
 | Stuck connections | The receiving process calls `connection.terminate` on deadline expiry to force exit and flush queued Gun messages. `shutdown` only requests graceful shutdown. | [Limitations: close and shutdown](/advanced/limitations/#close-and-shutdown) |
+| Paused HTTP/1.1 cancellation | Canceling with exhausted finite credit requires a new connection. This accepted upstream defect can prevent reuse. | [Limitations](/advanced/limitations/#http11-cancellation-with-exhausted-flow-credit) |
 | Reusable WebSockets | The receiver calls `websocket.close(socket)` after success or failure, or uses `websocket.with_socket` for scoped cleanup. It handles typed handshake errors after teardown. | [Troubleshooting: WebSocket connection stays open](/advanced/troubleshooting/#websocket-connection-stays-open) |
 | First diagnostic path | Runbooks tell operators to check host, port, transport, and timeout; URL path handling; the client or stream API selection; and the WebSocket upgrade order. | [Troubleshooting](/advanced/troubleshooting/) |
 

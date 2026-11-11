@@ -4,7 +4,6 @@ import gluegun/client
 import gluegun/connection
 import gluegun/internal
 import gluegun/request
-import gluegun/websocket
 import unitest
 
 pub fn main() -> Nil {
@@ -22,20 +21,15 @@ pub fn builds_a_root_request_with_default_fields_test() -> Nil {
       path: "/",
       headers: [],
       body: <<>>,
-      options: request.options(),
       timeout: connection.default_timeout(),
     )
   let assert #(True, _, _) = #(actual_1 == expected_1, actual_1, expected_1)
   Nil
 }
 
-pub fn exposes_root_websocket_options_test() -> Nil {
-  let actual_2 = {
-    gluegun.websocket_options()
-    |> websocket.options_timeout
-  }
-  let expected_2 = connection.default_timeout()
-  let assert #(True, _, _) = #(actual_2 == expected_2, actual_2, expected_2)
+pub fn exposes_root_timeout_construction_test() -> Nil {
+  let assert True = gluegun.milliseconds(5000) == connection.milliseconds(5000)
+  let assert True = gluegun.infinity() == connection.infinity()
   Nil
 }
 
@@ -63,18 +57,15 @@ fn compile_common_path_facade(should_run: Bool) -> Nil {
           port: 8080,
         )
       let assert Ok(_protocol) =
-        gluegun.await_up(open_connection, connection.default_timeout())
+        gluegun.await_up(open_connection, {
+          let assert Ok(timeout) = gluegun.milliseconds(5000)
+          timeout
+        })
       let request = gluegun.new_request(http.Get, "/")
       let assert Ok(response) =
         gluegun.send(request, connection: open_connection)
       let assert Ok(_body) = gluegun.body_text(response)
-      let assert Ok(_socket) =
-        gluegun.websocket_connect(
-          host: "localhost",
-          port: 8080,
-          path: "/echo",
-          options: gluegun.websocket_options(),
-        )
+      let assert Ok(_) = gluegun.close(open_connection)
       Nil
     }
     False -> Nil

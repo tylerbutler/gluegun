@@ -37,6 +37,17 @@ fn safe_get(conn) {
 
 Gluegun normalizes FFI errors at the API boundary. Erlang failures become `GluegunError` values. Raw Erlang terms do not leak.
 
+Match the variant, not the reason string. Maintainers keep variants and
+payload types stable; diagnostic text can change. Incoming data that cannot
+form valid Gleam values returns `DecodeError`. Invalid outgoing frames or a
+message sequence that does not match the operation returns `InvalidMessage`.
+Unexpected runtime failures remain `ErlangError`.
+
+Timeouts and retry counts must be non-negative. Flow credit must be positive;
+TLS depth accepts 0 through 255 and ports accept 0 through 65535. Numeric
+builders return `InvalidOptions` instead of clamping. This includes literal
+timeout construction, so configuration and literal values follow one rule.
+
 ## HTTP collection cleanup
 
 Once a high-level `client` helper gets a stream, it owns failure cleanup. On a collection error, it attempts to cancel the stream and drains queued messages for that stream, even if cancellation fails. It returns the original collection error. Cleanup failures produce a warning instead of replacing that error.
@@ -48,10 +59,10 @@ Cleanup preserves concurrent streams and connection-level messages. It does not 
 | Variant | Meaning | Common cause |
 | --- | --- | --- |
 | `Timeout` | An operation timed out. | The server was slow or not reachable, or the timeout was too short. |
-| `ConnectionDown(String)` | The Gun connection went down. | The remote closed the connection, or the network failed. |
+| `ConnectionDown(String)` | The Gun connection went down or its process exited. | The remote closed the connection, the network failed, or the process stopped. |
 | `ConnectionError(String)` | Connection setup or use failed. | Incorrect host, port, transport, TLS, or Gun connection state. |
 | `StreamError(String)` | A stream failure occurred. | A stream was canceled, reset, or rejected. |
-| `InvalidOptions(String)` | Gluegun rejected the typed options. | A flow-control increment that is not positive, or an unsupported option shape. |
+| `InvalidOptions(String)` | Gluegun or Gun rejected the options. | A flow-control increment that is not positive, or an unsupported option shape. |
 | `InvalidMessage(String)` | A protocol message did not agree with the API in use. | High-level client functions got an upgrade, push, or WebSocket message. Or the code received WebSocket frames before the upgrade was complete. |
 | `UnsupportedFeature(String)` | The feature is not supported. | A WebSocket upgrade on an HTTP/2 connection (Gun does not support RFC 8441). Select `Http1`. |
 | `ErlangError(String)` | An Erlang or FFI failure occurred that has no category. | An unexpected Gun or BEAM error crossed the FFI boundary. |

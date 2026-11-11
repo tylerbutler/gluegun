@@ -35,7 +35,7 @@
 //// import gluegun/tls
 ////
 //// pub fn https_options() {
-////   let tls_options =
+////   let assert Ok(tls_options) =
 ////     tls.options()
 ////     |> tls.with_versions(versions: [tls.TlsV13])
 ////     |> tls.with_cacertfile(cacertfile: "/etc/ssl/cert.pem")
@@ -51,6 +51,7 @@
 //// fields you leave unset are filled in by the secure baseline.
 
 import gleam/option.{type Option, None, Some}
+import gluegun/error
 
 /// TLS peer verification mode.
 pub type VerifyMode {
@@ -73,6 +74,7 @@ pub type TlsVersion {
 /// SNI configuration for a TLS connection.
 pub type ServerNameIndication {
   /// Disable SNI for this connection.
+  /// Requires explicit `VerifyNone`: OTP also disables hostname verification.
   Disable
 
   /// Send the provided hostname as the SNI value.
@@ -197,7 +199,9 @@ pub fn with_keyfile(options: TlsOptions, keyfile keyfile: String) -> TlsOptions 
   TlsOptions(..options, keyfile: Some(keyfile))
 }
 
-/// Set the TLS SNI value, or disable it explicitly.
+/// Set the TLS SNI value, or disable it with explicit `VerifyNone`.
+///
+/// Opening with disabled SNI under `VerifyPeer` returns `InvalidOptions`.
 pub fn with_server_name_indication(
   options: TlsOptions,
   server_name_indication server_name_indication: ServerNameIndication,
@@ -205,9 +209,17 @@ pub fn with_server_name_indication(
   TlsOptions(..options, server_name_indication: Some(server_name_indication))
 }
 
-/// Set the maximum certificate chain depth.
-pub fn with_depth(options: TlsOptions, depth depth: Int) -> TlsOptions {
-  TlsOptions(..options, depth: Some(depth))
+/// Set the maximum certificate chain depth, between zero and 255.
+///
+/// Invalid numeric options return `InvalidOptions`; they are not clamped.
+pub fn with_depth(
+  options: TlsOptions,
+  depth depth: Int,
+) -> Result(TlsOptions, error.GluegunError) {
+  case depth >= 0 && depth <= 255 {
+    True -> Ok(TlsOptions(..options, depth: Some(depth)))
+    False -> Error(error.InvalidOptions("TLS depth must be between 0 and 255"))
+  }
 }
 
 /// Convert TLS options into the typed settings the Erlang FFI expects.

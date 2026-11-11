@@ -3,7 +3,7 @@
 //// ## Protocol limitations
 ////
 //// Gun supports WebSocket over HTTP/1.1 only. WebSocket over HTTP/2 (RFC 8441)
-//// is **not** supported by Gun. Call `upgrade_with_protocol` with the protocol
+//// is **not** supported by Gun. Call `upgrade` with the protocol
 //// returned by `connection.await_up` to reject HTTP/2 before calling Gun.
 ////
 //// Once an HTTP/1.1 connection is upgraded to WebSocket the underlying TCP
@@ -19,48 +19,27 @@
 //// import gluegun/message
 //// import gluegun/websocket
 ////
-//// use opened_connection <- result.try(
-////   connection.options()
-////   |> connection.open(host: "echo.example.com", port: 80),
+//// websocket.with_socket(
+////   host: "echo.example.com",
+////   port: 80,
+////   path: "/ws",
+////   options: websocket.options(),
+////   callback: fn(socket) {
+////     use _ <- result.try(websocket.send_frame(socket, message.Text("hello")))
+////     case websocket.receive_app_frame(socket) {
+////       Ok(message.Text(reply)) -> Ok(reply)
+////       Ok(_) -> Error(error.InvalidMessage("expected a text frame"))
+////       Error(error) -> Error(error)
+////     }
+////   },
 //// )
-//// use timeout <- result.try(connection.milliseconds(5000))
-////
-//// use protocol <- result.try(connection.await_up(
-////   opened_connection,
-////   timeout,
-//// ))
-////
-//// use stream <- result.try(websocket.upgrade_with_protocol(
-////   opened_connection,
-////   protocol,
-////   "/ws",
-////   [],
-//// ))
-//// use _ <- result.try(websocket.await_upgrade(
-////   opened_connection,
-////   stream,
-////   timeout,
-//// ))
-////
-//// use _ <- result.try(websocket.send(
-////   opened_connection,
-////   stream,
-////   message.Text("hello"),
-//// ))
-////
-//// case
-////   websocket.receive(opened_connection, stream, timeout)
-//// {
-////   Ok(message.Text(reply)) -> Ok(reply)
-////   Ok(_) -> Error(error.InvalidMessage("expected a text frame"))
-////   Error(error) -> Error(error)
-//// }
 //// ```
 
 import gleam/erlang/process.{type Pid}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
+import gleam/string
 import gluegun/connection.{type Connection, type Protocol, type Timeout}
 import gluegun/error
 import gluegun/message.{type Frame}
@@ -76,7 +55,34 @@ pub opaque type Socket {
     stream: Stream,
     timeout: Timeout,
     peer_close: PeerClose,
+    handshake: Handshake,
   )
+}
+
+/// Completed HTTP/1.1 WebSocket handshake, including the response headers and
+/// the server's selected subprotocol (if any).
+pub opaque type Handshake {
+  Handshake(headers: List(Header), selected_subprotocol: Option(String))
+}
+
+/// Inspect the completed handshake retained by a socket.
+pub fn handshake(socket: Socket) -> Handshake {
+  socket.handshake
+}
+
+/// Inspect the server-selected subprotocol.
+pub fn selected_subprotocol(socket: Socket) -> Option(String) {
+  socket.handshake.selected_subprotocol
+}
+
+/// Inspect the upgrade response headers, with normalized header names.
+pub fn handshake_headers(handshake: Handshake) -> List(Header) {
+  handshake.headers
+}
+
+/// Inspect the selected subprotocol in a completed handshake.
+pub fn handshake_subprotocol(handshake: Handshake) -> Option(String) {
+  handshake.selected_subprotocol
 }
 
 /// Internal record of a peer close frame received through this socket.
@@ -100,8 +106,9 @@ pub opaque type Options {
 /// Typed options for Gun WebSocket upgrades.
 ///
 /// Build with `upgrade_options()` then chain `with_closing_timeout`,
-/// `with_compress`, `with_default_protocol`, `with_flow`, `with_keepalive`,
-/// `with_protocols`, `with_silence_pings`, etc.
+/// `with_compress`, `with_flow`, `with_keepalive`, `with_subprotocols`, and
+/// `with_silence_pings`. The fallible `with_flow` builder rejects nonpositive
+/// credit.
 pub opaque type UpgradeOptions {
   UpgradeOptions(
     closing_timeout: Option(Timeout),
@@ -118,11 +125,9 @@ pub opaque type UpgradeOptions {
 }
 
 /// The value Gun forwards unchanged to a WebSocket protocol handler module as
-/// its `user_opts` upgrade option.
-///
-/// Gun accepts any Erlang term here because the shape is defined by the
-/// handler module, not by Gun. Build one from any Gleam value with
-/// `gluegun/websocket/raw.handler_options`.
+/// its `user_opts` upgrade option. Custom handlers are unsupported internal
+/// seams; Socket teardown bookkeeping requires Gun's default handler.
+@internal
 pub type HandlerOptions
 
 /// One Gun WebSocket upgrade option, encoded for the Erlang FFI boundary.
@@ -151,11 +156,25 @@ pub fn socket(
   stream: Stream,
   timeout: Timeout,
 ) -> Socket {
+  from_upgrade(connection, stream, Handshake([], None), timeout)
+}
+
+/// Adopt a completed upgrade. Call immediately after `await_upgrade`, in the
+/// process receiving this stream's Gun messages. This process owns receives
+/// and close; do not consume frames through another API or receiver, since
+/// close tracks delivered frames to restore finite flow credit during teardown.
+pub fn from_upgrade(
+  connection connection: Connection,
+  stream stream: Stream,
+  handshake handshake: Handshake,
+  timeout timeout: Timeout,
+) -> Socket {
   Socket(
     connection: connection,
     stream: stream,
     timeout: timeout,
     peer_close: ffi_peer_close(),
+    handshake: handshake,
   )
 }
 
@@ -171,14 +190,14 @@ pub fn options() -> Options {
 }
 
 /// Set headers sent with the WebSocket upgrade request.
-pub fn with_headers(options: Options, headers: List(Header)) -> Options {
+pub fn with_headers(options: Options, headers headers: List(Header)) -> Options {
   Options(..options, headers: headers)
 }
 
 /// Set Gun connection options used when opening the connection.
 pub fn with_connect_options(
   options: Options,
-  connect: connection.ConnectOptions,
+  connect_options connect: connection.ConnectOptions,
 ) -> Options {
   Options(..options, connect_options: connect)
 }
@@ -186,13 +205,13 @@ pub fn with_connect_options(
 /// Set Gun WebSocket upgrade options used for the upgrade request.
 pub fn with_upgrade_options(
   options: Options,
-  upgrade: UpgradeOptions,
+  upgrade_options upgrade: UpgradeOptions,
 ) -> Options {
   Options(..options, upgrade_options: upgrade)
 }
 
 /// Set the timeout used when awaiting connection readiness, upgrade, and frames.
-pub fn with_timeout(options: Options, timeout: Timeout) -> Options {
+pub fn with_timeout(options: Options, timeout timeout: Timeout) -> Options {
   Options(..options, timeout: timeout)
 }
 
@@ -254,7 +273,7 @@ pub fn connect(
   options options: Options,
 ) -> Result(Socket, error.GluegunError) {
   use opened_connection <- result.try(connection.open(
-    options.connect_options,
+    connect_options(options),
     host: host,
     port: port,
   ))
@@ -264,20 +283,29 @@ pub fn connect(
       opened_connection,
       options.timeout,
     ))
-    use stream <- result.try(upgrade_with_protocol_and_options(
+    use stream <- result.try(upgrade(
       opened_connection,
       protocol,
       path,
       options.headers,
       options.upgrade_options,
     ))
-    use _ <- result.try(await_upgrade(
+    use handshake <- result.try(await_upgrade(
       opened_connection,
       stream,
       options.timeout,
     ))
-    Ok(socket(opened_connection, stream, options.timeout))
+    Ok(from_upgrade(opened_connection, stream, handshake, options.timeout))
   })
+}
+
+/// Effective options: WebSockets cannot negotiate HTTP/2 or resume on retry.
+@internal
+pub fn connect_options(options: Options) -> connection.ConnectOptions {
+  let assert Ok(zero) = connection.retry_count(0)
+  options.connect_options
+  |> connection.with_protocols([connection.Http1])
+  |> connection.with_retry(zero)
 }
 
 fn close_on_error(
@@ -333,25 +361,35 @@ pub fn with_socket_result(
 /// Set Gun's WebSocket closing timeout.
 pub fn with_closing_timeout(
   options: UpgradeOptions,
-  timeout: Timeout,
+  timeout timeout: Timeout,
 ) -> UpgradeOptions {
   UpgradeOptions(..options, closing_timeout: Some(timeout))
 }
 
 /// Enable or disable WebSocket compression.
-pub fn with_compress(options: UpgradeOptions, enabled: Bool) -> UpgradeOptions {
+pub fn with_compress(
+  options: UpgradeOptions,
+  enabled enabled: Bool,
+) -> UpgradeOptions {
   UpgradeOptions(..options, compress: Some(enabled))
 }
 
-/// Set the initial WebSocket flow-control allowance.
-pub fn with_flow(options: UpgradeOptions, initial_flow: Int) -> UpgradeOptions {
-  UpgradeOptions(..options, flow: Some(initial_flow))
+/// Set a positive initial WebSocket flow-control allowance.
+pub fn with_flow(
+  options: UpgradeOptions,
+  initial_flow initial_flow: Int,
+) -> Result(UpgradeOptions, error.GluegunError) {
+  case initial_flow > 0 {
+    True -> Ok(UpgradeOptions(..options, flow: Some(initial_flow)))
+    False ->
+      Error(error.InvalidOptions("WebSocket initial flow must be positive"))
+  }
 }
 
 /// Set Gun's WebSocket keepalive timeout.
 pub fn with_keepalive(
   options: UpgradeOptions,
-  timeout: Timeout,
+  timeout timeout: Timeout,
 ) -> UpgradeOptions {
   UpgradeOptions(..options, keepalive: Some(timeout))
 }
@@ -359,12 +397,13 @@ pub fn with_keepalive(
 /// Enable or disable silencing automatic ping frames.
 pub fn with_silence_pings(
   options: UpgradeOptions,
-  enabled: Bool,
+  enabled enabled: Bool,
 ) -> UpgradeOptions {
   UpgradeOptions(..options, silence_pings: Some(enabled))
 }
 
 /// Set the default WebSocket protocol callback module.
+@internal
 pub fn with_default_protocol_module(
   options: UpgradeOptions,
   module_name: String,
@@ -373,6 +412,7 @@ pub fn with_default_protocol_module(
 }
 
 /// Add a WebSocket subprotocol callback module.
+@internal
 pub fn with_protocol_module(
   options: UpgradeOptions,
   protocol: String,
@@ -382,6 +422,27 @@ pub fn with_protocol_module(
     ..options,
     protocols: list.append(options.protocols, [#(protocol, module_name)]),
   )
+}
+
+/// Offer subprotocols using Gun's standard WebSocket handler. Every token is
+/// validated before sending; order and case are preserved.
+pub fn with_subprotocols(
+  options: UpgradeOptions,
+  protocols protocols: List(String),
+) -> UpgradeOptions {
+  UpgradeOptions(
+    ..options,
+    protocols: list.map(protocols, fn(protocol) { #(protocol, "gun_ws_h") }),
+  )
+}
+
+/// Deliver upgrade and frame messages to this process. That receiver must
+/// await the upgrade, adopt it, receive frames, and close its socket.
+pub fn with_reply_to(
+  options: UpgradeOptions,
+  receiver receiver: Pid,
+) -> UpgradeOptions {
+  with_reply_to_raw(options, receiver)
 }
 
 @internal
@@ -424,141 +485,109 @@ pub fn upgrade_options_to_ffi(options: UpgradeOptions) -> List(UpgradeOption) {
   |> prepend_optional(options.handler_options, UserOptions)
 }
 
-/// Initiate a WebSocket upgrade when the negotiated protocol is known.
-///
-/// Sends the WebSocket upgrade request to the server and returns the stream
-/// reference. Call `await_upgrade` next to confirm the handshake completed.
-///
-/// Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
-/// WebSocket over HTTP/2. Use this after `connection.await_up` when protocol
-/// negotiation may choose HTTP/2.
-pub fn upgrade_with_protocol(
-  connection: Connection,
-  protocol: Protocol,
-  path: String,
-  headers: List(Header),
-) -> Result(Stream, error.GluegunError) {
-  upgrade_with_protocol_and_options(
-    connection,
-    protocol,
-    path,
-    headers,
-    upgrade_options(),
-  )
-}
-
 /// Initiate a WebSocket upgrade with options when the negotiated protocol is known.
 ///
 /// Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
-/// WebSocket over HTTP/2.
-pub fn upgrade_with_protocol_and_options(
-  connection: Connection,
-  protocol: Protocol,
-  path: String,
-  headers: List(Header),
-  options: UpgradeOptions,
+/// WebSocket over HTTP/2. Path, headers, and all subprotocol tokens are
+/// validated before calling Gun; invalid input returns `InvalidOptions`.
+pub fn upgrade(
+  connection connection: Connection,
+  protocol protocol: Protocol,
+  path path: String,
+  headers headers: List(Header),
+  options options: UpgradeOptions,
 ) -> Result(Stream, error.GluegunError) {
   case protocol {
-    connection.Http1 -> upgrade_with_options(connection, path, headers, options)
+    connection.Http1 ->
+      ffi_ws_upgrade(connection, path, headers, upgrade_options_to_ffi(options))
     connection.Http2 ->
       Error(error.UnsupportedFeature("WebSocket upgrade requires HTTP/1.1"))
   }
 }
 
-/// Initiate a WebSocket upgrade on an assumed HTTP/1.1 connection.
-///
-/// Prefer `upgrade_with_protocol` after `connection.await_up` when the
-/// connection may negotiate HTTP/2. This function keeps the original HTTP/1.1
-/// default path for callers that constrain the connection to HTTP/1.1.
-///
-/// The path and headers are validated before crossing to Gun; see
-/// `upgrade_with_options` for the rejected shapes.
-pub fn upgrade(
-  connection: Connection,
-  path: String,
-  headers: List(Header),
-) -> Result(Stream, error.GluegunError) {
-  upgrade_with_options(connection, path, headers, upgrade_options())
-}
-
-/// Initiate a WebSocket upgrade on an assumed HTTP/1.1 connection with options.
-///
-/// The path and headers are validated the same way as
-/// `gluegun/request.request`: the path must be non-empty and must not
-/// contain a control byte, space, or DEL (including CR/LF); header names
-/// must be valid HTTP tokens; header values must not contain a control byte
-/// (other than HTAB) or DEL; and headers cannot include a caller-supplied
-/// `Transfer-Encoding` or a duplicate/malformed `Content-Length`. Invalid
-/// input returns `InvalidOptions` instead of reaching Gun.
-pub fn upgrade_with_options(
-  connection: Connection,
-  path: String,
-  headers: List(Header),
-  options: UpgradeOptions,
-) -> Result(Stream, error.GluegunError) {
-  ffi_ws_upgrade(connection, path, headers, upgrade_options_to_ffi(options))
-}
-
 /// Wait for the WebSocket upgrade confirmation (`101 Switching Protocols`).
 ///
-/// Call this after `upgrade/3`. Returns `Ok(Nil)` when the server confirms
-/// the WebSocket handshake. Returns an error on timeout, connection failure,
-/// or if a non-upgrade message arrives first.
+/// Call this after `upgrade`. Informational responses are skipped under one
+/// absolute deadline; a zero timeout returns `Timeout` without polling.
+/// Successful handshakes retain the response headers and selected subprotocol.
 pub fn await_upgrade(
-  connection: Connection,
-  stream: Stream,
-  timeout: Timeout,
-) -> Result(Nil, error.GluegunError) {
-  message.await(connection, stream, timeout)
-  |> await_upgrade_from
+  connection connection: Connection,
+  stream stream: Stream,
+  timeout timeout: Timeout,
+) -> Result(Handshake, error.GluegunError) {
+  await_upgrade_until(connection, stream, connection.deadline(timeout))
 }
 
-/// Send a single WebSocket frame on the stream.
+fn await_upgrade_until(
+  connection: Connection,
+  stream: Stream,
+  deadline: Option(Int),
+) -> Result(Handshake, error.GluegunError) {
+  case connection.expired(deadline) {
+    True -> Error(error.Timeout)
+    False -> await_upgrade_next(connection, stream, deadline)
+  }
+}
+
+fn await_upgrade_next(
+  connection: Connection,
+  stream: Stream,
+  deadline: Option(Int),
+) -> Result(Handshake, error.GluegunError) {
+  use received <- result.try(ffi_ws_await(
+    connection,
+    stream,
+    connection.remaining(deadline),
+  ))
+  case received {
+    message.Inform(_, _) -> await_upgrade_until(connection, stream, deadline)
+    other -> await_upgrade_from(Ok(other))
+  }
+}
+
+/// Send a single WebSocket frame using a reusable socket.
 ///
 /// Supported frame types: `Text`, `Binary`, `Ping`, `Pong`, `Close`,
 /// `CloseWithReason`. Invalid control frames return `InvalidMessage` before
 /// calling Gun. Ping and Pong payloads can contain at most 125 bytes. Close
 /// reasons must be valid UTF-8 and contain at most 123 bytes.
 /// Accepted close codes: 1000-1003, 1007-1014, and 3000-4999.
-pub fn send(
-  connection: Connection,
-  stream: Stream,
-  frame: Frame,
-) -> Result(Nil, error.GluegunError) {
-  send_many(connection, stream, [frame])
-}
-
-/// Send a single WebSocket frame using a reusable socket.
 pub fn send_frame(
-  socket: Socket,
-  frame: Frame,
+  socket socket: Socket,
+  frame frame: Frame,
 ) -> Result(Nil, error.GluegunError) {
-  send(socket.connection, socket.stream, frame)
+  ffi_ws_send(socket.connection, socket.stream, [frame])
 }
 
 /// Send a text WebSocket frame using a reusable socket.
 pub fn send_text(
-  socket: Socket,
-  text: String,
+  socket socket: Socket,
+  text text: String,
 ) -> Result(Nil, error.GluegunError) {
   send_frame(socket, message.Text(text))
 }
 
 /// Send a binary WebSocket frame using a reusable socket.
 pub fn send_binary(
-  socket: Socket,
-  data: BitArray,
+  socket socket: Socket,
+  data data: BitArray,
 ) -> Result(Nil, error.GluegunError) {
   send_frame(socket, message.Binary(data))
 }
 
 /// Send a ping WebSocket frame using a reusable socket.
-pub fn ping(socket: Socket, data: BitArray) -> Result(Nil, error.GluegunError) {
+pub fn ping(
+  socket socket: Socket,
+  data data: BitArray,
+) -> Result(Nil, error.GluegunError) {
   send_frame(socket, message.Ping(data))
 }
 
 /// Send a pong WebSocket frame using a reusable socket.
-pub fn pong(socket: Socket, data: BitArray) -> Result(Nil, error.GluegunError) {
+pub fn pong(
+  socket socket: Socket,
+  data data: BitArray,
+) -> Result(Nil, error.GluegunError) {
   send_frame(socket, message.Pong(data))
 }
 
@@ -567,7 +596,9 @@ pub fn pong(socket: Socket, data: BitArray) -> Result(Nil, error.GluegunError) {
 /// This only sends the close frame; it does not close the underlying Gun
 /// connection. Follow with `close(socket)` or use
 /// `with_socket` for automatic teardown.
-pub fn send_close_frame(socket: Socket) -> Result(Nil, error.GluegunError) {
+pub fn send_close_frame(
+  socket socket: Socket,
+) -> Result(Nil, error.GluegunError) {
   send_frame(socket, message.Close)
 }
 
@@ -583,7 +614,7 @@ pub fn send_close_frame(socket: Socket) -> Result(Nil, error.GluegunError) {
 /// An already-exited connection returns `Ok(Nil)`. Repeated close is safe.
 /// Call from the socket's receiver; other receivers and external forwarders
 /// need separate mailbox cleanup. Do not reuse the socket after this call.
-pub fn close(socket: Socket) -> Result(Nil, error.GluegunError) {
+pub fn close(socket socket: Socket) -> Result(Nil, error.GluegunError) {
   ffi_ws_close(
     socket.connection,
     socket.stream,
@@ -594,8 +625,6 @@ pub fn close(socket: Socket) -> Result(Nil, error.GluegunError) {
 
 /// Send one or more WebSocket frames on the stream.
 ///
-/// Gun accepts either a single frame or a list of frames. `send` delegates to
-/// this function with a one-element list.
 /// Validates the complete list before sending. If a frame is invalid, returns
 /// `InvalidMessage` without sending any frame.
 ///
@@ -604,50 +633,38 @@ pub fn close(socket: Socket) -> Result(Nil, error.GluegunError) {
 /// `InvalidMessage` before Gun receives any frame in the list. Payloads are
 /// never padded or truncated, and the connection remains usable.
 pub fn send_many(
-  connection: Connection,
-  stream: Stream,
-  frames: List(Frame),
+  socket socket: Socket,
+  frames frames: List(Frame),
 ) -> Result(Nil, error.GluegunError) {
-  ffi_ws_send(connection, stream, frames)
+  ffi_ws_send(socket.connection, socket.stream, frames)
 }
 
-/// Receive the next WebSocket frame from the stream.
+/// Receive the next WebSocket frame using a reusable socket.
 ///
 /// Returns `Ok(frame)` when a WebSocket frame arrives.
 /// Returns `Error(InvalidMessage(...))` if a non-WebSocket message arrives
 /// (e.g. an HTTP response or upgrade acknowledgement that arrived out of order).
-/// Returns `Error(Timeout)` or stream errors on failures.
-///
-/// If the upgrade acknowledgement has not yet been received, call
-/// `await_upgrade/3` before calling `receive`.
-pub fn receive(
-  connection: Connection,
-  stream: Stream,
-  timeout: Timeout,
-) -> Result(Frame, error.GluegunError) {
-  message.await(connection, stream, timeout)
+/// Returns `DecodeError` for malformed incoming values, `Timeout` when no
+/// frame arrives, and `ConnectionDown` on disconnect (even with Gun retries).
+/// Only this socket's stream and connection messages are consumed.
+pub fn receive_frame(socket socket: Socket) -> Result(Frame, error.GluegunError) {
+  ffi_ws_await(socket.connection, socket.stream, socket.timeout)
   |> receive_from
-}
-
-/// Receive the next WebSocket frame using a reusable socket.
-pub fn receive_frame(socket: Socket) -> Result(Frame, error.GluegunError) {
-  receive(socket.connection, socket.stream, socket.timeout)
   |> ffi_record_peer_close(socket.peer_close)
 }
 
 /// Receive the next application frame, handling ping/pong control frames.
 ///
-/// Incoming pings are answered with a pong carrying the same payload. Incoming
-/// pongs are skipped. Text, binary, close, and close-with-reason frames are
-/// returned to the caller.
-pub fn receive_app_frame(socket: Socket) -> Result(Frame, error.GluegunError) {
+/// Gun automatically answers incoming pings with a matching pong. This helper
+/// skips visible ping and pong frames, including empty payloads, without sending
+/// another reply. Text, binary, close, and close-with-reason frames are returned
+/// to the caller. Use `pong` to send an explicit pong.
+pub fn receive_app_frame(
+  socket socket: Socket,
+) -> Result(Frame, error.GluegunError) {
   use frame <- result.try(receive_frame(socket))
   case frame {
-    message.Ping(payload) -> {
-      use _ <- result.try(pong(socket, payload))
-      receive_app_frame(socket)
-    }
-    message.Pong(_) -> receive_app_frame(socket)
+    message.Ping(_) | message.Pong(_) -> receive_app_frame(socket)
     message.Text(_)
     | message.Binary(_)
     | message.Close
@@ -662,7 +679,6 @@ pub fn receive_app_frame(socket: Socket) -> Result(Frame, error.GluegunError) {
 @internal
 pub fn receive_app_frame_from(
   frame_results: List(Result(Frame, error.GluegunError)),
-  send_pong: fn(BitArray) -> Result(Nil, error.GluegunError),
 ) -> Result(Frame, error.GluegunError) {
   case frame_results {
     [] ->
@@ -672,11 +688,7 @@ pub fn receive_app_frame_from(
     [frame_result, ..rest] -> {
       use frame <- result.try(frame_result)
       case frame {
-        message.Ping(payload) -> {
-          use _ <- result.try(send_pong(payload))
-          receive_app_frame_from(rest, send_pong)
-        }
-        message.Pong(_) -> receive_app_frame_from(rest, send_pong)
+        message.Ping(_) | message.Pong(_) -> receive_app_frame_from(rest)
         message.Text(_)
         | message.Binary(_)
         | message.Close
@@ -689,7 +701,7 @@ pub fn receive_app_frame_from(
 /// Route a pre-resolved message result to a WebSocket frame.
 ///
 /// This is an internal helper exposed for deterministic unit testing.
-/// Production callers should use `receive/3` instead.
+/// Production callers should use `receive_frame` instead.
 @internal
 pub fn receive_from(
   message_result: Result(message.Message, error.GluegunError),
@@ -719,10 +731,24 @@ pub fn receive_from(
 @internal
 pub fn await_upgrade_from(
   message_result: Result(message.Message, error.GluegunError),
-) -> Result(Nil, error.GluegunError) {
+) -> Result(Handshake, error.GluegunError) {
   use message <- result.try(message_result)
   case message {
-    message.Upgrade(_, _) -> Ok(Nil)
+    message.Upgrade(_, headers) -> {
+      let selected_result =
+        headers
+        |> list.find_map(fn(header) {
+          case header {
+            #("sec-websocket-protocol", value) -> Ok(string.trim(value))
+            _ -> Error(Nil)
+          }
+        })
+      let selected = case selected_result {
+        Ok(protocol) -> Some(protocol)
+        Error(_) -> None
+      }
+      Ok(Handshake(headers, selected))
+    }
     message.Inform(_, _)
     | message.Response(_, _, _)
     | message.Data(_, _)
@@ -734,6 +760,13 @@ pub fn await_upgrade_from(
       ))
   }
 }
+
+@external(erlang, "gluegun_ffi", "ws_await")
+fn ffi_ws_await(
+  connection: Connection,
+  stream: Stream,
+  timeout: Timeout,
+) -> Result(message.Message, error.GluegunError)
 
 @external(erlang, "gluegun_ffi", "ws_upgrade")
 fn ffi_ws_upgrade(
