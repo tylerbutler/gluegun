@@ -1,5 +1,5 @@
 package = "gluegun"
-kind = "Breaking"
+kind = "Added"
 body = """
 Prepare the 1.0 HTTP and WebSocket contracts
 
