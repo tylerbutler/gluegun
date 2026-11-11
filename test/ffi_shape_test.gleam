@@ -1,9 +1,9 @@
+import gleam/http
 import gluegun/connection
 import gluegun/error
 import gluegun/fin
 import gluegun/internal
 import gluegun/message
-import gluegun/request
 
 pub fn typed_option_conversion_converts_timeouts_test() -> Nil {
   let assert Ok(retries) = connection.retry_count(123)
@@ -82,7 +82,7 @@ pub fn message_and_error_shapes_keeps_gun_stream_references_intact_in_push_messa
     gluegun_ffi_test_push_message(stream, "GET", "/pushed", [])
     |> safe_decode_message
   }
-  let expected_8 = Ok(message.Push(stream, request.Get, "/pushed", []))
+  let expected_8 = Ok(message.Push(stream, http.Get, "/pushed", []))
   let assert #(True, _, _) = #(actual_8 == expected_8, actual_8, expected_8)
   Nil
 }
@@ -225,7 +225,7 @@ pub fn gun_mailbox_messages_decodes_gun_push_mailbox_tuples_test() -> Nil {
     Ok(message.Envelope(
       conn,
       stream,
-      message.Push(pushed, request.Get, "/assets/app.css", [
+      message.Push(pushed, http.Get, "/assets/app.css", [
         #("accept", "text/css"),
       ]),
     ))
@@ -377,7 +377,7 @@ pub fn gun_mailbox_messages_attributes_a_server_push_to_its_owning_stream_not_th
     Ok(message.Envelope(
       conn,
       owning_stream,
-      message.Push(pushed_stream, request.Get, "/assets/app.css", []),
+      message.Push(pushed_stream, http.Get, "/assets/app.css", []),
     ))
   let assert #(True, _, _) = #(actual_34 == expected_34, actual_34, expected_34)
   Nil

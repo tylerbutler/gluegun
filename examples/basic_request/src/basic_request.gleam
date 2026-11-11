@@ -1,6 +1,7 @@
 /// Basic HTTP GET example using Gluegun.
 ///
 /// Buildable basic HTTP request example.
+import gleam/http/response as http_response
 import gleam/int
 import gleam/io
 import gluegun/client
@@ -35,10 +36,14 @@ pub fn main() -> Nil {
   }
 }
 
-fn print_response(response: response.Response) -> Nil {
-  io.println("status: " <> int.to_string(response.status(response)))
+fn print_response(collected: response.Response(BitArray)) -> Nil {
+  io.println("status: " <> int.to_string(collected.response.status))
+  case http_response.get_header(collected.response, "content-type") {
+    Ok(content_type) -> io.println("content-type: " <> content_type)
+    Error(Nil) -> Nil
+  }
 
-  case response.body_text(response) {
+  case response.body_text(collected) {
     Ok(text) -> io.println(text)
     Error(_) -> io.println("response body was not valid UTF-8")
   }

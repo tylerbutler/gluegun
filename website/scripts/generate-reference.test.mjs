@@ -110,6 +110,47 @@ test("generates reference index and module pages from Gleam docs JSON", async ()
 	}
 });
 
+test("distinguishes standard responses from the current response module", async () => {
+	const { read, cleanup } = await runWithFixture({
+		name: "gluegun",
+		version: "0.2.0",
+		modules: {
+			"gluegun/response": {
+				documentation: [],
+				"type-aliases": {},
+				types: {
+					Response: {
+						parameters: 1,
+						constructors: [
+							{
+								name: "Response",
+								parameters: [
+									{
+										label: "response",
+										type: namedType("Response", "gleam/http/response", [
+											variableType(0),
+										]),
+									},
+								],
+							},
+						],
+					},
+				},
+				constants: {},
+				functions: {},
+			},
+		},
+	});
+
+	try {
+		const page = await read("gluegun-response.md");
+		assert.match(page, /Response\(response: http_response\.Response\(a\)\)/);
+		assert.doesNotMatch(page, /response: response\.Response/);
+	} finally {
+		await cleanup();
+	}
+});
+
 test("reports missing Gleam docs JSON with recovery command", async () => {
 	const tempDir = await mkdtemp(path.join(os.tmpdir(), "gluegun-reference-"));
 

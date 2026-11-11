@@ -4,6 +4,7 @@
 //// `gluegun/request`, `gluegun/client`, `gluegun/websocket`,
 //// `gluegun/message`, `gluegun/response`, `gluegun/error`).
 
+import gleam/http
 import gluegun/client as http_client
 import gluegun/connection.{
   type ConnectOptions, type Connection, type Protocol, type RetryCount,
@@ -81,7 +82,7 @@ pub fn with_tls_options(
 }
 
 /// Convert a request method to an HTTP method string.
-pub fn method_to_string(method: low_request.Method) -> String {
+pub fn method_to_string(method: http.Method) -> String {
   low_request.method_to_string(method)
 }
 
@@ -96,9 +97,9 @@ pub fn normalize_headers(
 pub fn response(
   status status: Int,
   headers headers: List(low_request.Header),
-  body body: BitArray,
+  body body: body,
   trailers trailers: List(low_request.Header),
-) -> http_response.Response {
+) -> http_response.Response(body) {
   http_response.new(
     status: status,
     headers: headers,
@@ -109,7 +110,7 @@ pub fn response(
 
 /// Decode a response body as UTF-8 text.
 pub fn body_text(
-  response: http_response.Response,
+  response: http_response.Response(BitArray),
 ) -> Result(String, error.GluegunError) {
   http_response.body_text(response)
 }
@@ -123,10 +124,7 @@ pub fn await_up(
 }
 
 /// Construct a `Request` builder.
-pub fn new_request(
-  method: low_request.Method,
-  path: String,
-) -> http_client.Request {
+pub fn new_request(method: http.Method, path: String) -> http_client.Request {
   http_client.new(method, path)
 }
 
@@ -134,7 +132,7 @@ pub fn new_request(
 pub fn send(
   request: http_client.Request,
   connection connection: Connection,
-) -> Result(http_response.Response, error.GluegunError) {
+) -> Result(http_response.Response(BitArray), error.GluegunError) {
   http_client.send(request, connection: connection)
 }
 

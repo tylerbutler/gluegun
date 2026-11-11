@@ -2,9 +2,10 @@
 ////
 //// These helpers collect a full HTTP/1.1 or HTTP/2 response — status,
 //// headers, body, trailers, and any informational `1xx` responses — into a
-//// `response.Response`. The body is held fully in memory; use the lower-level
-//// `gluegun/request` and `gluegun/message` APIs for streaming or very large
-//// responses.
+//// `response.Response(BitArray)`. Its `response` field is a standard
+//// `gleam/http/response.Response(BitArray)`. The body is held fully in memory;
+//// use the lower-level `gluegun/request` and `gluegun/message` APIs for
+//// streaming or very large responses.
 ////
 //// Protocol messages for server push, upgrades, and WebSockets are rejected
 //// with `InvalidMessage`. Use the lower-level `gluegun/message` API for
@@ -17,6 +18,8 @@
 //// isolation, use the low-level API in a separate receiving process.
 
 import gleam/bit_array
+import gleam/http
+import gleam/http/response as http_response
 import gleam/list
 import gleam/result
 import gluegun/connection.{type Connection, type Timeout}
@@ -26,10 +29,18 @@ import gluegun/message.{type Message}
 import gluegun/request as low_request
 import gluegun/response.{type Informational, type Response}
 
-/// A buildable HTTP request: method, path, headers, body, options, and timeout.
+/// A connection-bound request: method, path, headers, body, options, and timeout.
+///
+/// The connection supplied to `send` determines the scheme, host, and port.
+/// Supply a request target such as `/items?page=2`, not a full URL. Gluegun
+/// sends the path and query as supplied; it does not percent-encode them.
+/// The body must contain whole bytes and need not be UTF-8.
+///
+/// This custom type avoids duplicating the connection's destination fields.
+/// It does not accept or convert standard `gleam/http/request.Request` values.
 pub opaque type Request {
   Request(
-    method: low_request.Method,
+    method: http.Method,
     path: String,
     headers: List(low_request.Header),
     body: BitArray,
@@ -42,7 +53,7 @@ pub opaque type Request {
 @internal
 pub type RequestFields {
   RequestFields(
-    method: low_request.Method,
+    method: http.Method,
     path: String,
     headers: List(low_request.Header),
     body: BitArray,
@@ -64,11 +75,11 @@ type Collection {
 
 type Step {
   Continue(Collection)
-  Done(Response)
+  Done(Response(BitArray))
 }
 
 /// Start a new `Request` builder with the given method and path.
-pub fn new(method: low_request.Method, path: String) -> Request {
+pub fn new(method: http.Method, path: String) -> Request {
   Request(
     method: method,
     path: path,
@@ -118,6 +129,8 @@ pub fn with_options(
 }
 
 /// Replace the request timeout.
+///
+/// This bounds each response-message wait, not the complete exchange.
 pub fn with_timeout(request: Request, timeout timeout: Timeout) -> Request {
   Request(..request, timeout: timeout)
 }
@@ -139,7 +152,7 @@ pub fn inspect_request(request: Request) -> RequestFields {
 pub fn send(
   request: Request,
   connection connection: Connection,
-) -> Result(Response, error.GluegunError) {
+) -> Result(Response(BitArray), error.GluegunError) {
   send_raw(
     connection,
     request.method,
@@ -155,13 +168,13 @@ pub fn send(
 @internal
 pub fn send_raw(
   connection: Connection,
-  method: low_request.Method,
+  method: http.Method,
   path: String,
   headers: List(low_request.Header),
   body: BitArray,
   options: low_request.RequestOptions,
   timeout: Timeout,
-) -> Result(Response, error.GluegunError) {
+) -> Result(Response(BitArray), error.GluegunError) {
   request_with(
     connection,
     method,
@@ -181,8 +194,8 @@ pub fn get(
   path: String,
   headers: List(low_request.Header),
   timeout: Timeout,
-) -> Result(Response, error.GluegunError) {
-  new(low_request.Get, path)
+) -> Result(Response(BitArray), error.GluegunError) {
+  new(http.Get, path)
   |> add_headers(headers: headers)
   |> with_timeout(timeout: timeout)
   |> send(connection: connection)
@@ -195,8 +208,8 @@ pub fn post(
   headers: List(low_request.Header),
   body: BitArray,
   timeout: Timeout,
-) -> Result(Response, error.GluegunError) {
-  new(low_request.Post, path)
+) -> Result(Response(BitArray), error.GluegunError) {
+  new(http.Post, path)
   |> add_headers(headers: headers)
   |> with_body(body: body)
   |> with_timeout(timeout: timeout)
@@ -210,8 +223,8 @@ pub fn put(
   headers: List(low_request.Header),
   body: BitArray,
   timeout: Timeout,
-) -> Result(Response, error.GluegunError) {
-  new(low_request.Put, path)
+) -> Result(Response(BitArray), error.GluegunError) {
+  new(http.Put, path)
   |> add_headers(headers: headers)
   |> with_body(body: body)
   |> with_timeout(timeout: timeout)
@@ -225,8 +238,8 @@ pub fn patch(
   headers: List(low_request.Header),
   body: BitArray,
   timeout: Timeout,
-) -> Result(Response, error.GluegunError) {
-  new(low_request.Patch, path)
+) -> Result(Response(BitArray), error.GluegunError) {
+  new(http.Patch, path)
   |> add_headers(headers: headers)
   |> with_body(body: body)
   |> with_timeout(timeout: timeout)
@@ -239,8 +252,8 @@ pub fn delete(
   path: String,
   headers: List(low_request.Header),
   timeout: Timeout,
-) -> Result(Response, error.GluegunError) {
-  new(low_request.Delete, path)
+) -> Result(Response(BitArray), error.GluegunError) {
+  new(http.Delete, path)
   |> add_headers(headers: headers)
   |> with_timeout(timeout: timeout)
   |> send(connection: connection)
@@ -252,8 +265,8 @@ pub fn head(
   path: String,
   headers: List(low_request.Header),
   timeout: Timeout,
-) -> Result(Response, error.GluegunError) {
-  new(low_request.Head, path)
+) -> Result(Response(BitArray), error.GluegunError) {
+  new(http.Head, path)
   |> add_headers(headers: headers)
   |> with_timeout(timeout: timeout)
   |> send(connection: connection)
@@ -265,8 +278,8 @@ pub fn request_options(
   path: String,
   headers: List(low_request.Header),
   timeout: Timeout,
-) -> Result(Response, error.GluegunError) {
-  new(low_request.Options, path)
+) -> Result(Response(BitArray), error.GluegunError) {
+  new(http.Options, path)
   |> add_headers(headers: headers)
   |> with_timeout(timeout: timeout)
   |> send(connection: connection)
@@ -275,7 +288,7 @@ pub fn request_options(
 @internal
 pub fn collect_messages(
   messages: List(Result(Message, error.GluegunError)),
-) -> Result(Response, error.GluegunError) {
+) -> Result(Response(BitArray), error.GluegunError) {
   collect_message_results(messages, AwaitingResponse([]))
 }
 
@@ -287,7 +300,7 @@ pub fn get_with(
   timeout: Timeout,
   request_fn: fn(
     Connection,
-    low_request.Method,
+    http.Method,
     String,
     List(low_request.Header),
     BitArray,
@@ -296,10 +309,10 @@ pub fn get_with(
     Result(low_request.Stream, error.GluegunError),
   await_fn: fn(Connection, low_request.Stream, Timeout) ->
     Result(Message, error.GluegunError),
-) -> Result(Response, error.GluegunError) {
+) -> Result(Response(BitArray), error.GluegunError) {
   request_with(
     connection,
-    low_request.Get,
+    http.Get,
     path,
     headers,
     <<>>,
@@ -313,7 +326,7 @@ pub fn get_with(
 @internal
 pub fn request_with(
   connection: Connection,
-  method: low_request.Method,
+  method: http.Method,
   path: String,
   headers: List(low_request.Header),
   body: BitArray,
@@ -321,7 +334,7 @@ pub fn request_with(
   timeout: Timeout,
   request_fn: fn(
     Connection,
-    low_request.Method,
+    http.Method,
     String,
     List(low_request.Header),
     BitArray,
@@ -330,7 +343,7 @@ pub fn request_with(
     Result(low_request.Stream, error.GluegunError),
   await_fn: fn(Connection, low_request.Stream, Timeout) ->
     Result(Message, error.GluegunError),
-) -> Result(Response, error.GluegunError) {
+) -> Result(Response(BitArray), error.GluegunError) {
   use stream <- result.try(request_fn(
     connection,
     method,
@@ -369,7 +382,7 @@ fn collect_stream_with(
   timeout: Timeout,
   await_fn: fn(Connection, low_request.Stream, Timeout) ->
     Result(Message, error.GluegunError),
-) -> Result(Response, error.GluegunError) {
+) -> Result(Response(BitArray), error.GluegunError) {
   use awaited <- result.try(await_fn(connection, stream, timeout))
   use next <- result.try(step(collection, awaited))
   case next {
@@ -382,7 +395,7 @@ fn collect_stream_with(
 fn collect_message_results(
   messages: List(Result(Message, error.GluegunError)),
   collection: Collection,
-) -> Result(Response, error.GluegunError) {
+) -> Result(Response(BitArray), error.GluegunError) {
   case messages {
     [] -> finalize_end(collection)
     [message_result, ..rest] -> {
@@ -424,7 +437,11 @@ fn handle_awaiting(
         Continue(
           AwaitingResponse(
             list.append(informational, [
-              response.Informational(status: status, headers: headers),
+              http_response.Response(
+                status: status,
+                headers: headers,
+                body: Nil,
+              ),
             ]),
           ),
         ),
@@ -501,7 +518,9 @@ fn handle_collecting(
   }
 }
 
-fn finalize_end(collection: Collection) -> Result(Response, error.GluegunError) {
+fn finalize_end(
+  collection: Collection,
+) -> Result(Response(BitArray), error.GluegunError) {
   case collection {
     AwaitingResponse(_) -> invalid("HTTP helper stream ended before response")
     Collecting(_, _, _, _, _) ->
@@ -515,7 +534,7 @@ fn build_response(
   chunks: List(BitArray),
   trailers: List(low_request.Header),
   informational: List(Informational),
-) -> Response {
+) -> Response(BitArray) {
   response.new(
     status: status,
     headers: headers,

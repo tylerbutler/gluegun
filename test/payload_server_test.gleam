@@ -1,3 +1,4 @@
+import gleam/http
 import gleam/list
 import gluegun/connection
 import gluegun/error
@@ -19,14 +20,7 @@ pub fn keeps_a_pending_http_request_usable_after_rejected_bodies_test() -> Nil {
 
   list.each([<<1:size(1)>>, <<255, 1:size(1)>>], fn(body) {
     let actual_2 =
-      request.request(
-        conn,
-        request.Post,
-        "/rejected",
-        [],
-        body,
-        request.options(),
-      )
+      request.request(conn, http.Post, "/rejected", [], body, request.options())
     let expected_2 = Error(error.InvalidOptions("Payload(NonByteAligned)"))
     let assert #(True, _, _) = #(actual_2 == expected_2, actual_2, expected_2)
     Nil
@@ -58,7 +52,7 @@ pub fn keeps_another_pending_response_usable_while_retrying_rejected_http_chunks
   let assert #(True, _, _) = #(actual_5 == expected_5, actual_5, expected_5)
 
   let assert Ok(stream) =
-    request.start_stream(conn, request.Post, "/stream", [], request.options())
+    request.start_stream(conn, http.Post, "/stream", [], request.options())
   let actual_6 = request.data(conn, stream, fin.NoFin, <<>>)
   let expected_6 = Ok(Nil)
   let assert #(True, _, _) = #(actual_6 == expected_6, actual_6, expected_6)
@@ -92,7 +86,7 @@ pub fn keeps_another_pending_response_usable_while_retrying_rejected_http_chunks
   let assert Ok(empty_stream) =
     request.start_stream(
       conn,
-      request.Post,
+      http.Post,
       "/empty-stream",
       [],
       request.options(),
@@ -273,7 +267,7 @@ fn post(
   body: BitArray,
 ) -> request.Stream {
   let assert Ok(stream) =
-    request.request(conn, request.Post, path, [], body, request.options())
+    request.request(conn, http.Post, path, [], body, request.options())
   stream
 }
 

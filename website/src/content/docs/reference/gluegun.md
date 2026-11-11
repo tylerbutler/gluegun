@@ -27,7 +27,7 @@ pub fn await_up(
 Decode a response body as UTF-8 text.
 
 ```gleam
-pub fn body_text(response.Response) -> Result(String, error.GluegunError)
+pub fn body_text(response.Response(BitArray)) -> Result(String, error.GluegunError)
 ```
 
 ### `connection_options`
@@ -43,7 +43,7 @@ pub fn connection_options() -> connection.ConnectOptions
 Convert a request method to an HTTP method string.
 
 ```gleam
-pub fn method_to_string(request.Method) -> String
+pub fn method_to_string(http.Method) -> String
 ```
 
 ### `name`
@@ -60,7 +60,7 @@ Construct a `Request` builder.
 
 ```gleam
 pub fn new_request(
-  request.Method,
+  http.Method,
   String
 ) -> client.Request
 ```
@@ -93,9 +93,9 @@ Construct a collected HTTP response.
 pub fn response(
   status: Int,
   headers: List(#(String, String)),
-  body: BitArray,
+  body: a,
   trailers: List(#(String, String))
-) -> response.Response
+) -> response.Response(a)
 ```
 
 ### `send`
@@ -106,7 +106,7 @@ Send a `Request` on an open connection.
 pub fn send(
   client.Request,
   connection: internal.Connection
-) -> Result(response.Response, error.GluegunError)
+) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
 ### `tls_options`

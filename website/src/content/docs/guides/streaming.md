@@ -14,6 +14,7 @@ import gluegun/fin
 import gluegun/message
 import gluegun/request
 import gleam/result
+import gleam/http
 
 pub fn upload_chunks(conn) {
   use timeout <- result.try(connection.milliseconds(5000))
@@ -21,7 +22,7 @@ pub fn upload_chunks(conn) {
   use stream <- result.try(
     request.start_stream(
       conn,
-      request.Post,
+      http.Post,
       "/upload",
       [#("content-type", "text/plain")],
       request.options(),
@@ -85,7 +86,7 @@ use options <- result.try(
   request.options() |> request.with_initial_flow(credit: 1),
 )
 use stream <- result.try(
-  request.request(conn, request.Get, path, [], <<>>, options),
+  request.request(conn, http.Get, path, [], <<>>, options),
 )
 ```
 

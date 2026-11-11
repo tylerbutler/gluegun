@@ -22,10 +22,10 @@ Before you start, [install Gluegun](/installation/) and confirm that the package
 ```gleam
 import gleam/int
 import gleam/io
+import gleam/http
 import gleam/result
 import gluegun/client
 import gluegun/connection
-import gluegun/request
 import gluegun/response
 
 pub fn main() {
@@ -43,7 +43,7 @@ pub fn main() {
   )
 
   use res <- result.try(
-    client.new(request.Get, "/")
+    client.new(http.Get, "/")
     |> client.with_timeout(
       timeout: timeout,
     )
@@ -52,7 +52,7 @@ pub fn main() {
     ),
   )
 
-  io.println("status: " <> int.to_string(response.status(res)))
+  io.println("status: " <> int.to_string(res.response.status))
 
   case response.body_text(res) {
     Ok(text) -> io.println(text)

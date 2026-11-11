@@ -20,6 +20,7 @@ your `gleam.toml`:
 
 ```toml
 [dependencies]
+gleam_http = ">= 4.0.0 and < 5.0.0"
 gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "main" }
 ```
 
@@ -51,7 +52,10 @@ Gluegun uses these packages:
 
 - `gleam_stdlib`
 - `gleam_erlang`
+- `gleam_http`
 - `gleam_otp`
 - `gun`
 
-The package controls these through its `gleam.toml`. Applications add only the Git dependency above.
+The package controls these through its `gleam.toml`. Add
+`gleam_http = ">= 4.0.0 and < 5.0.0"` to your application's dependencies when
+you import standard HTTP modules, as the request examples do.

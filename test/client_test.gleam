@@ -1,3 +1,6 @@
+import gleam/bit_array
+import gleam/http
+import gleam/http/response as http_response
 import gluegun/client
 import gluegun/connection
 import gluegun/error
@@ -9,7 +12,7 @@ import gluegun/response
 
 pub fn request_builder_sets_request_fields_test() -> Nil {
   let actual_1 = {
-    client.new(request.Get, "/")
+    client.new(http.Get, "/")
     |> client.with_header("accept", "application/json")
     |> client.with_body(<<"":utf8>>)
     |> client.with_timeout(timeout(1000))
@@ -17,7 +20,7 @@ pub fn request_builder_sets_request_fields_test() -> Nil {
   }
   let expected_1 =
     client.RequestFields(
-      method: request.Get,
+      method: http.Get,
       path: "/",
       headers: [#("accept", "application/json")],
       body: <<"":utf8>>,
@@ -37,14 +40,14 @@ pub fn request_builder_exposes_request_options_helper_name_test() -> Nil {
 
 pub fn request_builder_add_headers_appends_request_headers_test() -> Nil {
   let actual_3 = {
-    client.new(request.Get, "/")
+    client.new(http.Get, "/")
     |> client.add_headers([#("accept", "application/json")])
     |> client.add_headers([#("x-request-id", "abc")])
     |> client.inspect_request
   }
   let expected_3 =
     client.RequestFields(
-      method: request.Get,
+      method: http.Get,
       path: "/",
       headers: [
         #("accept", "application/json"),
@@ -60,14 +63,14 @@ pub fn request_builder_add_headers_appends_request_headers_test() -> Nil {
 
 pub fn request_builder_with_headers_replaces_request_headers_test() -> Nil {
   let actual_4 = {
-    client.new(request.Get, "/")
+    client.new(http.Get, "/")
     |> client.add_headers([#("accept", "application/json")])
     |> client.with_headers([#("x-request-id", "abc")])
     |> client.inspect_request
   }
   let expected_4 =
     client.RequestFields(
-      method: request.Get,
+      method: http.Get,
       path: "/",
       headers: [#("x-request-id", "abc")],
       body: <<>>,
@@ -146,11 +149,71 @@ pub fn response_collection_preserves_informational_responses_test() -> Nil {
     |> response.informational
   }
   let expected_8 = [
-    response.Informational(status: 103, headers: [
-      #("link", "</style.css>; rel=preload"),
-    ]),
+    http_response.Response(
+      status: 103,
+      headers: [#("link", "</style.css>; rel=preload")],
+      body: Nil,
+    ),
   ]
   let assert #(True, _, _) = #(actual_8 == expected_8, actual_8, expected_8)
+  Nil
+}
+
+pub fn response_collection_exposes_standard_binary_response_and_metadata_test() -> Nil {
+  let headers = [
+    #("content-type", "application/octet-stream"),
+    #("set-cookie", "a=1"),
+    #("set-cookie", "b=2"),
+  ]
+  let trailers = [#("x-checksum", "first"), #("x-checksum", "second")]
+  let assert Ok(collected) =
+    client.collect_messages([
+      Ok(message.Inform(100, [])),
+      Ok(message.Inform(103, [#("link", "</style.css>; rel=preload")])),
+      Ok(message.Response(fin.NoFin, 200, headers)),
+      Ok(message.Data(fin.NoFin, <<0, 255>>)),
+      Ok(message.Trailers(trailers)),
+    ])
+
+  let assert True =
+    collected.response
+    == http_response.Response(status: 200, headers: headers, body: <<0, 255>>)
+  let assert True =
+    http_response.get_header(collected.response, "content-type")
+    == Ok("application/octet-stream")
+  let assert True = collected.trailers == trailers
+  let assert True =
+    collected.informational
+    == [
+      http_response.Response(status: 100, headers: [], body: Nil),
+      http_response.Response(
+        status: 103,
+        headers: [#("link", "</style.css>; rel=preload")],
+        body: Nil,
+      ),
+    ]
+  let assert True =
+    http_response.try_map(collected.response, bit_array.to_string) == Error(Nil)
+  Nil
+}
+
+pub fn standard_response_body_transformation_preserves_collected_metadata_test() -> Nil {
+  let assert Ok(collected) =
+    client.collect_messages([
+      Ok(message.Inform(103, [#("link", "</style.css>; rel=preload")])),
+      Ok(message.Response(fin.NoFin, 200, [#("content-type", "text/plain")])),
+      Ok(message.Data(fin.NoFin, <<"hello":utf8>>)),
+      Ok(message.Trailers([#("x-checksum", "abc")])),
+    ])
+  let assert Ok(decoded) =
+    http_response.try_map(collected.response, bit_array.to_string)
+  let updated = response.Response(..collected, response: decoded)
+
+  let assert True = updated.response.body == "hello"
+  let assert True = updated.response.status == collected.response.status
+  let assert True = updated.response.headers == collected.response.headers
+  let assert True = updated.trailers == collected.trailers
+  let assert True = updated.informational == collected.informational
   Nil
 }
 
@@ -173,7 +236,7 @@ pub fn invalid_message_handling_rejects_push_upgrade_and_websocket_messages_test
 
   let actual_10 =
     client.collect_messages([
-      Ok(message.Push(stream, request.Get, "/pushed", [])),
+      Ok(message.Push(stream, http.Get, "/pushed", [])),
     ])
   let expected_10 =
     Error(error.InvalidMessage("HTTP helper received push message"))

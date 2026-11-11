@@ -11,70 +11,6 @@ Low-level HTTP request and stream operations.
 
 ## Types
 
-### `Method`
-
-HTTP request method constructors.
-
- Use canonical constructors such as `Get`, `Post`, and `Put`, or `Custom`
- for extension methods.
-
-```gleam
-pub type Method {
-  Get
-  Head
-  Post
-  Put
-  Patch
-  Delete
-  Options
-  Trace
-  Connect
-  Custom(String)
-}
-```
-
-#### Constructors
-
-##### `Get`
-
-HTTP `GET`. Safe and idempotent.
-
-##### `Head`
-
-HTTP `HEAD`. Same as `Get` but the response has no body.
-
-##### `Post`
-
-HTTP `POST`. Create or submit data; not idempotent.
-
-##### `Put`
-
-HTTP `PUT`. Replace the target resource; idempotent.
-
-##### `Patch`
-
-HTTP `PATCH`. Apply a partial modification.
-
-##### `Delete`
-
-HTTP `DELETE`. Remove the target resource; idempotent.
-
-##### `Options`
-
-HTTP `OPTIONS`. Describe communication options for the target.
-
-##### `Trace`
-
-HTTP `TRACE`. Loop-back diagnostics; rarely used.
-
-##### `Connect`
-
-HTTP `CONNECT`. Establish a tunnel through a proxy.
-
-##### `Custom(String)`
-
-An extension or non-standard method. The wrapped string is sent verbatim.
-
 ### `RequestOptions`
 
 Request options passed through the low-level request API.
@@ -171,7 +107,7 @@ pub fn flush(internal.Connection) -> Result(Nil, error.GluegunError)
 Convert a method constructor to its HTTP method string.
 
 ```gleam
-pub fn method_to_string(Method) -> String
+pub fn method_to_string(http.Method) -> String
 ```
 
 ### `options`
@@ -207,7 +143,7 @@ Send a low-level HTTP request on an open Gun connection.
 ```gleam
 pub fn request(
   internal.Connection,
-  Method,
+  http.Method,
   String,
   List(#(String, String)),
   BitArray,
@@ -235,7 +171,7 @@ Start a low-level HTTP request whose body will be streamed in chunks.
 ```gleam
 pub fn start_stream(
   internal.Connection,
-  Method,
+  http.Method,
   String,
   List(#(String, String)),
   RequestOptions

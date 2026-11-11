@@ -1,3 +1,5 @@
+import gleam/http
+import gleam/http/response as http_response
 import gleam/option.{None, Some}
 import gluegun/connection
 import gluegun/error
@@ -75,43 +77,43 @@ pub fn request_options_and_methods_add_headers_appends_request_headers_test() ->
 }
 
 pub fn request_options_and_methods_converts_request_methods_to_strings_test() -> Nil {
-  let actual_7 = request.method_to_string(request.Get)
+  let actual_7 = request.method_to_string(http.Get)
   let expected_7 = "GET"
   let assert #(True, _, _) = #(actual_7 == expected_7, actual_7, expected_7)
 
-  let actual_8 = request.method_to_string(request.Post)
+  let actual_8 = request.method_to_string(http.Post)
   let expected_8 = "POST"
   let assert #(True, _, _) = #(actual_8 == expected_8, actual_8, expected_8)
 
-  let actual_9 = request.method_to_string(request.Head)
+  let actual_9 = request.method_to_string(http.Head)
   let expected_9 = "HEAD"
   let assert #(True, _, _) = #(actual_9 == expected_9, actual_9, expected_9)
 
-  let actual_10 = request.method_to_string(request.Put)
+  let actual_10 = request.method_to_string(http.Put)
   let expected_10 = "PUT"
   let assert #(True, _, _) = #(actual_10 == expected_10, actual_10, expected_10)
 
-  let actual_11 = request.method_to_string(request.Patch)
+  let actual_11 = request.method_to_string(http.Patch)
   let expected_11 = "PATCH"
   let assert #(True, _, _) = #(actual_11 == expected_11, actual_11, expected_11)
 
-  let actual_12 = request.method_to_string(request.Delete)
+  let actual_12 = request.method_to_string(http.Delete)
   let expected_12 = "DELETE"
   let assert #(True, _, _) = #(actual_12 == expected_12, actual_12, expected_12)
 
-  let actual_13 = request.method_to_string(request.Options)
+  let actual_13 = request.method_to_string(http.Options)
   let expected_13 = "OPTIONS"
   let assert #(True, _, _) = #(actual_13 == expected_13, actual_13, expected_13)
 
-  let actual_14 = request.method_to_string(request.Trace)
+  let actual_14 = request.method_to_string(http.Trace)
   let expected_14 = "TRACE"
   let assert #(True, _, _) = #(actual_14 == expected_14, actual_14, expected_14)
 
-  let actual_15 = request.method_to_string(request.Connect)
+  let actual_15 = request.method_to_string(http.Connect)
   let expected_15 = "CONNECT"
   let assert #(True, _, _) = #(actual_15 == expected_15, actual_15, expected_15)
 
-  let actual_16 = request.method_to_string(request.Custom("PROPFIND"))
+  let actual_16 = request.method_to_string(http.Other("PROPFIND"))
   let expected_16 = "PROPFIND"
   let assert #(True, _, _) = #(actual_16 == expected_16, actual_16, expected_16)
   Nil
@@ -139,7 +141,11 @@ pub fn responses_and_messages_constructs_responses_test() -> Nil {
       trailers: [#("expires", "soon")],
     )
     |> response.with_informational(informational: [
-      response.Informational(status: 103, headers: [#("server", "gun")]),
+      http_response.Response(
+        status: 103,
+        headers: [#("server", "gun")],
+        body: Nil,
+      ),
     ])
 
   let actual_18 = {
@@ -175,7 +181,11 @@ pub fn responses_and_messages_constructs_responses_test() -> Nil {
     |> response.informational
   }
   let expected_22 = [
-    response.Informational(status: 103, headers: [#("server", "gun")]),
+    http_response.Response(
+      status: 103,
+      headers: [#("server", "gun")],
+      body: Nil,
+    ),
   ]
   let assert #(True, _, _) = #(actual_22 == expected_22, actual_22, expected_22)
   Nil
@@ -262,7 +272,7 @@ pub fn responses_and_messages_decodes_push_messages_test() -> Nil {
   }
   let expected_29 =
     Ok(
-      message.Push(stream, request.Post, "/assets/app.css", [
+      message.Push(stream, http.Post, "/assets/app.css", [
         #("accept", "text/css"),
       ]),
     )
@@ -278,7 +288,7 @@ pub fn responses_and_messages_preserves_custom_push_method_case_test() -> Nil {
     |> safe_decode_message
   }
   let expected_30 =
-    Ok(message.Push(stream, request.Custom("PropFind"), "/collection", []))
+    Ok(message.Push(stream, http.Other("PropFind"), "/collection", []))
   let assert #(True, _, _) = #(actual_30 == expected_30, actual_30, expected_30)
   Nil
 }
@@ -290,7 +300,7 @@ pub fn responses_and_messages_matches_known_push_methods_case_insensitively_test
     push_message(stream, "get", "/", [])
     |> safe_decode_message
   }
-  let expected_31 = Ok(message.Push(stream, request.Get, "/", []))
+  let expected_31 = Ok(message.Push(stream, http.Get, "/", []))
   let assert #(True, _, _) = #(actual_31 == expected_31, actual_31, expected_31)
   Nil
 }

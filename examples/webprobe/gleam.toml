@@ -5,6 +5,7 @@ licences = ["MIT"]
 target = "erlang"
 
 [dependencies]
+gleam_http = ">= 4.0.0 and < 5.0.0"
 argv = ">= 1.1.0 and < 2.0.0"
 clip = ">= 1.2.0 and < 2.0.0"
 gleam_erlang = ">= 1.0.0 and < 2.0.0"

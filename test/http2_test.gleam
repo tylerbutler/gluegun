@@ -1,4 +1,5 @@
 import gleam/erlang/process
+import gleam/http
 import gluegun/client
 import gluegun/connection
 import gluegun/error
@@ -83,7 +84,7 @@ pub fn http_helper_compatibility_uses_the_negotiated_http_2_response_path_test()
 
   let fake_request = fn(
     _connection: connection.Connection,
-    method: request.Method,
+    method: http.Method,
     path: String,
     headers: List(request.Header),
     body: BitArray,
@@ -134,7 +135,7 @@ pub fn http_helper_compatibility_uses_the_negotiated_http_2_response_path_test()
     )
   let assert #(True, _, _) = #(actual_7 == expected_7, actual_7, expected_7)
   let actual_8 = process.receive(request_subject, within: 0)
-  let expected_8 = Ok(#(request.Get, expected_path, expected_headers, <<>>))
+  let expected_8 = Ok(#(http.Get, expected_path, expected_headers, <<>>))
   let assert #(True, _, _) = #(actual_8 == expected_8, actual_8, expected_8)
   Nil
 }

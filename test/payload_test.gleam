@@ -1,3 +1,4 @@
+import gleam/http
 import gleam/list
 import gluegun/client
 import gluegun/connection
@@ -13,7 +14,7 @@ pub fn http_bodies_preserves_request_data_empty_test() -> Nil {
   let assert Ok(_) =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       payload,
@@ -30,7 +31,7 @@ pub fn http_bodies_preserves_request_data_zero_byte_test() -> Nil {
   let assert Ok(_) =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       payload,
@@ -47,7 +48,7 @@ pub fn http_bodies_preserves_request_data_three_bytes_test() -> Nil {
   let assert Ok(_) =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       payload,
@@ -142,7 +143,7 @@ pub fn http_rejection_rejects_http_payload_one_bit_test() -> Nil {
   let actual_16 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       payload,
@@ -173,7 +174,7 @@ pub fn http_rejection_rejects_http_payload_seven_bits_test() -> Nil {
   let actual_19 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       payload,
@@ -204,7 +205,7 @@ pub fn http_rejection_rejects_http_payload_byte_and_one_bit_test() -> Nil {
   let actual_22 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       payload,
@@ -235,7 +236,7 @@ pub fn http_rejection_rejects_http_payload_byte_and_seven_bits_test() -> Nil {
   let actual_25 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       payload,
@@ -274,7 +275,7 @@ pub fn client_helpers_reject_trailing_bits_before_collecting_test() -> Nil {
     Nil
   })
   let actual_29 = {
-    client.new(request.Post, "/")
+    client.new(http.Post, "/")
     |> client.with_body(body: <<255, 1:size(1)>>)
     |> client.send(connection: current_connection())
   }

@@ -23,6 +23,22 @@ Finite initial flow credit counts data messages. Gun and OTP can allocate socket
 
 Use the low-level `request` and `message` APIs for streams or advanced Gun flows. The `client` functions are for usual HTTP responses that can be collected in memory.
 
+## Standard HTTP interoperability
+
+HTTP methods use `gleam/http.Method`. Collected responses contain a standard
+`gleam/http/response.Response(BitArray)` plus trailers and informational
+responses. Keep the outer value to preserve that metadata when you use
+standard response helpers.
+
+Requests remain path-based and connection-bound. Gluegun does not accept
+standard request records or provide converters. The connection determines
+the scheme, host, and port; request helpers accept the encoded path and query.
+
+Connection and stream handles identify Gun resources. Stream messages,
+flow-control options, timeout validation, TLS options, and WebSocket lifecycle
+types represent behavior outside the standard HTTP records. These types
+remain Gun-specific.
+
 ## WebSocket over HTTP/2 is not supported
 
 Gun supports WebSocket over HTTP/1.1. `websocket.upgrade_with_protocol` checks the protocol that `connection.await_up` returns. It rejects HTTP/2 before it calls Gun.

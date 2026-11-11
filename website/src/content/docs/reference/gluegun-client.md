@@ -7,9 +7,10 @@ High-level HTTP helpers for existing Gun connections.
 
  These helpers collect a full HTTP/1.1 or HTTP/2 response — status,
  headers, body, trailers, and any informational `1xx` responses — into a
- `response.Response`. The body is held fully in memory; use the lower-level
- `gluegun/request` and `gluegun/message` APIs for streaming or very large
- responses.
+ `response.Response(BitArray)`. Its `response` field is a standard
+ `gleam/http/response.Response(BitArray)`. The body is held fully in memory;
+ use the lower-level `gluegun/request` and `gluegun/message` APIs for
+ streaming or very large responses.
 
  Protocol messages for server push, upgrades, and WebSockets are rejected
  with `InvalidMessage`. Use the lower-level `gluegun/message` API for
@@ -25,7 +26,15 @@ High-level HTTP helpers for existing Gun connections.
 
 ### `Request`
 
-A buildable HTTP request: method, path, headers, body, options, and timeout.
+A connection-bound request: method, path, headers, body, options, and timeout.
+
+ The connection supplied to `send` determines the scheme, host, and port.
+ Supply a request target such as `/items?page=2`, not a full URL. Gluegun
+ sends the path and query as supplied; it does not percent-encode them.
+ The body must contain whole bytes and need not be UTF-8.
+
+ This custom type avoids duplicating the connection's destination fields.
+ It does not accept or convert standard `gleam/http/request.Request` values.
 
 ```gleam
 pub type Request
@@ -54,7 +63,7 @@ pub fn delete(
   String,
   List(#(String, String)),
   connection.Timeout
-) -> Result(response.Response, error.GluegunError)
+) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
 ### `get`
@@ -67,7 +76,7 @@ pub fn get(
   String,
   List(#(String, String)),
   connection.Timeout
-) -> Result(response.Response, error.GluegunError)
+) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
 ### `head`
@@ -80,7 +89,7 @@ pub fn head(
   String,
   List(#(String, String)),
   connection.Timeout
-) -> Result(response.Response, error.GluegunError)
+) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
 ### `new`
@@ -89,7 +98,7 @@ Start a new `Request` builder with the given method and path.
 
 ```gleam
 pub fn new(
-  request.Method,
+  http.Method,
   String
 ) -> Request
 ```
@@ -105,7 +114,7 @@ pub fn patch(
   List(#(String, String)),
   BitArray,
   connection.Timeout
-) -> Result(response.Response, error.GluegunError)
+) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
 ### `post`
@@ -119,7 +128,7 @@ pub fn post(
   List(#(String, String)),
   BitArray,
   connection.Timeout
-) -> Result(response.Response, error.GluegunError)
+) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
 ### `put`
@@ -133,7 +142,7 @@ pub fn put(
   List(#(String, String)),
   BitArray,
   connection.Timeout
-) -> Result(response.Response, error.GluegunError)
+) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
 ### `request_options`
@@ -146,7 +155,7 @@ pub fn request_options(
   String,
   List(#(String, String)),
   connection.Timeout
-) -> Result(response.Response, error.GluegunError)
+) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
 ### `send`
@@ -157,7 +166,7 @@ Send a built `Request` on an open connection and collect the response.
 pub fn send(
   Request,
   connection: internal.Connection
-) -> Result(response.Response, error.GluegunError)
+) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
 ### `with_body`
@@ -208,6 +217,8 @@ pub fn with_options(
 ### `with_timeout`
 
 Replace the request timeout.
+
+ This bounds each response-message wait, not the complete exchange.
 
 ```gleam
 pub fn with_timeout(

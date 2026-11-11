@@ -820,8 +820,8 @@ frame_from_gun(close) -> close;
 frame_from_gun(Other) -> error({invalid_message, {ws, Other}}).
 
 %% Gun reports pushed request methods as binaries. Known methods map onto the
-%% `gluegun/request.Method` constructors; anything else keeps its original
-%% casing inside `Custom`.
+%% `gleam/http.Method` constructors; anything else keeps its original
+%% casing inside `Other`.
 method_from_gun(Method) ->
     Binary = to_binary(Method),
     case string:uppercase(Binary) of
@@ -834,7 +834,7 @@ method_from_gun(Method) ->
         <<"OPTIONS">> -> options;
         <<"TRACE">> -> trace;
         <<"CONNECT">> -> connect;
-        _ -> {custom, Binary}
+        _ -> {other, Binary}
     end.
 
 %% Header names are lowercased on both directions of the boundary; values are

@@ -1,3 +1,4 @@
+import gleam/http
 import gluegun
 import gluegun/client
 import gluegun/connection
@@ -12,12 +13,12 @@ pub fn main() -> Nil {
 
 pub fn builds_a_root_request_with_default_fields_test() -> Nil {
   let actual_1 = {
-    gluegun.new_request(request.Get, "/")
+    gluegun.new_request(http.Get, "/")
     |> client.inspect_request
   }
   let expected_1 =
     client.RequestFields(
-      method: request.Get,
+      method: http.Get,
       path: "/",
       headers: [],
       body: <<>>,
@@ -63,7 +64,7 @@ fn compile_common_path_facade(should_run: Bool) -> Nil {
         )
       let assert Ok(_protocol) =
         gluegun.await_up(open_connection, connection.default_timeout())
-      let request = gluegun.new_request(request.Get, "/")
+      let request = gluegun.new_request(http.Get, "/")
       let assert Ok(response) =
         gluegun.send(request, connection: open_connection)
       let assert Ok(_body) = gluegun.body_text(response)

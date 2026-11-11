@@ -4,14 +4,15 @@
 //// messages. This module decodes those messages into Gleam types for callers
 //// using lower-level streaming or advanced flows.
 
+import gleam/http
 import gluegun/connection.{type Connection, type Timeout}
 import gluegun/error
 import gluegun/fin.{type Fin}
 import gluegun/request.{type Stream}
 
-/// Alias for `gluegun/request.Method` used in decoded messages.
+/// Alias for `gleam/http.Method` used in decoded messages.
 pub type Method =
-  request.Method
+  http.Method
 
 /// Alias for `gluegun/request.Header` used in decoded messages.
 pub type Header =

@@ -131,7 +131,7 @@ function renderTypeParameters(count) {
 
 // Mirrors gleamoire's render_type: omits the qualifier for prelude types
 // (module "gleam") and for types declared in the current module, and uses
-// only the last segment of the module path otherwise.
+// the last segment otherwise, adding the parent for a current-module collision.
 function renderType(type, currentModule) {
 	if (!type || typeof type !== "object") {
 		return "Unknown";
@@ -142,7 +142,12 @@ function renderType(type, currentModule) {
 			let qualifier = "";
 			if (type.module && type.module !== "gleam" && type.module !== currentModule) {
 				const segments = type.module.split("/");
-				qualifier = `${segments[segments.length - 1]}.`;
+				const name = segments[segments.length - 1];
+				qualifier = `${
+					name === currentModule.split("/").at(-1)
+						? segments.slice(-2).join("_")
+						: name
+				}.`;
 			}
 			const parameters =
 				Array.isArray(type.parameters) && type.parameters.length > 0

@@ -4,6 +4,7 @@
 //// bodies, flow-control updates, cancellation, or direct access to asynchronous
 //// Gun messages. For simple full-body responses, prefer `gluegun/client`.
 
+import gleam/http
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
@@ -11,33 +12,6 @@ import gluegun/connection.{type Connection}
 import gluegun/error
 import gluegun/fin.{type Fin}
 import gluegun/internal
-
-/// HTTP request method constructors.
-///
-/// Use canonical constructors such as `Get`, `Post`, and `Put`, or `Custom`
-/// for extension methods.
-pub type Method {
-  /// HTTP `GET`. Safe and idempotent.
-  Get
-  /// HTTP `HEAD`. Same as `Get` but the response has no body.
-  Head
-  /// HTTP `POST`. Create or submit data; not idempotent.
-  Post
-  /// HTTP `PUT`. Replace the target resource; idempotent.
-  Put
-  /// HTTP `PATCH`. Apply a partial modification.
-  Patch
-  /// HTTP `DELETE`. Remove the target resource; idempotent.
-  Delete
-  /// HTTP `OPTIONS`. Describe communication options for the target.
-  Options
-  /// HTTP `TRACE`. Loop-back diagnostics; rarely used.
-  Trace
-  /// HTTP `CONNECT`. Establish a tunnel through a proxy.
-  Connect
-  /// An extension or non-standard method. The wrapped string is sent verbatim.
-  Custom(String)
-}
 
 /// HTTP header represented as `#(name, value)`.
 pub type Header =
@@ -116,19 +90,8 @@ pub fn headers_option(options: RequestOptions) -> List(Header) {
 }
 
 /// Convert a method constructor to its HTTP method string.
-pub fn method_to_string(method: Method) -> String {
-  case method {
-    Get -> "GET"
-    Head -> "HEAD"
-    Post -> "POST"
-    Put -> "PUT"
-    Patch -> "PATCH"
-    Delete -> "DELETE"
-    Options -> "OPTIONS"
-    Trace -> "TRACE"
-    Connect -> "CONNECT"
-    Custom(method) -> method
-  }
+pub fn method_to_string(method: http.Method) -> String {
+  http.method_to_string(method)
 }
 
 /// Lowercase header names for the Erlang Gun FFI boundary without changing values.
@@ -161,7 +124,7 @@ pub fn normalize_headers(headers: List(Header)) -> List(Header) {
 /// Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.
 pub fn request(
   connection: Connection,
-  method: Method,
+  method: http.Method,
   path: String,
   headers: List(Header),
   body: BitArray,
@@ -193,7 +156,7 @@ pub fn request(
 /// Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.
 pub fn start_stream(
   connection: Connection,
-  method: Method,
+  method: http.Method,
   path: String,
   headers: List(Header),
   options: RequestOptions,
