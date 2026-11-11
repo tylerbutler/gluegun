@@ -30,12 +30,12 @@ use _ <- result.try(
 )
 
 use res <- result.try(
-  client.new(request.Get, "/")
+  client.new(http.Get, "/")
   |> client.with_timeout(timeout: connection.Milliseconds(5000))
   |> client.send(connection: conn),
 )
 
-io.println("status: " <> int.to_string(response.status(res)))
+io.println("status: " <> int.to_string(res.response.status))
 connection.close(conn)`;
 
 <style lang="css">{`

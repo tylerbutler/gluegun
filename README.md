@@ -14,6 +14,7 @@ Gluegun is distributed as a Git dependency until `1.0`. Add it to your
 
 ```toml
 [dependencies]
+gleam_http = ">= 4.0.0 and < 5.0.0"
 gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "main" }
 ```
 
@@ -67,7 +68,6 @@ import gleam/io
 import gleam/result
 import gluegun/client
 import gluegun/connection
-import gluegun/request
 import gluegun/response
 
 pub fn main() {
@@ -85,7 +85,7 @@ pub fn main() {
     |> client.send(connection: conn),
   )
 
-  io.println("status: " <> int.to_string(response.status(res)))
+  io.println("status: " <> int.to_string(res.response.status))
 
   case response.body_text(res) {
     Ok(text) -> io.println(text)
@@ -103,7 +103,6 @@ pub fn main() {
 ```gleam
 import gleam/http
 import gluegun/client
-import gluegun/request
 
 fn fetch_json(conn, path, timeout) {
   client.new(http.Get, path)
@@ -118,6 +117,52 @@ collection. Informational messages and body chunks do not restart it.
 `Infinity` remains unlimited; a zero budget returns `Timeout`.
 
 When collection fails, `client` helpers attempt to cancel that stream and drain its queued messages. They return the original error and keep other streams and the shared connection open. Cleanup failures produce a warning. Cancellation is asynchronous, so messages in transit can arrive after the drain. The high-level helpers do not return the failed stream handle; use the low-level API in a separate receiving process if you need strict mailbox isolation.
+
+## Standard HTTP types
+
+HTTP APIs use `gleam/http.Method`. Requests remain connection-bound: the
+connection determines the scheme, host, and port. Pass an encoded request target
+such as `/items?tag=a%2Fb&tag=c`; Gluegun does not encode paths or queries.
+Request bodies are byte-aligned `BitArray` values and need not be UTF-8.
+`client.with_timeout` sets one total budget for dispatch and response collection.
+
+`client.send` returns `gluegun/response.Response(BitArray)`. Its `response` field
+is a standard `gleam/http/response.Response(BitArray)`. Trailers and ordered
+informational responses remain in separate fields:
+
+```gleam
+import gleam/bit_array
+import gleam/http/response as http_response
+import gleam/result
+import gluegun/response
+
+fn decode_body(collected: response.Response(BitArray)) {
+  use decoded <- result.try(
+    http_response.try_map(collected.response, bit_array.to_string),
+  )
+  Ok(response.Response(..collected, response: decoded))
+}
+```
+
+Use standard header and body helpers on `collected.response`. Keep the outer
+value when you need trailers or informational responses; selecting only the
+standard response excludes that metadata.
+
+### Migration
+
+Replace `request.Get`, `request.Post`, and other method constructors with
+`http.Get`, `http.Post`, and the corresponding `gleam/http` constructors.
+Replace `request.Custom` with `http.Other` and `request.Method` with
+`http.Method`.
+
+Add a body parameter to collected-response type annotations:
+`response.Response` becomes `response.Response(BitArray)`. Existing Gluegun
+status, header, body, and text accessors still work. Informational responses
+now use standard `gleam/http/response.Response(Nil)` values instead of
+`response.Informational` constructors.
+
+Standard request converters remain deferred. Gun-specific handles, stream
+events, validated options, and lifecycle APIs retain their custom types.
 
 ## Small HTTP facade
 

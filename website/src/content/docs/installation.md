@@ -20,6 +20,7 @@ your `gleam.toml`:
 
 ```toml
 [dependencies]
+gleam_http = ">= 4.0.0 and < 5.0.0"
 gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "main" }
 ```
 
@@ -54,9 +55,9 @@ Gluegun uses these packages:
 - `gleam_http`
 - `gun`
 
-The package controls these through its `gleam.toml`. Declare packages that you
-import directly in your application's dependencies too.
-
+The package controls these through its `gleam.toml`. Add
+`gleam_http = ">= 4.0.0 and < 5.0.0"` to your application's dependencies when
+you import standard HTTP modules, as the request examples do.
 After maintainers publish the authorized 1.0 release to Hex, use
 `gleam add gluegun`. Until then, use the Git dependency above. See the
 [release setup instructions](https://github.com/tylerbutler/gluegun#hex-release-setup)

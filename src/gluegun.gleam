@@ -55,12 +55,14 @@ pub fn new_request(method: Method, path: String) -> client.Request {
 pub fn send(
   request: client.Request,
   connection connection: Connection,
-) -> Result(Response, error.GluegunError) {
+) -> Result(Response(BitArray), error.GluegunError) {
   client.send(request, connection: connection)
 }
 
 /// Decode the response body as UTF-8.
-pub fn body_text(response: Response) -> Result(String, error.GluegunError) {
+pub fn body_text(
+  response: Response(BitArray),
+) -> Result(String, error.GluegunError) {
   response.body_text(response)
 }
 

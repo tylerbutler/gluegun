@@ -1,5 +1,7 @@
+import gleam/bit_array
 import gleam/erlang/process
 import gleam/http
+import gleam/http/response as http_response
 import gleam/option.{None, Some}
 import gluegun/client
 import gluegun/connection
@@ -205,11 +207,71 @@ pub fn response_collection_preserves_informational_responses_test() -> Nil {
     |> response.informational
   }
   let expected_8 = [
-    response.Informational(status: 103, headers: [
-      #("link", "</style.css>; rel=preload"),
-    ]),
+    http_response.Response(
+      status: 103,
+      headers: [#("link", "</style.css>; rel=preload")],
+      body: Nil,
+    ),
   ]
   let assert #(True, _, _) = #(actual_8 == expected_8, actual_8, expected_8)
+  Nil
+}
+
+pub fn response_collection_exposes_standard_binary_response_and_metadata_test() -> Nil {
+  let headers = [
+    #("content-type", "application/octet-stream"),
+    #("set-cookie", "a=1"),
+    #("set-cookie", "b=2"),
+  ]
+  let trailers = [#("x-checksum", "first"), #("x-checksum", "second")]
+  let assert Ok(collected) =
+    client.collect_messages([
+      Ok(message.Inform(100, [])),
+      Ok(message.Inform(103, [#("link", "</style.css>; rel=preload")])),
+      Ok(message.Response(fin.NoFin, 200, headers)),
+      Ok(message.Data(fin.NoFin, <<0, 255>>)),
+      Ok(message.Trailers(trailers)),
+    ])
+
+  let assert True =
+    collected.response
+    == http_response.Response(status: 200, headers: headers, body: <<0, 255>>)
+  let assert True =
+    http_response.get_header(collected.response, "content-type")
+    == Ok("application/octet-stream")
+  let assert True = collected.trailers == trailers
+  let assert True =
+    collected.informational
+    == [
+      http_response.Response(status: 100, headers: [], body: Nil),
+      http_response.Response(
+        status: 103,
+        headers: [#("link", "</style.css>; rel=preload")],
+        body: Nil,
+      ),
+    ]
+  let assert True =
+    http_response.try_map(collected.response, bit_array.to_string) == Error(Nil)
+  Nil
+}
+
+pub fn standard_response_body_transformation_preserves_collected_metadata_test() -> Nil {
+  let assert Ok(collected) =
+    client.collect_messages([
+      Ok(message.Inform(103, [#("link", "</style.css>; rel=preload")])),
+      Ok(message.Response(fin.NoFin, 200, [#("content-type", "text/plain")])),
+      Ok(message.Data(fin.NoFin, <<"hello":utf8>>)),
+      Ok(message.Trailers([#("x-checksum", "abc")])),
+    ])
+  let assert Ok(decoded) =
+    http_response.try_map(collected.response, bit_array.to_string)
+  let updated = response.Response(..collected, response: decoded)
+
+  let assert True = updated.response.body == "hello"
+  let assert True = updated.response.status == collected.response.status
+  let assert True = updated.response.headers == collected.response.headers
+  let assert True = updated.trailers == collected.trailers
+  let assert True = updated.informational == collected.informational
   Nil
 }
 

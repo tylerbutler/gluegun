@@ -78,7 +78,7 @@ fn close_after_success(
   connection: connection.Connection,
   protocol: connection.Protocol,
   config: Config,
-  response: response.Response,
+  response: response.Response(BitArray),
 ) -> Result(String, String) {
   case connection.close(connection) {
     Ok(Nil) ->

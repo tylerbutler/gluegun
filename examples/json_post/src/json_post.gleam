@@ -1,7 +1,7 @@
-import gleam/http
 /// JSON POST example using gluegun's high-level HTTP client API.
 ///
 /// Buildable JSON POST example.
+import gleam/http
 import gleam/int
 import gleam/io
 import gleam/list
@@ -52,14 +52,16 @@ pub fn main() -> Nil {
   }
 }
 
-fn print_result(result: Result(response.Response, error.GluegunError)) -> Nil {
+fn print_result(
+  result: Result(response.Response(BitArray), error.GluegunError),
+) -> Nil {
   case result {
     Ok(response) -> print_response(response)
     Error(error) -> io.println("request failed: " <> error_to_string(error))
   }
 }
 
-fn print_response(response: response.Response) -> Nil {
+fn print_response(response: response.Response(BitArray)) -> Nil {
   io.println("status: " <> int.to_string(response.status(response)))
   io.println(
     "response header count: "

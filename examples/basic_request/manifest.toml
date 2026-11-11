@@ -12,5 +12,6 @@ packages = [
 ]
 
 [requirements]
+gleam_http = { version = ">= 4.0.0 and < 5.0.0" }
 gleam_stdlib = { version = ">= 0.53.0 and < 2.0.0" }
 gluegun = { path = "../.." }

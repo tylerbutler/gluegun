@@ -1,4 +1,5 @@
 import gleam/http
+import gleam/http/response as http_response
 import gleam/option.{None, Some}
 import gluegun/connection
 import gluegun/error
@@ -127,7 +128,11 @@ pub fn responses_and_messages_constructs_responses_test() -> Nil {
       trailers: [#("expires", "soon")],
     )
     |> response.with_informational(informational: [
-      response.Informational(status: 103, headers: [#("server", "gun")]),
+      http_response.Response(
+        status: 103,
+        headers: [#("server", "gun")],
+        body: Nil,
+      ),
     ])
 
   let actual_18 = {
@@ -163,7 +168,11 @@ pub fn responses_and_messages_constructs_responses_test() -> Nil {
     |> response.informational
   }
   let expected_22 = [
-    response.Informational(status: 103, headers: [#("server", "gun")]),
+    http_response.Response(
+      status: 103,
+      headers: [#("server", "gun")],
+      body: Nil,
+    ),
   ]
   let assert #(True, _, _) = #(actual_22 == expected_22, actual_22, expected_22)
   Nil

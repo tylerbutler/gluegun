@@ -29,7 +29,7 @@ pub fn await_up(
 Decode the response body as UTF-8.
 
 ```gleam
-pub fn body_text(response.Response) -> Result(String, error.GluegunError)
+pub fn body_text(response.Response(BitArray)) -> Result(String, error.GluegunError)
 ```
 
 ### `close`
@@ -95,7 +95,7 @@ Send a request and collect its complete HTTP response in memory.
 pub fn send(
   client.Request,
   connection: internal.Connection
-) -> Result(response.Response, error.GluegunError)
+) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
 ### `shutdown`

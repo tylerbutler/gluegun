@@ -5,33 +5,41 @@ description: HTTP response values collected by `gluegun/client`.
 
 HTTP response values collected by `gluegun/client`.
 
- A response contains the final status, headers, full body, trailers, and any
- informational `1xx` responses seen before the final response.
+ The `response` field is a standard `gleam/http/response.Response`.
+ Trailers and ordered informational `1xx` responses remain alongside it.
+ Selecting only `response` excludes that metadata; keep the outer value
+ when you need the complete exchange.
+
+ Import `gleam/http/response as http_response` for standard response helpers.
 
 ## Types
-
-### `Informational`
-
-Informational `1xx` response represented by status and headers.
-
-```gleam
-pub type Informational {
-  Informational(
-    status: Int,
-    headers: List(#(String, String))
-  )
-}
-```
 
 ### `Response`
 
 Full HTTP response collected from a Gun stream.
 
- Accessors: `status`, `headers`, `body`, `body_text`, `trailers`,
- `informational`. The body is held fully in memory.
+ The client collects a `Response(BitArray)` with the full body in memory.
+ Use standard response helpers on `response`, then update that field to keep
+ trailers and informational responses when transforming the body.
 
 ```gleam
-pub type Response
+pub type Response(a) {
+  Response(
+    response: http_response.Response(a),
+    trailers: List(#(String, String)),
+    informational: List(http_response.Response(Nil))
+  )
+}
+```
+
+## Type aliases
+
+### `Informational`
+
+A standard informational `1xx` response with no body.
+
+```gleam
+pub type Informational = http_response.Response(Nil)
 ```
 
 ## Functions
@@ -41,7 +49,7 @@ pub type Response
 Return the full collected response body.
 
 ```gleam
-pub fn body(Response) -> BitArray
+pub fn body(Response(a)) -> a
 ```
 
 ### `body_text`
@@ -52,7 +60,7 @@ Decode the collected response body as UTF-8 text.
  are not valid UTF-8. For binary responses use `body` directly.
 
 ```gleam
-pub fn body_text(Response) -> Result(String, error.GluegunError)
+pub fn body_text(Response(BitArray)) -> Result(String, error.GluegunError)
 ```
 
 ### `headers`
@@ -60,7 +68,7 @@ pub fn body_text(Response) -> Result(String, error.GluegunError)
 Return final response headers.
 
 ```gleam
-pub fn headers(Response) -> List(#(String, String))
+pub fn headers(Response(a)) -> List(#(String, String))
 ```
 
 ### `informational`
@@ -68,7 +76,7 @@ pub fn headers(Response) -> List(#(String, String))
 Return informational `1xx` responses received before the final response.
 
 ```gleam
-pub fn informational(Response) -> List(Informational)
+pub fn informational(Response(a)) -> List(http_response.Response(Nil))
 ```
 
 ### `status`
@@ -76,7 +84,7 @@ pub fn informational(Response) -> List(Informational)
 Return the final response status.
 
 ```gleam
-pub fn status(Response) -> Int
+pub fn status(Response(a)) -> Int
 ```
 
 ### `trailers`
@@ -84,5 +92,5 @@ pub fn status(Response) -> Int
 Return response trailers.
 
 ```gleam
-pub fn trailers(Response) -> List(#(String, String))
+pub fn trailers(Response(a)) -> List(#(String, String))
 ```

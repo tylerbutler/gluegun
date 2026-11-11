@@ -1,7 +1,7 @@
-import gleam/http
 /// Low-level chunked request-body upload example using Gluegun.
 ///
 /// Buildable chunked upload example.
+import gleam/http
 import gleam/int
 import gleam/io
 import gleam/list

@@ -107,7 +107,7 @@ pub fn normalize_headers(headers: List(Header)) -> List(Header) {
 /// Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.
 pub fn request(
   connection: Connection,
-  method: Method,
+  method: http.Method,
   path: String,
   headers: List(Header),
   body: BitArray,
@@ -143,7 +143,7 @@ pub fn request(
 /// Errors: `ConnectionDown`, `StreamError`, `InvalidOptions`.
 pub fn start_stream(
   connection: Connection,
-  method: Method,
+  method: http.Method,
   path: String,
   headers: List(Header),
   options: RequestOptions,

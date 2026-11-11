@@ -15,6 +15,7 @@ import gluegun/fin
 import gluegun/message
 import gluegun/request
 import gleam/result
+import gleam/http
 
 pub fn upload_chunks(conn) {
   use timeout <- result.try(connection.milliseconds(5000))

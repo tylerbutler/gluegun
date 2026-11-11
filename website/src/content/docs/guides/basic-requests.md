@@ -22,7 +22,6 @@ Use `gluegun/client` to send one usual HTTP request on an open connection. The c
 ```gleam
 import gleam/http
 import gluegun/client
-import gluegun/request
 
 fn fetch_json(conn, path, timeout) {
   client.new(http.Get, path)
@@ -38,6 +37,16 @@ fn fetch_json(conn, path, timeout) {
   )
 }
 ```
+
+The connection determines the scheme, host, and port. Pass an encoded request
+target such as `/items?tag=a%2Fb&tag=c`; Gluegun sends it without encoding the
+path or query again. Bodies must be byte-aligned `BitArray` values, with no
+UTF-8 requirement. `client.with_timeout` sets one total budget for dispatch
+and response collection; informational responses and body chunks do not restart it.
+
+Gluegun retains this custom request type to avoid repeating the connection's
+destination. Standard `gleam/http/request.Request` values and converter
+functions are not part of this API.
 
 ## One-shot functions
 
@@ -70,16 +79,20 @@ pub fn examples(conn) {
 
 ## Examine responses
 
-`client.send` returns a `response.Response`. It holds the final status, headers, body, trailers, and all `1xx` informational responses that came before the final response:
+`client.send` returns a `gluegun/response.Response(BitArray)`. Its `response`
+field is a standard `gleam/http/response.Response(BitArray)`. Trailers and
+ordered `1xx` informational responses remain alongside it:
 
 ```gleam
+import gleam/http/response as http_response
 import gluegun/response
 
 pub fn handle(res) {
-  let _status = response.status(res)
-  let _headers = response.headers(res)
-  let _trailers = response.trailers(res)
-  let _early_hints = response.informational(res)
+  let _status = res.response.status
+  let _headers = res.response.headers
+  let _content_type = http_response.get_header(res.response, "content-type")
+  let _trailers = res.trailers
+  let _early_hints = res.informational
   case response.body_text(res) {
     Ok(text) -> text
     Error(_) -> "<binary body>"
@@ -88,6 +101,42 @@ pub fn handle(res) {
 ```
 
 Use `response.body_text` for UTF-8 responses. Use `response.body` for raw bytes.
+
+Standard response helpers work on `res.response`. Keep the outer value when
+you transform the body:
+
+```gleam
+import gleam/bit_array
+import gleam/http/response as http_response
+import gleam/result
+import gluegun/response
+
+pub fn decode_body(collected: response.Response(BitArray)) {
+  use decoded <- result.try(
+    http_response.try_map(collected.response, bit_array.to_string),
+  )
+  Ok(response.Response(..collected, response: decoded))
+}
+```
+
+The result contains a `Response(String)` with the same trailers and
+informational responses. Each informational response is a standard
+`gleam/http/response.Response(Nil)` with no body. Selecting only
+`collected.response` excludes the supplemental metadata. Trailers never
+merge into final headers.
+
+## Migration to standard HTTP types
+
+Import `gleam/http` for `http.Get`, `http.Post`, and other methods. Replace
+`request.Method` with `http.Method` and `request.Custom` with `http.Other`.
+Add `gleam_http = ">= 4.0.0 and < 5.0.0"` to packages that import these modules.
+
+Update collected-response annotations from `response.Response` to
+`response.Response(BitArray)`. Replace `response.Informational(status, headers)`
+with standard `http_response.Response(status, headers, Nil)` values.
+The Gluegun status, headers, body, and text accessors remain available.
+Request paths and body builders keep their existing behavior. Timeouts use
+the total request budget established by the 1.0 API changes.
 
 ## When to use the client functions
 

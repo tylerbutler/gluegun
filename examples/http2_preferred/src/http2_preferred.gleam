@@ -48,7 +48,7 @@ pub fn main() -> Nil {
   }
 }
 
-fn print_response(response: response.Response) -> Nil {
+fn print_response(response: response.Response(BitArray)) -> Nil {
   io.println("status: " <> int.to_string(response.status(response)))
 
   case response.body_text(response) {

@@ -1,4 +1,5 @@
 import gleam/http
+import gleam/http/response as http_response
 import gleam/list
 import gleam/option.{Some}
 import gleam/result
@@ -27,7 +28,7 @@ pub fn main() {
         let assert 200 = response.status(res)
         let assert Ok("hello") = gluegun.body_text(res)
         let assert [#("x-check", "done")] = response.trailers(res)
-        let assert [response.Informational(103, _)] =
+        let assert [http_response.Response(status: 103, headers: _, body: Nil)] =
           response.informational(res)
         use next <- result.try(client.options(
           conn,
