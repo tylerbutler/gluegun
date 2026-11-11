@@ -20,6 +20,7 @@ Before you start, [install Gluegun](/installation/) and confirm that the package
 </nav>
 
 ```gleam
+import gleam/http
 import gleam/int
 import gleam/io
 import gleam/result
@@ -43,7 +44,7 @@ pub fn main() {
   )
 
   use res <- result.try(
-    client.new(request.Get, "/")
+    client.new(http.Get, "/")
     |> client.with_timeout(
       timeout: timeout,
     )

@@ -29,7 +29,7 @@ failure_cleanup(Messages, Expected, InvalidConnection) ->
             receive {Next, Message} -> Message after 0 -> {error, timeout} end
         end,
         {error, Expected} = gluegun@client:get_with(
-            Conn, <<"/">>, [], {milliseconds, 0}, Request, Await
+            Conn, <<"/">>, [], {milliseconds, 1000}, Request, Await
         ),
         case InvalidConnection of
             false ->
@@ -61,7 +61,7 @@ no_cleanup(SendFailure) ->
             end
         end,
         Await = fun(_, _, _) -> {ok, {response, fin, 204, []}} end,
-        Result = gluegun@client:get_with(self(), <<"/">>, [], {milliseconds, 0}, Request, Await),
+        Result = gluegun@client:get_with(self(), <<"/">>, [], {milliseconds, 1000}, Request, Await),
         case SendFailure of
             true -> {error, {invalid_options, <<"rejected">>}} = Result;
             false -> {ok, Response} = Result, 204 = gluegun@response:status(Response)

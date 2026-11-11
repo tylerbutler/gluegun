@@ -4,18 +4,11 @@
 //// messages. This module decodes those messages into Gleam types for callers
 //// using lower-level streaming or advanced flows.
 
+import gleam/http.{type Method}
 import gluegun/connection.{type Connection, type Timeout}
 import gluegun/error
 import gluegun/fin.{type Fin}
-import gluegun/request.{type Stream}
-
-/// Alias for `gluegun/request.Method` used in decoded messages.
-pub type Method =
-  request.Method
-
-/// Alias for `gluegun/request.Header` used in decoded messages.
-pub type Header =
-  request.Header
+import gluegun/request.{type Header, type Stream}
 
 /// WebSocket frames delivered inside Gun stream messages.
 ///
@@ -68,10 +61,6 @@ pub type Message {
   WebSocket(frame: Frame)
 }
 
-/// Alias for `gluegun/error.GluegunError`.
-pub type GluegunError =
-  error.GluegunError
-
 /// A raw Gun stream message, exactly as Gun delivers it to the process that
 /// owns the stream.
 ///
@@ -113,7 +102,7 @@ pub type Envelope {
 /// unrecognized or malformed message, including the shorter terms returned
 /// by `gun:await/3`.
 @external(erlang, "gluegun_ffi", "decode_message")
-pub fn decode(message: GunMessage) -> Result(Envelope, GluegunError)
+pub fn decode(message: GunMessage) -> Result(Envelope, error.GluegunError)
 
 /// Await the next Gun message for a stream.
 ///
@@ -130,7 +119,7 @@ pub fn await(
   connection: Connection,
   stream: Stream,
   timeout: Timeout,
-) -> Result(Message, GluegunError)
+) -> Result(Message, error.GluegunError)
 
 /// Await and collect the full response body for a stream.
 ///
@@ -149,4 +138,4 @@ pub fn await_body(
   connection: Connection,
   stream: Stream,
   timeout: Timeout,
-) -> Result(BitArray, GluegunError)
+) -> Result(BitArray, error.GluegunError)

@@ -17,6 +17,8 @@
     flush/1,
     ws_upgrade/4,
     ws_send/3,
+    ws_await/3,
+    monotonic_milliseconds/0,
     ws_peer_close/0,
     ws_record_peer_close/2,
     ws_close/4,
@@ -31,7 +33,10 @@
     apply_secure_tls_defaults/3
 ]).
 
-%% Every exported entry point returns a Gleam `Result(value, GluegunError)`:
+%% Signed monotonic milliseconds, not a wall-clock timestamp.
+monotonic_milliseconds() -> erlang:monotonic_time(millisecond).
+
+%% Fallible Gun operations return a Gleam `Result(value, GluegunError)`:
 %% `{ok, Value}` or `{error, GleamError}`, where `GleamError` is the Erlang
 %% representation of `gluegun/error.GluegunError`. Option arguments arrive as
 %% Gleam values (`gluegun/connection.ConnectOption`, `gluegun/tls.TlsSetting`,
@@ -114,6 +119,10 @@ headers(ConnPid, Method, Path, Headers, Options) ->
         MethodBin = validate_request_method(Method),
         PathBin = validate_request_path(Path),
         HeadersOut = validate_request_headers(Headers),
+        case lists:keymember(<<"content-length">>, 1, HeadersOut) of
+            true -> error({invalid_options, {request, streaming_content_length}});
+            false -> ok
+        end,
         GunOptions = request_options_to_gun(Options),
         with_normalize(stream_erlang, fun() ->
             {ok, gun:headers(ConnPid, MethodBin, PathBin, HeadersOut, GunOptions)}
@@ -187,7 +196,50 @@ update_flow(ConnPid, StreamRef, Increment) ->
         gun:update_flow(ConnPid, StreamRef, Increment)
     end).
 
-flush(ConnPid) -> with_normalize(connection_error, fun() -> gun:flush(ConnPid) end).
+flush(ConnPid) -> with_normalize(connection_error, fun() ->
+    gun:flush(ConnPid),
+    flush_connection_pushes(ConnPid)
+end).
+
+%% Unlike gun:await, observe gun_down even when Gun remains alive to retry.
+%% Only the selected connection/stream is consumed. The temporary monitor is
+%% always removed, including its raced DOWN message.
+ws_await(ConnPid, StreamRef, Timeout) ->
+    try ws_await_message(ConnPid, StreamRef, Timeout)
+    catch Class:Reason:_Stack ->
+        {error, gleam_error({erlang_error, {Class, Reason}})}
+    end.
+
+ws_await_message(ConnPid, StreamRef, Timeout) ->
+    Monitor = erlang:monitor(process, ConnPid),
+    try
+        receive
+            {gun_ws, ConnPid, StreamRef, Frame} -> safe_decode_message({ws, Frame});
+            {gun_upgrade, ConnPid, StreamRef, Protocols, Headers} ->
+                safe_decode_message({upgrade, Protocols, Headers});
+            {gun_inform, ConnPid, StreamRef, Status, Headers} ->
+                safe_decode_message({inform, Status, Headers});
+            {gun_response, ConnPid, StreamRef, Fin, Status, Headers} ->
+                safe_decode_message({response, Fin, Status, Headers});
+            {gun_data, ConnPid, StreamRef, Fin, Data} ->
+                safe_decode_message({data, Fin, Data});
+            {gun_trailers, ConnPid, StreamRef, Headers} ->
+                safe_decode_message({trailers, Headers});
+            {gun_push, ConnPid, StreamRef, NewStreamRef, Method, URI, Headers} ->
+                safe_decode_message({push, NewStreamRef, Method, URI, Headers});
+            {gun_error, ConnPid, StreamRef, Reason} ->
+                {error, gleam_error({stream_error, Reason})};
+            {gun_error, ConnPid, Reason} ->
+                {error, gleam_error({connection_error, Reason})};
+            {gun_down, ConnPid, _, Reason, _} ->
+                {error, gleam_error({connection_down, Reason})};
+            {'DOWN', Monitor, process, ConnPid, Reason} ->
+                {error, gleam_error({connection_down, Reason})}
+        after timeout_to_gun(Timeout) ->
+            {error, timeout}
+        end
+    after erlang:demonitor(Monitor, [flush])
+    end.
 
 ws_upgrade(ConnPid, Path, Headers, WsOptions) ->
     try
@@ -234,11 +286,18 @@ ws_send(ConnPid, StreamRef, Frames) ->
 %% Gun passes to a WebSocket protocol handler module as `user_opts`.
 identity(Value) -> Value.
 
-ws_peer_close() -> atomics:new(1, []).
+%% Receiver-owned state: peer-close flag and delivered default-handler frames.
+%% gun_ws_h decrements credit exactly once for each delivered gun_ws message,
+%% including completed fragmented messages and visible ping/pong frames.
+ws_peer_close() -> atomics:new(2, []).
 
 ws_record_peer_close({ok, Frame} = Result, PeerClose)
     when Frame =:= close; element(1, Frame) =:= close_with_reason ->
+    atomics:add(PeerClose, 2, 1),
     atomics:put(PeerClose, 1, 1),
+    Result;
+ws_record_peer_close({ok, _} = Result, PeerClose) ->
+    atomics:add(PeerClose, 2, 1),
     Result;
 ws_record_peer_close(Result, _) -> Result.
 
@@ -251,6 +310,10 @@ ws_close(ConnPid, StreamRef, Timeout, PeerClose)
                 Monitor = erlang:monitor(process, ConnPid),
                 try
                     Deadline = erlang:monotonic_time(millisecond) + ws_close_timeout(Timeout),
+                    %% Reimburse all frames already consumed by this receiver.
+                    %% Coalesced input can drive Gun's credit below zero, so a
+                    %% single wake-up credit is not sufficient.
+                    ws_restore_credit(ConnPid, StreamRef, atomics:exchange(PeerClose, 2, 0)),
                     case ws_send(ConnPid, StreamRef, [close]) of
                         {ok, nil} ->
                             ws_await_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose);
@@ -272,15 +335,22 @@ ws_close(_, _, _, _) ->
 ws_close_timeout(infinity) -> 5000;
 ws_close_timeout({milliseconds, Milliseconds}) when Milliseconds >= 0 -> Milliseconds.
 
+ws_restore_credit(_, _, 0) -> ok;
+ws_restore_credit(ConnPid, StreamRef, Count) ->
+    gun:update_flow(ConnPid, StreamRef, Count).
+
 ws_await_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose) ->
     Remaining = max(0, Deadline - erlang:monotonic_time(millisecond)),
     receive
         {gun_ws, ConnPid, StreamRef, Frame} ->
+            %% Every drained message represents one consumed credit. Restore
+            %% each one, even when many came from the same transport packet.
+            ws_restore_credit(ConnPid, StreamRef, 1),
             case safe_decode_message({ws, Frame}) of
                 {ok, {web_socket, Close}} when Close =:= close;
                     element(1, Close) =:= close_with_reason ->
-                    ws_record_peer_close({ok, Close}, PeerClose),
-                    ws_await_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose);
+                    atomics:put(PeerClose, 1, 1),
+                    ws_continue_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose);
                 {ok, {web_socket, _}} ->
                     ws_continue_close(ConnPid, StreamRef, Monitor, Deadline, PeerClose);
                 {error, Error} -> {typed_error, Error}
@@ -333,6 +403,7 @@ normalize_error(_Tag, {connection_down, _} = Error) -> Error;
 normalize_error(_Tag, {connection_error, _} = Error) -> Error;
 normalize_error(_Tag, {stream_error, _} = Error) -> Error;
 normalize_error(_Tag, {invalid_message, _} = Error) -> Error;
+normalize_error(_Tag, {decode_error, _} = Error) -> Error;
 normalize_error(_Tag, {erlang_error, _} = Error) -> Error;
 normalize_error(connection, Reason) -> normalize_connection_error(Reason);
 normalize_error(connection_error, Reason) -> normalize_connection_error(Reason);
@@ -348,6 +419,7 @@ gleam_error({connection_error, Reason}) -> {connection_error, inspect(Reason)};
 gleam_error({stream_error, Reason}) -> {stream_error, inspect(Reason)};
 gleam_error({invalid_options, Reason}) -> {invalid_options, inspect(Reason)};
 gleam_error({invalid_message, Reason}) -> {invalid_message, inspect(Reason)};
+gleam_error({decode_error, Reason}) -> {decode_error, inspect(Reason)};
 gleam_error({unsupported_feature, Reason}) -> {unsupported_feature, inspect(Reason)};
 gleam_error({erlang_error, Reason}) -> {erlang_error, inspect(Reason)};
 gleam_error(Other) -> {erlang_error, inspect(Other)}.
@@ -552,6 +624,10 @@ merge_secure_tls_defaults(Host, TlsOpts, Deps) when is_list(TlsOpts) ->
     end.
 
 add_verify_peer_defaults(Host, TlsOpts, Deps) ->
+    case proplists:get_value(server_name_indication, TlsOpts) of
+        disable -> error({invalid_options, {tls, verify_peer_requires_sni}});
+        _ -> ok
+    end,
     TlsOptsWithCACerts = maybe_add_cacerts(TlsOpts, Deps),
     TlsOptsWithVersions = maybe_add(versions, ['tlsv1.3', 'tlsv1.2'], TlsOptsWithCACerts),
     TlsOptsWithDepth = maybe_add(depth, 10, TlsOptsWithVersions),
@@ -664,12 +740,24 @@ unicode_value_to_list(Value) -> Value.
 %% `WsOptions` is a Gleam `List(gluegun/websocket.UpgradeOption)`.
 
 ws_options_to_gun(WsOptions) when is_list(WsOptions) ->
+    %% Preflight the complete list before callback-module conversion or cast.
+    lists:foreach(fun
+        ({protocols, Protocols}) ->
+            lists:foreach(fun({Protocol, _}) ->
+                case is_valid_token(to_binary(Protocol)) of
+                    true -> ok;
+                    false -> error({invalid_options, {ws, invalid_subprotocol}})
+                end
+            end, Protocols);
+        (_) -> ok
+    end, WsOptions),
     maps:from_list([ws_option_to_gun(Option) || Option <- WsOptions]).
 
 ws_option_to_gun({closing_timeout, Timeout}) -> {closing_timeout, timeout_to_gun(Timeout)};
 ws_option_to_gun({compress, Compress}) -> {compress, Compress};
 ws_option_to_gun({default_protocol, Module}) -> {default_protocol, module_name_to_atom(Module)};
-ws_option_to_gun({flow, Flow}) -> {flow, Flow};
+ws_option_to_gun({flow, Flow}) when is_integer(Flow), Flow > 0 -> {flow, Flow};
+ws_option_to_gun({flow, Flow}) -> error({invalid_options, {ws, {flow, Flow}}});
 ws_option_to_gun({keepalive, Timeout}) -> {keepalive, timeout_to_gun(Timeout)};
 ws_option_to_gun({protocols, Protocols}) ->
     {protocols, [ws_protocol_to_gun(Protocol) || Protocol <- Protocols]};
@@ -681,6 +769,7 @@ ws_option_to_gun({user_options, HandlerOptions}) -> {user_opts, HandlerOptions}.
 ws_protocol_to_gun({Protocol, Module}) -> {to_binary(Protocol), module_name_to_atom(Module)}.
 
 module_name_to_atom(Module) when is_atom(Module) -> Module;
+module_name_to_atom(<<"gun_ws_h">>) -> gun_ws_h;
 module_name_to_atom(Module) when is_binary(Module) ->
     try binary_to_existing_atom(Module, utf8) of
         Atom -> Atom
@@ -788,19 +877,28 @@ decode_message(_Other) ->
 %% named for it. `StreamRef` is the stream that delivered the message; for
 %% `gun_push` that is the existing stream the server pushed on, not the new
 %% stream carried inside the decoded `Push` message. A malformed payload
-%% inside a recognized mailbox tuple (e.g. an unrecognized WebSocket frame)
-%% still collapses to the same generic decode failure `decode_message/1`
-%% returns for any other unrecognized shape, so `gluegun/message.decode`'s
-%% malformed-message contract stays a single, stable `DecodeError`.
-envelope(ConnPid, StreamRef, {ok, Decoded}) -> {ok, {envelope, ConnPid, StreamRef, Decoded}};
-envelope(_ConnPid, _StreamRef, {error, _}) -> {error, {decode_error, <<"Invalid Gun message"/utf8>>}}.
+%% inside a recognized mailbox tuple still returns DecodeError. External
+%% connection/stream identity is checked before constructing an Envelope.
+envelope(ConnPid, StreamRef, {ok, Decoded}) when is_pid(ConnPid) ->
+    case valid_stream_ref(StreamRef) of
+        true -> {ok, {envelope, ConnPid, StreamRef, Decoded}};
+        false -> {error, {decode_error, <<"Invalid Gun message"/utf8>>}}
+    end;
+envelope(_ConnPid, _StreamRef, _) -> {error, {decode_error, <<"Invalid Gun message"/utf8>>}}.
 
-%% `gluegun/message.await`: keeps Gun's own stream and message classification.
+valid_stream_ref(Ref) when is_reference(Ref) -> true;
+valid_stream_ref([_ | _] = Refs) when is_list(Refs) -> lists:all(fun erlang:is_reference/1, Refs);
+valid_stream_ref(_) -> false.
+
+%% Both raw decode and await use DecodeError for malformed inbound values.
+%% Gun failures retain their connection/stream categories; unexpected runtime
+%% exceptions remain ErlangError rather than being hidden as input failures.
 safe_decode_message(Message) ->
     try message_to_gleam(Message) of
         Decoded -> {ok, Decoded}
     catch
-        error:{invalid_message, Reason}:_Stack -> {error, gleam_error({invalid_message, Reason})};
+        error:{invalid_message, Reason}:_Stack -> {error, gleam_error({decode_error, Reason})};
+        error:{decode_error, Reason}:_Stack -> {error, gleam_error({decode_error, Reason})};
         error:{stream_error, Reason}:_Stack -> {error, gleam_error({stream_error, Reason})};
         error:{connection_error, Reason}:_Stack ->
             {error, gleam_error({connection_error, Reason})};
@@ -822,18 +920,22 @@ message_to_gleam({gun_error, _ConnPid, Reason}) ->
 message_to_gleam({gun_down, _ConnPid, _Protocol, Reason, _KilledStreams}) ->
     error({connection_down, Reason});
 %% Await shapes: what `gun:await/3` returns after it strips the envelope.
-message_to_gleam({inform, Status, Headers}) ->
+message_to_gleam({inform, Status, Headers}) when is_integer(Status), Status >= 100, Status =< 999 ->
     {inform, Status, normalize_headers(Headers)};
-message_to_gleam({response, Fin, Status, Headers}) ->
+message_to_gleam({response, Fin, Status, Headers}) when is_integer(Status), Status >= 100, Status =< 999 ->
     {response, fin_from_gun(Fin), Status, normalize_headers(Headers)};
 message_to_gleam({data, Fin, Data}) ->
-    {data, fin_from_gun(Fin), iolist_to_binary(Data)};
+    {data, fin_from_gun(Fin), inbound_bytes(Data)};
 message_to_gleam({trailers, Headers}) ->
     {trailers, normalize_headers(Headers)};
 message_to_gleam({push, NewStreamRef, Method, URI, Headers}) ->
-    {push, NewStreamRef, method_from_gun(Method), to_binary(URI), normalize_headers(Headers)};
+    case valid_stream_ref(NewStreamRef) of
+        true ->
+            {push, NewStreamRef, method_from_gun(Method), inbound_text(URI), normalize_headers(Headers)};
+        false -> error({decode_error, invalid_stream})
+    end;
 message_to_gleam({upgrade, Protocols, Headers}) ->
-    {upgrade, [to_binary(Protocol) || Protocol <- Protocols], normalize_headers(Headers)};
+    {upgrade, inbound_protocols(Protocols), normalize_headers(Headers)};
 message_to_gleam({ws, Frame}) ->
     {web_socket, frame_from_gun(Frame)};
 message_to_gleam({error, timeout}) ->
@@ -843,25 +945,22 @@ message_to_gleam({error, Reason}) ->
 message_to_gleam(Other) ->
     error({invalid_message, Other}).
 
-frame_from_gun({text, Data}) ->
-    case validate_utf8(Data) of
-        {ok, ValidText} -> {text, ValidText};
-        {error, invalid_utf8} -> error({invalid_message, {ws, {text, invalid_utf8}}})
-    end;
-frame_from_gun({binary, Data}) -> {binary, iolist_to_binary(Data)};
-frame_from_gun({close, Code, Reason}) -> {close_with_reason, Code, iolist_to_binary(Reason)};
+frame_from_gun({text, Data}) -> {text, inbound_text(Data)};
+frame_from_gun({binary, Data}) -> {binary, inbound_bytes(Data)};
+frame_from_gun({close, Code, Reason}) when is_integer(Code) ->
+    {close_with_reason, Code, inbound_bytes(Reason)};
 frame_from_gun(ping) -> {ping, <<>>};
 frame_from_gun(pong) -> {pong, <<>>};
-frame_from_gun({ping, Data}) -> {ping, iolist_to_binary(Data)};
-frame_from_gun({pong, Data}) -> {pong, iolist_to_binary(Data)};
+frame_from_gun({ping, Data}) -> {ping, inbound_bytes(Data)};
+frame_from_gun({pong, Data}) -> {pong, inbound_bytes(Data)};
 frame_from_gun(close) -> close;
 frame_from_gun(Other) -> error({invalid_message, {ws, Other}}).
 
 %% Gun reports pushed request methods as binaries. Known methods map onto the
-%% `gluegun/request.Method` constructors; anything else keeps its original
-%% casing inside `Custom`.
+%% `gleam/http.Method` constructors; anything else keeps its original
+%% casing inside `Other`.
 method_from_gun(Method) ->
-    Binary = to_binary(Method),
+    Binary = inbound_text(Method),
     case string:uppercase(Binary) of
         <<"GET">> -> get;
         <<"HEAD">> -> head;
@@ -872,16 +971,41 @@ method_from_gun(Method) ->
         <<"OPTIONS">> -> options;
         <<"TRACE">> -> trace;
         <<"CONNECT">> -> connect;
-        _ -> {custom, Binary}
+        _ -> {other, Binary}
     end.
 
 %% Header names are lowercased on both directions of the boundary; values are
-%% preserved exactly. This lenient form only decodes messages Gun already
-%% accepted from the wire (responses, pushes, trailers, upgrades); it must
-%% never be used to build an outgoing request. Use `validate_request_headers/1`
-%% for anything crossing the boundary in the request direction.
+%% preserved exactly after UTF-8 validation. This form only decodes messages
+%% Gun accepted from the wire (responses, pushes, trailers, upgrades); it must
+%% never build an outgoing request. Use `validate_request_headers/1` for the
+%% request direction.
 normalize_headers(Headers) ->
-    [{string:lowercase(to_binary(Name)), to_binary(Value)} || {Name, Value} <- Headers].
+    normalize_inbound_headers(Headers).
+
+normalize_inbound_headers([]) -> [];
+normalize_inbound_headers([{Name, Value} | Rest]) ->
+    [{string:lowercase(inbound_text(Name)), inbound_text(Value)}
+        | normalize_inbound_headers(Rest)];
+normalize_inbound_headers(_) -> error({decode_error, invalid_headers}).
+
+%% HTTP obs-text is legal on the wire, but cannot become an invalid Gleam
+%% String. Accept UTF-8 bytes only; never transcode or replace invalid input.
+inbound_text(Value) when is_binary(Value); is_list(Value) ->
+    Binary = inbound_bytes(Value),
+    case validate_utf8(Binary) of
+        {ok, Text} -> Text;
+        {error, invalid_utf8} -> error({decode_error, invalid_utf8})
+    end;
+inbound_text(_) -> error({decode_error, invalid_text}).
+
+inbound_bytes(Value) ->
+    try iolist_to_binary(Value)
+    catch error:badarg -> error({decode_error, invalid_bytes}) end.
+
+inbound_protocols([]) -> [];
+inbound_protocols([Protocol | Rest]) ->
+    [inbound_text(Protocol) | inbound_protocols(Rest)];
+inbound_protocols(_) -> error({decode_error, invalid_protocols}).
 
 to_binary(Value) when is_binary(Value) -> Value;
 to_binary(Value) when is_atom(Value) -> atom_to_binary(Value, utf8);

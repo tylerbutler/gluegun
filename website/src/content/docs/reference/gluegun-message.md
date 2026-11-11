@@ -131,7 +131,7 @@ pub type Message {
   Trailers(headers: List(#(String, String)))
   Push(
     stream: internal.Stream,
-    method: request.Method,
+    method: http.Method,
     uri: String,
     headers: List(#(String, String))
   )
@@ -163,7 +163,7 @@ A response body chunk. `fin` is `Fin` on the last chunk.
 Trailing headers delivered after the body (HTTP/1.1 trailers or HTTP/2
  trailer frames).
 
-##### `Push(stream: internal.Stream, method: request.Method, uri: String, headers: List(#(String, String)))`
+##### `Push(stream: internal.Stream, method: http.Method, uri: String, headers: List(#(String, String)))`
 
 An HTTP/2 server push. The `stream` is a new stream the caller may
  await or cancel.
@@ -176,32 +176,6 @@ A successful protocol upgrade. Subsequent messages on this stream use
 ##### `WebSocket(frame: Frame)`
 
 A decoded WebSocket frame. Only delivered after an upgrade.
-
-## Type aliases
-
-### `GluegunError`
-
-Alias for `gluegun/error.GluegunError`.
-
-```gleam
-pub type GluegunError = error.GluegunError
-```
-
-### `Header`
-
-Alias for `gluegun/request.Header` used in decoded messages.
-
-```gleam
-pub type Header = #(String, String)
-```
-
-### `Method`
-
-Alias for `gluegun/request.Method` used in decoded messages.
-
-```gleam
-pub type Method = request.Method
-```
 
 ## Functions
 

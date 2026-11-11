@@ -40,6 +40,6 @@ pub fn get_over_http2() {
 
 ## WebSocket note
 
-WebSocket works only on HTTP/1.1. Use HTTP/2 for usual HTTP requests. Keep WebSocket connections on HTTP/1.1. If you call `websocket.upgrade_with_protocol` on an HTTP/2 connection, it returns `UnsupportedFeature` and does not call Gun.
+WebSocket works only on HTTP/1.1. Use HTTP/2 for usual HTTP requests. Keep WebSocket connections on HTTP/1.1. If you call `websocket.upgrade` on an HTTP/2 connection, it returns `UnsupportedFeature` and does not call Gun.
 
 See the [connection reference](/reference/gluegun-connection/) for the full connection option API.

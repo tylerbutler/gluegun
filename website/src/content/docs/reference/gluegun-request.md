@@ -11,76 +11,12 @@ Low-level HTTP request and stream operations.
 
 ## Types
 
-### `Method`
-
-HTTP request method constructors.
-
- Use canonical constructors such as `Get`, `Post`, and `Put`, or `Custom`
- for extension methods.
-
-```gleam
-pub type Method {
-  Get
-  Head
-  Post
-  Put
-  Patch
-  Delete
-  Options
-  Trace
-  Connect
-  Custom(String)
-}
-```
-
-#### Constructors
-
-##### `Get`
-
-HTTP `GET`. Safe and idempotent.
-
-##### `Head`
-
-HTTP `HEAD`. Same as `Get` but the response has no body.
-
-##### `Post`
-
-HTTP `POST`. Create or submit data; not idempotent.
-
-##### `Put`
-
-HTTP `PUT`. Replace the target resource; idempotent.
-
-##### `Patch`
-
-HTTP `PATCH`. Apply a partial modification.
-
-##### `Delete`
-
-HTTP `DELETE`. Remove the target resource; idempotent.
-
-##### `Options`
-
-HTTP `OPTIONS`. Describe communication options for the target.
-
-##### `Trace`
-
-HTTP `TRACE`. Loop-back diagnostics; rarely used.
-
-##### `Connect`
-
-HTTP `CONNECT`. Establish a tunnel through a proxy.
-
-##### `Custom(String)`
-
-An extension or non-standard method. The wrapped string is sent verbatim.
-
 ### `RequestOptions`
 
 Request options passed through the low-level request API.
 
- Build with `options()` then chain `with_headers` or `add_headers` for
- option-level headers. Use `with_initial_flow` for finite response credit.
+ Build with `options()` and `with_initial_flow` for finite response credit.
+ Pass request headers directly to `request` or `start_stream`.
 
 ```gleam
 pub type RequestOptions
@@ -106,17 +42,6 @@ pub type Stream = internal.Stream
 
 ## Functions
 
-### `add_headers`
-
-Add option-level headers that are appended to per-call headers.
-
-```gleam
-pub fn add_headers(
-  RequestOptions,
-  headers: List(#(String, String))
-) -> RequestOptions
-```
-
 ### `cancel`
 
 Cancel an in-flight request stream.
@@ -124,6 +49,10 @@ Cancel an in-flight request stream.
  Sends a reset/cancel to Gun. The connection remains usable for new
  streams. Pending response messages for the cancelled stream may still
  arrive briefly and should be drained.
+
+ Exception: Gun can leave HTTP/1.1 reads paused after finite flow credit
+ is exhausted. Terminate and replace that connection after cancellation;
+ do not reuse it. This also discards its other requests. See issue #78.
 
 ```gleam
 pub fn cancel(
@@ -166,14 +95,6 @@ Discard buffered Gun messages currently queued for the calling process.
 pub fn flush(internal.Connection) -> Result(Nil, error.GluegunError)
 ```
 
-### `method_to_string`
-
-Convert a method constructor to its HTTP method string.
-
-```gleam
-pub fn method_to_string(Method) -> String
-```
-
 ### `options`
 
 Construct default request options.
@@ -208,7 +129,7 @@ Send a low-level HTTP request on an open Gun connection.
 ```gleam
 pub fn request(
   internal.Connection,
-  Method,
+  http.Method,
   String,
   List(#(String, String)),
   BitArray,
@@ -225,6 +146,10 @@ Start a low-level HTTP request whose body will be streamed in chunks.
  carry an empty `BitArray` if there is no trailing payload). The stream
  remains open for response messages either way.
 
+ `Content-Length` is not supported on streamed uploads. It is rejected
+ before sending headers because supported Gun versions can crash on
+ fixed-length chunk sequences. Use chunked uploads or `request` instead.
+
  Gun response messages go to the calling process. `with_initial_flow`
  sets response credit before Gun starts the stream.
 
@@ -236,7 +161,7 @@ Start a low-level HTTP request whose body will be streamed in chunks.
 ```gleam
 pub fn start_stream(
   internal.Connection,
-  Method,
+  http.Method,
   String,
   List(#(String, String)),
   RequestOptions
@@ -260,17 +185,6 @@ pub fn update_flow(
   internal.Stream,
   Int
 ) -> Result(Nil, error.GluegunError)
-```
-
-### `with_headers`
-
-Replace option-level headers.
-
-```gleam
-pub fn with_headers(
-  RequestOptions,
-  headers: List(#(String, String))
-) -> RequestOptions
 ```
 
 ### `with_initial_flow`

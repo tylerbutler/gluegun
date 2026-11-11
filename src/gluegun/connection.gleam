@@ -123,10 +123,10 @@ pub fn retry_count(value: Int) -> Result(RetryCount, error.GluegunError) {
   }
 }
 
-/// Gun's default of five retries after the first attempt.
+/// No automatic retries. Opt in with `with_retry` when reconnection is useful.
 @internal
 pub fn default_retry_count() -> RetryCount {
-  RetryCount(5)
+  RetryCount(0)
 }
 
 /// Construct a finite timeout.
@@ -230,27 +230,32 @@ pub fn with_tls_options(
   ConnectOptions(..options, tls_options: Some(tls_options))
 }
 
-/// Inspect configured transport. Intended for tests and later FFI conversion.
+/// Inspect configured transport for deterministic tests.
+@internal
 pub fn transport(options: ConnectOptions) -> Transport {
   options.transport
 }
 
 /// Inspect explicitly configured protocol ordering, if any.
+@internal
 pub fn protocols(options: ConnectOptions) -> Option(List(Protocol)) {
   options.protocols
 }
 
 /// Inspect retry count.
+@internal
 pub fn retry(options: ConnectOptions) -> RetryCount {
   options.retry
 }
 
 /// Inspect connect timeout duration.
+@internal
 pub fn connect_timeout(options: ConnectOptions) -> Timeout {
   options.connect_timeout
 }
 
 /// Inspect explicitly configured TLS options, if any.
+@internal
 pub fn tls_options(options: ConnectOptions) -> Option(tls.TlsOptions) {
   options.tls_options
 }
@@ -269,8 +274,47 @@ pub fn open(
   host host: String,
   port port: Int,
 ) -> Result(Connection, error.GluegunError) {
-  ffi_open(host, port, options_to_ffi(options))
+  case port >= 0 && port <= 65_535 {
+    True -> ffi_open(host, port, options_to_ffi(options))
+    False -> Error(error.InvalidOptions("port must be between 0 and 65535"))
+  }
 }
+
+/// Start one monotonic timeout budget. `None` represents an unlimited wait.
+@internal
+pub fn deadline(timeout: Timeout) -> Option(Int) {
+  case timeout {
+    Infinity -> None
+    Milliseconds(value) -> Some(monotonic_milliseconds() + value)
+  }
+}
+
+/// Calculate the remaining budget without restarting its deadline.
+@internal
+pub fn remaining(deadline: Option(Int)) -> Timeout {
+  case deadline {
+    None -> Infinity
+    Some(end) -> {
+      let left = end - monotonic_milliseconds()
+      Milliseconds(case left > 0 {
+        True -> left
+        False -> 0
+      })
+    }
+  }
+}
+
+/// Check the budget before receiving, even when messages are already queued.
+@internal
+pub fn expired(deadline: Option(Int)) -> Bool {
+  case deadline {
+    None -> False
+    Some(end) -> monotonic_milliseconds() >= end
+  }
+}
+
+@external(erlang, "gluegun_ffi", "monotonic_milliseconds")
+fn monotonic_milliseconds() -> Int
 
 /// Wait until a Gun connection is up and return the negotiated protocol.
 ///

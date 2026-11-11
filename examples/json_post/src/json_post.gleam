@@ -1,3 +1,4 @@
+import gleam/http
 /// JSON POST example using gluegun's high-level HTTP client API.
 ///
 /// Buildable JSON POST example.
@@ -7,7 +8,6 @@ import gleam/list
 import gluegun/client
 import gluegun/connection
 import gluegun/error
-import gluegun/request
 import gluegun/response
 
 const host = "httpbingo.org"
@@ -25,7 +25,7 @@ pub fn main() -> Nil {
         Ok(protocol) -> {
           io.println("protocol: " <> protocol_to_string(protocol))
 
-          client.new(request.Post, path)
+          client.new(http.Post, path)
           |> client.with_header(name: "content-type", value: "application/json")
           |> client.with_header(name: "accept", value: "application/json")
           |> client.with_header(

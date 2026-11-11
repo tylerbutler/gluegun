@@ -1,3 +1,4 @@
+import gleam/http
 import gleam/option.{None, Some}
 import gluegun/connection
 import gluegun/error
@@ -47,71 +48,58 @@ pub fn connection_options_preserves_protocol_ordering_test() -> Nil {
   Nil
 }
 
-pub fn request_options_and_methods_with_headers_replaces_request_headers_test() -> Nil {
-  let actual_5 = {
-    request.options()
-    |> request.add_headers([#("accept", "application/json")])
-    |> request.with_headers([#("x-request-id", "abc")])
-    |> request.headers_option
-  }
-  let expected_5 = [#("x-request-id", "abc")]
-  let assert #(True, _, _) = #(actual_5 == expected_5, actual_5, expected_5)
+pub fn connection_rejects_negative_ports_before_open_test() -> Nil {
+  let assert True =
+    connection.open(connection.options(), host: "localhost", port: -1)
+    == Error(error.InvalidOptions("port must be between 0 and 65535"))
   Nil
 }
 
-pub fn request_options_and_methods_add_headers_appends_request_headers_test() -> Nil {
-  let actual_6 = {
-    request.options()
-    |> request.add_headers([#("accept", "application/json")])
-    |> request.add_headers([#("x-request-id", "abc")])
-    |> request.headers_option
-  }
-  let expected_6 = [
-    #("accept", "application/json"),
-    #("x-request-id", "abc"),
-  ]
-  let assert #(True, _, _) = #(actual_6 == expected_6, actual_6, expected_6)
+pub fn connection_rejects_oversized_ports_before_open_test() -> Nil {
+  let assert True =
+    connection.open(connection.options(), host: "localhost", port: 65_536)
+    == Error(error.InvalidOptions("port must be between 0 and 65535"))
   Nil
 }
 
 pub fn request_options_and_methods_converts_request_methods_to_strings_test() -> Nil {
-  let actual_7 = request.method_to_string(request.Get)
+  let actual_7 = request.method_to_string(http.Get)
   let expected_7 = "GET"
   let assert #(True, _, _) = #(actual_7 == expected_7, actual_7, expected_7)
 
-  let actual_8 = request.method_to_string(request.Post)
+  let actual_8 = request.method_to_string(http.Post)
   let expected_8 = "POST"
   let assert #(True, _, _) = #(actual_8 == expected_8, actual_8, expected_8)
 
-  let actual_9 = request.method_to_string(request.Head)
+  let actual_9 = request.method_to_string(http.Head)
   let expected_9 = "HEAD"
   let assert #(True, _, _) = #(actual_9 == expected_9, actual_9, expected_9)
 
-  let actual_10 = request.method_to_string(request.Put)
+  let actual_10 = request.method_to_string(http.Put)
   let expected_10 = "PUT"
   let assert #(True, _, _) = #(actual_10 == expected_10, actual_10, expected_10)
 
-  let actual_11 = request.method_to_string(request.Patch)
+  let actual_11 = request.method_to_string(http.Patch)
   let expected_11 = "PATCH"
   let assert #(True, _, _) = #(actual_11 == expected_11, actual_11, expected_11)
 
-  let actual_12 = request.method_to_string(request.Delete)
+  let actual_12 = request.method_to_string(http.Delete)
   let expected_12 = "DELETE"
   let assert #(True, _, _) = #(actual_12 == expected_12, actual_12, expected_12)
 
-  let actual_13 = request.method_to_string(request.Options)
+  let actual_13 = request.method_to_string(http.Options)
   let expected_13 = "OPTIONS"
   let assert #(True, _, _) = #(actual_13 == expected_13, actual_13, expected_13)
 
-  let actual_14 = request.method_to_string(request.Trace)
+  let actual_14 = request.method_to_string(http.Trace)
   let expected_14 = "TRACE"
   let assert #(True, _, _) = #(actual_14 == expected_14, actual_14, expected_14)
 
-  let actual_15 = request.method_to_string(request.Connect)
+  let actual_15 = request.method_to_string(http.Connect)
   let expected_15 = "CONNECT"
   let assert #(True, _, _) = #(actual_15 == expected_15, actual_15, expected_15)
 
-  let actual_16 = request.method_to_string(request.Custom("PROPFIND"))
+  let actual_16 = request.method_to_string(http.Other("PROPFIND"))
   let expected_16 = "PROPFIND"
   let assert #(True, _, _) = #(actual_16 == expected_16, actual_16, expected_16)
   Nil
@@ -262,7 +250,7 @@ pub fn responses_and_messages_decodes_push_messages_test() -> Nil {
   }
   let expected_29 =
     Ok(
-      message.Push(stream, request.Post, "/assets/app.css", [
+      message.Push(stream, http.Post, "/assets/app.css", [
         #("accept", "text/css"),
       ]),
     )
@@ -278,7 +266,7 @@ pub fn responses_and_messages_preserves_custom_push_method_case_test() -> Nil {
     |> safe_decode_message
   }
   let expected_30 =
-    Ok(message.Push(stream, request.Custom("PropFind"), "/collection", []))
+    Ok(message.Push(stream, http.Other("PropFind"), "/collection", []))
   let assert #(True, _, _) = #(actual_30 == expected_30, actual_30, expected_30)
   Nil
 }
@@ -290,7 +278,7 @@ pub fn responses_and_messages_matches_known_push_methods_case_insensitively_test
     push_message(stream, "get", "/", [])
     |> safe_decode_message
   }
-  let expected_31 = Ok(message.Push(stream, request.Get, "/", []))
+  let expected_31 = Ok(message.Push(stream, http.Get, "/", []))
   let assert #(True, _, _) = #(actual_31 == expected_31, actual_31, expected_31)
   Nil
 }
@@ -300,7 +288,7 @@ pub fn responses_and_messages_rejects_unknown_message_tags_test() -> Nil {
     unknown_message()
     |> safe_decode_message
   }
-  let expected_32 = Error(error.InvalidMessage("Mystery(\"unknown\")"))
+  let expected_32 = Error(error.DecodeError("Mystery(\"unknown\")"))
   let assert #(True, _, _) = #(actual_32 == expected_32, actual_32, expected_32)
   Nil
 }
@@ -310,7 +298,7 @@ pub fn responses_and_messages_rejects_unknown_websocket_frame_tags_test() -> Nil
     unknown_websocket_frame_message()
     |> safe_decode_message
   }
-  let expected_33 = Error(error.InvalidMessage("Ws(Mystery(\"unknown\"))"))
+  let expected_33 = Error(error.DecodeError("Ws(Mystery(\"unknown\"))"))
   let assert #(True, _, _) = #(actual_33 == expected_33, actual_33, expected_33)
   Nil
 }

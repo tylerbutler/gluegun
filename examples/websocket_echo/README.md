@@ -37,5 +37,6 @@ Close waits for the peer within the socket timeout, then releases the Gun
 process even on a handshake error. `send_close_frame` only sends a frame.
 For scoped one-shot flows, use
 `websocket.with_socket` to run a callback and close the WebSocket and connection
-afterward. Low-level `upgrade_with_protocol_and_options`, `send`, and `receive`
-remain available for advanced use.
+afterward. For an existing connection, use `upgrade` with the negotiated
+protocol, `await_upgrade`, then `from_upgrade`. The resulting Socket uses the
+same send, receive, and close functions.

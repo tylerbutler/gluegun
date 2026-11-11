@@ -1,3 +1,4 @@
+import gleam/http
 /// Low-level chunked request-body upload example using Gluegun.
 ///
 /// Buildable chunked upload example.
@@ -50,7 +51,7 @@ fn upload_chunks(
   case
     request.start_stream(
       connection,
-      request.Post,
+      http.Post,
       path,
       [#("content-type", "text/plain")],
       request.options(),

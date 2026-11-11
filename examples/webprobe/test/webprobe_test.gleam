@@ -1,8 +1,8 @@
+import gleam/http
 import gleam/option.{Some}
 import gleam/string
 import gluegun/client
 import gluegun/connection
-import gluegun/request
 import unitest
 import webprobe/cli
 import webprobe/report
@@ -54,7 +54,7 @@ pub fn cli_parsing_parses_a_default_get_probe_test() -> Nil {
   let expected_5 =
     Ok(cli.Config(
       url: "https://example.com",
-      method: request.Get,
+      method: http.Get,
       headers: [],
       timeout: timeout(5000),
       prefer_http2: False,
@@ -83,7 +83,7 @@ pub fn cli_parsing_parses_method_headers_timeout_http_2_preference_and_body_size
   let expected_6 =
     Ok(cli.Config(
       url: "https://example.com/api",
-      method: request.Head,
+      method: http.Head,
       headers: [
         #("accept", "application/json"),
         #("x-trace", "abc"),
@@ -168,7 +168,7 @@ pub fn runner_request_construction_prefers_http_2_only_for_tls_urls_when_request
   let config =
     cli.Config(
       url: "https://example.com",
-      method: request.Get,
+      method: http.Get,
       headers: [],
       timeout: timeout(5000),
       prefer_http2: True,
@@ -190,7 +190,7 @@ pub fn runner_request_construction_builds_the_gluegun_request_from_parsed_config
   let config =
     cli.Config(
       url: "https://example.com/search?q=gleam",
-      method: request.Head,
+      method: http.Head,
       headers: [#("accept", "application/json")],
       timeout: timeout(750),
       prefer_http2: False,
@@ -205,11 +205,10 @@ pub fn runner_request_construction_builds_the_gluegun_request_from_parsed_config
   }
   let expected_14 =
     client.RequestFields(
-      method: request.Head,
+      method: http.Head,
       path: "/search?q=gleam",
       headers: [#("accept", "application/json")],
       body: <<>>,
-      options: request.options(),
       timeout: timeout(750),
     )
   let assert #(True, _, _) = #(actual_14 == expected_14, actual_14, expected_14)

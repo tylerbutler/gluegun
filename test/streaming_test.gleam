@@ -1,3 +1,4 @@
+import gleam/http
 import gluegun/error
 import gluegun/fin
 import gluegun/internal
@@ -7,11 +8,10 @@ pub fn request_ffi_shapes_normalizes_streaming_request_headers_test() -> Nil {
   let assert Ok(_stream) =
     request.start_stream(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
-      [#("Content-Type", "text/plain")],
-      request.options()
-        |> request.add_headers([#("X-Trace", "abc")]),
+      [#("Content-Type", "text/plain"), #("X-Trace", "abc")],
+      request.options(),
     )
 
   let actual_1 = capture_stream_headers()
@@ -30,7 +30,7 @@ pub fn request_ffi_shapes_returns_an_opaque_stream_for_started_streams_test() ->
   let assert Ok(first) =
     request.start_stream(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       request.options(),
@@ -38,7 +38,7 @@ pub fn request_ffi_shapes_returns_an_opaque_stream_for_started_streams_test() ->
   let assert Ok(second) =
     request.start_stream(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       request.options(),
@@ -58,7 +58,7 @@ pub fn request_ffi_shapes_surfaces_request_errors_instead_of_stream_handles_test
   let actual_3 =
     request.request(
       invalid_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [],
       <<>>,
@@ -84,7 +84,7 @@ pub fn request_injection_guards_rejects_a_crlf_split_request_path_test() -> Nil 
   let actual_6 =
     request.request(
       current_connection(),
-      request.Get,
+      http.Get,
       "/upload HTTP/1.1\r\nX-Injected: evil",
       [],
       <<>>,
@@ -99,7 +99,7 @@ pub fn request_injection_guards_rejects_a_bare_nul_byte_in_the_request_path_test
   let actual_7 =
     request.request(
       current_connection(),
-      request.Get,
+      http.Get,
       "/upload\u{0000}.txt",
       [],
       <<>>,
@@ -114,7 +114,7 @@ pub fn request_injection_guards_rejects_a_literal_space_in_the_request_path_test
   let actual_8 =
     request.request(
       current_connection(),
-      request.Get,
+      http.Get,
       "/upload HTTP/1.1",
       [],
       <<>>,
@@ -129,7 +129,7 @@ pub fn request_injection_guards_rejects_an_empty_request_path_test() -> Nil {
   let actual_9 =
     request.request(
       current_connection(),
-      request.Get,
+      http.Get,
       "",
       [],
       <<>>,
@@ -144,7 +144,7 @@ pub fn request_injection_guards_rejects_a_crlf_injected_header_value_test() -> N
   let actual_10 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [#("X-Trace", "abc\r\nX-Injected: evil")],
       <<>>,
@@ -159,7 +159,7 @@ pub fn request_injection_guards_rejects_a_nul_byte_in_a_header_value_test() -> N
   let actual_11 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [#("X-Trace", "abc\u{0000}def")],
       <<>>,
@@ -174,7 +174,7 @@ pub fn request_injection_guards_rejects_a_vertical_tab_byte_in_a_header_value_te
   let actual_12 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [#("X-Trace", "abc\u{000B}def")],
       <<>>,
@@ -189,7 +189,7 @@ pub fn request_injection_guards_rejects_a_form_feed_byte_in_a_header_value_test(
   let actual_13 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [#("X-Trace", "abc\u{000C}def")],
       <<>>,
@@ -204,7 +204,7 @@ pub fn request_injection_guards_accepts_a_horizontal_tab_byte_in_a_header_value_
   let assert Ok(_stream) =
     request.start_stream(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [#("X-Trace", "abc\tdef")],
       request.options(),
@@ -219,7 +219,7 @@ pub fn request_injection_guards_rejects_a_header_name_that_is_not_an_rfc_7230_to
   let actual_15 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [#("X-Trace: evil", "abc")],
       <<>>,
@@ -234,7 +234,7 @@ pub fn request_injection_guards_rejects_a_crlf_injected_header_name_test() -> Ni
   let actual_16 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [#("X-Trace\r\nX-Injected", "evil")],
       <<>>,
@@ -249,7 +249,7 @@ pub fn request_injection_guards_rejects_a_caller_supplied_transfer_encoding_head
   let actual_17 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [#("Transfer-Encoding", "chunked")],
       <<>>,
@@ -265,7 +265,7 @@ pub fn request_injection_guards_rejects_duplicate_content_length_headers_test() 
   let actual_18 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [#("Content-Length", "4"), #("Content-Length", "9999")],
       <<"data":utf8>>,
@@ -281,7 +281,7 @@ pub fn request_injection_guards_rejects_a_non_numeric_content_length_header_test
   let actual_19 =
     request.request(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [#("Content-Length", "4 ; charset=evil")],
       <<"data":utf8>>,
@@ -297,7 +297,7 @@ pub fn request_injection_guards_rejects_a_crlf_split_custom_request_method_test(
   let actual_20 =
     request.request(
       current_connection(),
-      request.Custom("GET /other HTTP/1.1\r\nHost: evil"),
+      http.Other("GET /other HTTP/1.1\r\nHost: evil"),
       "/upload",
       [],
       <<>>,
@@ -312,7 +312,7 @@ pub fn request_injection_guards_applies_the_same_guards_to_start_stream_test() -
   let actual_21 =
     request.start_stream(
       current_connection(),
-      request.Post,
+      http.Post,
       "/upload",
       [#("X-Trace", "abc\r\nX-Injected: evil")],
       request.options(),

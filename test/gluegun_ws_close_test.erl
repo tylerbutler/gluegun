@@ -1,7 +1,70 @@
 -module(gluegun_ws_close_test).
+-include_lib("public_key/include/public_key.hrl").
 
 -export([with_server/2, owned_connection/0, assert_released/1, timed/1,
-    remember_connection/1, remembered_connection/0, error_paths/0]).
+    remember_connection/1, remembered_connection/0, error_paths/0, with_tls_server/1]).
+
+with_tls_server(Callback) ->
+    checked(fun() ->
+        Certificate = public_key:pkix_test_data(#{
+            root => [{digest, sha256}, {key, {rsa, 2048, 65537}}],
+            intermediates => [],
+            peer => [{digest, sha256}, {key, {rsa, 2048, 65537}}, {extensions, [
+                #'Extension'{extnID = ?'id-ce-subjectAltName',
+                    extnValue = [{dNSName, "localhost"}], critical = false}
+            ]}]
+        }),
+        {ok, Listener} = ssl:listen(0, [binary, {active, false},
+            {ip, {127, 0, 0, 1}}, {reuseaddr, true},
+            {alpn_preferred_protocols, [<<"h2">>, <<"http/1.1">>]} | Certificate]),
+        {ok, {_, Port}} = ssl:sockname(Listener),
+        {Server, Monitor} = spawn_monitor(fun() ->
+            {ok, Transport} = ssl:transport_accept(Listener, 2000),
+            {ok, Socket} = ssl:handshake(Transport, 2000),
+            try
+                {ok, <<"http/1.1">>} = ssl:negotiated_protocol(Socket),
+                tls_upgrade(Socket, <<>>),
+                %% The callback closes the socket using the public API.
+                {ok, <<1:1, 0:3, 8:4, 1:1, Length:7>>} = ssl:recv(Socket, 2, 2000),
+                {ok, _} = ssl:recv(Socket, 4 + Length, 2000),
+                ok = ssl:send(Socket, <<136, 0>>),
+                {error, closed} = ssl:recv(Socket, 0, 2000)
+            after ssl:close(Socket)
+            end
+        end),
+        try
+            Result = Callback(Port, proplists:get_value(cacerts, Certificate)),
+            case Result of
+                {error, _} -> Result;
+                {ok, nil} ->
+                    receive
+                        {'DOWN', Monitor, process, Server, normal} -> Result;
+                        {'DOWN', Monitor, process, Server, Reason} ->
+                            error({tls_peer_failed, Reason})
+                    after 2000 -> error(tls_peer_timeout)
+                    end
+            end
+        after
+            ssl:close(Listener),
+            stop_server(Server, Monitor)
+        end
+    end).
+
+tls_upgrade(Socket, Acc) when byte_size(Acc) < 16384 ->
+    case binary:match(Acc, <<"\r\n\r\n">>) of
+        nomatch ->
+            {ok, Data} = ssl:recv(Socket, 0, 2000),
+            tls_upgrade(Socket, <<Acc/binary, Data/binary>>);
+        _ ->
+            [KeyLine] = [Line || Line <- binary:split(Acc, <<"\r\n">>, [global]),
+                string:prefix(string:lowercase(Line), <<"sec-websocket-key:">>) =/= nomatch],
+            [_, Key] = binary:split(KeyLine, <<":">>),
+            Accept = cow_ws:encode_key(string:trim(Key)),
+            ssl:send(Socket, [
+                <<"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n",
+                    "Connection: Upgrade\r\nSec-WebSocket-Accept: ">>,
+                Accept, <<"\r\n\r\n">>])
+    end.
 
 error_paths() ->
     checked(fun() ->
@@ -61,8 +124,7 @@ with_server(Name, Callback) ->
             end
         after
             gen_tcp:close(Listener),
-            exit(Server, kill),
-            erlang:demonitor(Monitor, [flush]),
+            stop_server(Server, Monitor),
             receive {released, Server} -> ok after 0 -> ok end,
             receive {unrelated_ws_mail, Unrelated} -> ok after 0 -> ok end
         end
@@ -72,10 +134,23 @@ owned_connection() ->
     checked(fun() ->
         Owner = self(),
         Connections = [Pid || {_, Pid, _, _} <- supervisor:which_children(gun_conns_sup),
-            is_pid(Pid), maps:get(owner, gun:info(Pid)) =:= Owner],
-        [Connection] = Connections,
+            is_pid(Pid), owned_by(Pid, Owner)],
+        %% With retry zero Gun may already have answered a peer close and
+        %% exited before this inspection. Its queued frames retain identity.
+        {messages, Messages} = process_info(self(), messages),
+        Queued = [Pid || Message <- Messages, is_tuple(Message),
+            tuple_size(Message) >= 3,
+            lists:member(element(1, Message), [gun_ws, gun_down]),
+            Pid <- [element(2, Message)], is_pid(Pid)],
+        [Connection] = lists:usort(Connections ++ Queued),
         {ok, Connection}
     end).
+
+owned_by(Pid, Owner) ->
+    try maps:get(owner, gun:info(Pid)) =:= Owner
+    catch exit:{normal, _} -> false;
+        exit:{noproc, _} -> false
+    end.
 
 assert_released(Connection) ->
     checked(fun() ->
@@ -99,18 +174,54 @@ serve(Listener, Parent, Name) ->
             string:prefix(string:lowercase(Line), <<"sec-websocket-key:">>) =/= nomatch],
         [_, Key] = binary:split(KeyLine, <<":">>),
         Accept = cow_ws:encode_key(string:trim(Key)),
-        ok = gen_tcp:send(Socket, [
-            <<"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n",
-                "Connection: Upgrade\r\nSec-WebSocket-Accept: ">>,
-            Accept, <<"\r\n\r\n">>]),
+        case Name of
+            <<"inform">> ->
+                ok = gen_tcp:send(Socket, <<"HTTP/1.1 100 Continue\r\n\r\n",
+                    "HTTP/1.1 103 Early Hints\r\nLink: </style.css>\r\n\r\n">>);
+            <<"deadline">> ->
+                ok = gen_tcp:send(Socket, <<"HTTP/1.1 100 Continue\r\n\r\n">>),
+                timer:sleep(30),
+                ok = gen_tcp:send(Socket, <<"HTTP/1.1 103 Early Hints\r\n\r\n">>),
+                timer:sleep(30);
+            _ -> ok
+        end,
+        case Name of
+            <<"deadline">> -> await_closed(Socket);
+            _ ->
+                Extra = case Name of
+                    <<"subprotocols">> ->
+                        true = binary:match(Headers,
+                            <<"sec-websocket-protocol: chat, superchat\r\n">>) =/= nomatch,
+                        <<"Sec-WebSocket-Protocol: superchat\r\nX-Handshake: retained\r\n">>;
+                    <<"single_protocol">> ->
+                        true = binary:match(Headers,
+                            <<"sec-websocket-protocol: chat\r\n">>) =/= nomatch,
+                        <<"Sec-WebSocket-Protocol: chat\r\n">>;
+                    _ -> <<>>
+                end,
+                ok = gen_tcp:send(Socket, [
+                    <<"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n",
+                        "Connection: Upgrade\r\nSec-WebSocket-Accept: ">>,
+                    Accept, <<"\r\n">>, Extra, <<"\r\n">>]),
+                serve_frames(Socket, Name)
+        end,
+        Parent ! {released, self()}
+    after gen_tcp:close(Socket)
+    end.
+
+serve_frames(Socket, Name) ->
         case Name of
             <<"peer_close">> -> ok = send_frame(Socket, 8, <<>>);
             <<"peer_reason">> -> ok = send_frame(Socket, 8, <<1000:16, "bye">>);
+            <<"flow_consumed">> -> ok = send_frame(Socket, 1, <<"one">>);
+            <<"flow_coalesced">> ->
+                ok = gen_tcp:send(Socket, [
+                    <<129, 3, "one">>, <<129, 3, "two">>, <<129, 5, "three">>]);
             _ -> ok
         end,
-        exchange(Socket, Name),
-        Parent ! {released, self()}
-    after gen_tcp:close(Socket)
+    case Name of
+        <<"drop">> -> ok;
+        _ -> exchange(Socket, Name)
     end.
 
 headers(Socket, Acc) when byte_size(Acc) < 16384 ->
@@ -131,6 +242,17 @@ exchange(Socket, Name) ->
                 <<"normal">> ->
                     ok = send_frame(Socket, 8, <<1000:16, "bye">>),
                     await_closed(Socket);
+                <<"flow_consumed">> -> reply_close(Socket);
+                <<"flow_coalesced">> -> reply_close(Socket);
+                <<"flow_during">> ->
+                    ok = gen_tcp:send(Socket, [
+                        <<129, 3, "one">>, <<129, 3, "two">>, <<129, 5, "three">>]),
+                    %% Separate transport data after Gun has spent its credit.
+                    timer:sleep(20),
+                    reply_close(Socket);
+                <<"inform">> -> reply_close(Socket);
+                <<"subprotocols">> -> reply_close(Socket);
+                <<"single_protocol">> -> reply_close(Socket);
                 <<"peer_close">> -> await_closed(Socket);
                 <<"peer_reason">> -> await_closed(Socket);
                 <<"failure">> -> gen_tcp:close(Socket);
@@ -139,6 +261,10 @@ exchange(Socket, Name) ->
             end;
         {error, closed} -> ok
     end.
+
+reply_close(Socket) ->
+    ok = send_frame(Socket, 8, <<1000:16, "bye">>),
+    await_closed(Socket).
 
 read_frame(Socket) ->
     case gen_tcp:recv(Socket, 2, 7000) of
@@ -184,4 +310,17 @@ checked(Callback) ->
     try Callback()
     catch Class:Reason:Stack ->
         {error, {erlang_error, gleam@string:inspect({Class, Reason, Stack})}}
+    end.
+
+stop_server(Server, Monitor) ->
+    try
+        case is_process_alive(Server) of
+            false -> ok;
+            true ->
+                exit(Server, kill),
+                receive {'DOWN', Monitor, process, Server, _} -> ok
+                after 1000 -> error(peer_cleanup_timeout)
+                end
+        end
+    after erlang:demonitor(Monitor, [flush])
     end.

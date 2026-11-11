@@ -1,3 +1,4 @@
+import gleam/http
 import gluegun/connection
 import gluegun/error
 import gluegun/request
@@ -9,7 +10,7 @@ pub fn request_per_call_rejects_kelvin_test() {
   reject_request("\u{212A}", False)
 }
 
-pub fn request_options_rejects_kelvin_test() {
+pub fn request_later_header_rejects_kelvin_test() {
   reject_request("\u{212A}", True)
 }
 
@@ -17,7 +18,7 @@ pub fn start_stream_per_call_rejects_kelvin_test() {
   reject_headers("\u{212A}", False)
 }
 
-pub fn start_stream_options_rejects_kelvin_test() {
+pub fn start_stream_later_header_rejects_kelvin_test() {
   reject_headers("\u{212A}", True)
 }
 
@@ -29,7 +30,7 @@ pub fn request_per_call_rejects_embedded_kelvin_test() {
   reject_request("X-\u{212A}ey", False)
 }
 
-pub fn request_options_rejects_embedded_kelvin_test() {
+pub fn request_later_header_rejects_embedded_kelvin_test() {
   reject_request("X-\u{212A}ey", True)
 }
 
@@ -37,7 +38,7 @@ pub fn start_stream_per_call_rejects_embedded_kelvin_test() {
   reject_headers("X-\u{212A}ey", False)
 }
 
-pub fn start_stream_options_rejects_embedded_kelvin_test() {
+pub fn start_stream_later_header_rejects_embedded_kelvin_test() {
   reject_headers("X-\u{212A}ey", True)
 }
 
@@ -49,7 +50,7 @@ pub fn request_per_call_rejects_accented_name_test() {
   reject_request("X-\u{00C9}", False)
 }
 
-pub fn request_options_rejects_accented_name_test() {
+pub fn request_later_header_rejects_accented_name_test() {
   reject_request("X-\u{00C9}", True)
 }
 
@@ -57,7 +58,7 @@ pub fn start_stream_per_call_rejects_accented_name_test() {
   reject_headers("X-\u{00C9}", False)
 }
 
-pub fn start_stream_options_rejects_accented_name_test() {
+pub fn start_stream_later_header_rejects_accented_name_test() {
   reject_headers("X-\u{00C9}", True)
 }
 
@@ -69,7 +70,7 @@ pub fn request_per_call_rejects_long_s_test() {
   reject_request("X-\u{017F}", False)
 }
 
-pub fn request_options_rejects_long_s_test() {
+pub fn request_later_header_rejects_long_s_test() {
   reject_request("X-\u{017F}", True)
 }
 
@@ -77,7 +78,7 @@ pub fn start_stream_per_call_rejects_long_s_test() {
   reject_headers("X-\u{017F}", False)
 }
 
-pub fn start_stream_options_rejects_long_s_test() {
+pub fn start_stream_later_header_rejects_long_s_test() {
   reject_headers("X-\u{017F}", True)
 }
 
@@ -85,42 +86,11 @@ pub fn websocket_upgrade_rejects_long_s_test() {
   reject_upgrade("X-\u{017F}")
 }
 
-pub fn websocket_upgrade_with_options_rejects_kelvin_test() {
-  websocket.upgrade_with_options(
-    current_connection(),
-    "/ws",
-    [#("X-\u{212A}ey", "unchanged")],
-    websocket.upgrade_options(),
-  )
-  |> assert_rejected
-}
-
-pub fn websocket_upgrade_with_protocol_rejects_kelvin_test() {
-  websocket.upgrade_with_protocol(
-    current_connection(),
-    connection.Http1,
-    "/ws",
-    [#("X-\u{212A}ey", "unchanged")],
-  )
-  |> assert_rejected
-}
-
-pub fn websocket_upgrade_with_protocol_and_options_rejects_kelvin_test() {
-  websocket.upgrade_with_protocol_and_options(
-    current_connection(),
-    connection.Http1,
-    "/ws",
-    [#("X-\u{212A}ey", "unchanged")],
-    websocket.upgrade_options(),
-  )
-  |> assert_rejected
-}
-
-fn reject_request(name: String, option_level: Bool) -> Nil {
-  let #(headers, options) = rejection_headers(name, option_level)
+fn reject_request(name: String, later_entry: Bool) -> Nil {
+  let #(headers, options) = rejection_headers(name, later_entry)
   request.request(
     current_connection(),
-    request.Post,
+    http.Post,
     "/upload",
     headers,
     <<"body":utf8>>,
@@ -129,11 +99,11 @@ fn reject_request(name: String, option_level: Bool) -> Nil {
   |> assert_rejected
 }
 
-fn reject_headers(name: String, option_level: Bool) -> Nil {
-  let #(headers, options) = rejection_headers(name, option_level)
+fn reject_headers(name: String, later_entry: Bool) -> Nil {
+  let #(headers, options) = rejection_headers(name, later_entry)
   request.start_stream(
     current_connection(),
-    request.Post,
+    http.Post,
     "/upload",
     headers,
     options,
@@ -142,24 +112,28 @@ fn reject_headers(name: String, option_level: Bool) -> Nil {
 }
 
 fn reject_upgrade(name: String) -> Nil {
-  websocket.upgrade(current_connection(), "/ws", [
-    #("X-Valid", "first"),
-    #(name, "unchanged"),
-  ])
+  websocket.upgrade(
+    current_connection(),
+    connection.Http1,
+    "/ws",
+    [
+      #("X-Valid", "first"),
+      #(name, "unchanged"),
+    ],
+    websocket.upgrade_options(),
+  )
   |> assert_rejected
 }
 
 fn rejection_headers(
   name: String,
-  option_level: Bool,
+  later_entry: Bool,
 ) -> #(List(request.Header), request.RequestOptions) {
-  case option_level {
+  case later_entry {
     False -> #([#("X-Valid", "first"), #(name, "unchanged")], request.options())
     True -> #(
-      [#("X-Valid", "first")],
-      request.options()
-        |> request.with_headers([#("X-Option", "second")])
-        |> request.add_headers([#(name, "unchanged")]),
+      [#("X-Valid", "first"), #("X-Later", "second"), #(name, "unchanged")],
+      request.options(),
     )
   }
 }
@@ -179,13 +153,9 @@ fn per_call_headers() -> List(request.Header) {
   [
     #("X-MiXeD", " \tMiXeD \u{212A}\u{00E9}\u{1F642}\t "),
     #("AZaz09!#$%&'*+-.^_`|~", "Punctuation"),
+    #("x-MIXED", "\tSecond \u{212A}\u{00E9}\t"),
+    #("X-Empty", ""),
   ]
-}
-
-fn option_headers() -> request.RequestOptions {
-  request.options()
-  |> request.with_headers([#("x-MIXED", "\tSecond \u{212A}\u{00E9}\t")])
-  |> request.add_headers([#("X-Empty", "")])
 }
 
 fn expected_headers() -> List(request.Header) {
@@ -202,11 +172,11 @@ pub fn request_preserves_normalized_headers_order_and_values_test() -> Nil {
   let assert Ok(stream) =
     request.request(
       current_connection(),
-      request.Custom("MiXeD"),
+      http.Other("MiXeD"),
       "/upload?Case=Keep",
       per_call_headers(),
       body,
-      option_headers(),
+      request.options(),
     )
   let actual = capture_request(stream)
   let expected = Ok(#("MiXeD", "/upload?Case=Keep", expected_headers(), body))
@@ -219,10 +189,10 @@ pub fn start_stream_preserves_normalized_headers_order_and_values_test() -> Nil 
   let assert Ok(stream) =
     request.start_stream(
       current_connection(),
-      request.Custom("MiXeD"),
+      http.Other("MiXeD"),
       "/upload?Case=Keep",
       per_call_headers(),
-      option_headers(),
+      request.options(),
     )
   let actual = capture_headers(stream)
   let expected = Ok(#("MiXeD", "/upload?Case=Keep", expected_headers()))
@@ -233,35 +203,7 @@ pub fn start_stream_preserves_normalized_headers_order_and_values_test() -> Nil 
 
 pub fn websocket_upgrade_preserves_normalized_headers_and_values_test() -> Nil {
   let assert Ok(stream) =
-    websocket.upgrade(current_connection(), "/ws?Case=Keep", per_call_headers())
-  assert_upgrade(stream)
-}
-
-pub fn websocket_upgrade_with_options_preserves_headers_test() -> Nil {
-  let assert Ok(stream) =
-    websocket.upgrade_with_options(
-      current_connection(),
-      "/ws?Case=Keep",
-      per_call_headers(),
-      websocket.upgrade_options(),
-    )
-  assert_upgrade(stream)
-}
-
-pub fn websocket_upgrade_with_protocol_preserves_headers_test() -> Nil {
-  let assert Ok(stream) =
-    websocket.upgrade_with_protocol(
-      current_connection(),
-      connection.Http1,
-      "/ws?Case=Keep",
-      per_call_headers(),
-    )
-  assert_upgrade(stream)
-}
-
-pub fn websocket_upgrade_with_protocol_and_options_preserves_headers_test() -> Nil {
-  let assert Ok(stream) =
-    websocket.upgrade_with_protocol_and_options(
+    websocket.upgrade(
       current_connection(),
       connection.Http1,
       "/ws?Case=Keep",
@@ -273,13 +215,7 @@ pub fn websocket_upgrade_with_protocol_and_options_preserves_headers_test() -> N
 
 fn assert_upgrade(stream: request.Stream) -> Nil {
   let actual = capture_ws_upgrade(stream)
-  let expected =
-    Ok(
-      #("/ws?Case=Keep", [
-        #("x-mixed", " \tMiXeD \u{212A}\u{00E9}\u{1F642}\t "),
-        #("azaz09!#$%&'*+-.^_`|~", "Punctuation"),
-      ]),
-    )
+  let expected = Ok(#("/ws?Case=Keep", expected_headers()))
   let assert #(True, _, _) = #(actual == expected, actual, expected)
   let assert False = has_outgoing_cast()
   Nil

@@ -29,7 +29,7 @@ For mailbox errors, `message.decode` returns `StreamError` for a stream-level `g
 
 Gun `open/2` returns immediately after it starts the connection process. The socket connect and the protocol negotiation occur asynchronously. `connection.await_up` waits for the Gun `up` message and returns the negotiated `Protocol`.
 
-The returned `Protocol` is the protocol that Gun selected. For TLS connections, this includes the ALPN result. If you do not call `await_up`, later stream messages still queue correctly and the connection can still work. But your code cannot know if Gun negotiated HTTP/1.1 or HTTP/2. This is important for decisions such as `websocket.upgrade_with_protocol`, which rejects `Http2` before it calls Gun.
+The returned `Protocol` is the protocol that Gun selected. For TLS connections, this includes the ALPN result. If you do not call `await_up`, later stream messages still queue correctly and the connection can still work. But your code cannot know if Gun negotiated HTTP/1.1 or HTTP/2. This is important for decisions such as `websocket.upgrade`, which rejects `Http2` before it calls Gun.
 
 ## `close` and `shutdown`
 
@@ -69,7 +69,7 @@ Gun processes ping and pong automatically by default. `websocket.with_silence_pi
 
 ## Process ownership and `reply_to`
 
-Gun sends asynchronous connection and stream messages to the Erlang process that called `gun:open`. To send WebSocket upgrade and frame messages to a different process, use `websocket/raw.with_reply_to`. It sets the Gun `reply_to` option to that process identifier.
+Gun sends asynchronous connection and stream messages to the Erlang process that called `gun:open`. To send WebSocket upgrade and frame messages to a different process, use `websocket.with_reply_to`. It sets the Gun `reply_to` option to that process identifier.
 
 If the receiving process stops before it processes the messages, those messages are lost. Gluegun does not keep them in a different location.
 
@@ -77,18 +77,17 @@ If the receiving process stops before it processes the messages, those messages 
 import gleam/erlang/process
 import gluegun/connection
 import gluegun/websocket
-import gluegun/websocket/raw
 
 pub fn upgrade_in_current_process(conn) {
   let options =
     websocket.upgrade_options()
-    |> raw.with_reply_to(reply_to: process.self())
+    |> websocket.with_reply_to(reply_to: process.self())
 
   let assert Ok(timeout) = connection.milliseconds(5000)
   let assert Ok(protocol) = connection.await_up(conn, timeout)
 
   let assert Ok(stream) =
-    websocket.upgrade_with_protocol_and_options(
+    websocket.upgrade(
       conn,
       protocol,
       "/ws",
@@ -99,5 +98,10 @@ pub fn upgrade_in_current_process(conn) {
   stream
 }
 ```
+
+The receiver must await the upgrade and own the Socket receive/close sequence.
+Closing in another process does not drain that receiver's mailbox. Do not
+redirect a high-level `connect` handshake away from the calling process.
+The internal `websocket/raw` module is not a supported application interface.
 
 See the [message reference](/reference/gluegun-message/), [request reference](/reference/gluegun-request/), and [WebSocket guide](/guides/websockets/) for the full API around these concepts.

@@ -20,11 +20,12 @@ Use `gluegun/client` to send one usual HTTP request on an open connection. The c
 ## Builder API
 
 ```gleam
+import gleam/http
 import gluegun/client
 import gluegun/request
 
 fn fetch_json(conn, path, timeout) {
-  client.new(request.Get, path)
+  client.new(http.Get, path)
   |> client.with_header(
     name: "accept",
     value: "application/json",
@@ -65,7 +66,7 @@ pub fn examples(conn) {
 }
 ```
 
-`client.request_options` sends `OPTIONS`. See the [client reference](/reference/gluegun-client/) for the full list.
+`client.options` sends `OPTIONS`. See the [client reference](/reference/gluegun-client/) for the full list.
 
 ## Examine responses
 
@@ -109,7 +110,8 @@ Cancellation is asynchronous. The drain does not wait for Gun to process cancell
 Add request headers with `client.with_header`:
 
 ```gleam
-client.new(request.Get, "/api/items")
+import gleam/http
+client.new(http.Get, "/api/items")
 |> client.with_header(name: "accept", value: "application/json")
 |> client.with_header(name: "user-agent", value: "my-app")
 |> client.send(connection: conn)

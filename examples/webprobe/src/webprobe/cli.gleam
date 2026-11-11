@@ -3,6 +3,7 @@ import clip/arg
 import clip/flag
 import clip/help
 import clip/opt
+import gleam/http
 import gleam/list
 import gleam/result
 import gleam/string
@@ -12,7 +13,7 @@ import gluegun/request
 pub type Config {
   Config(
     url: String,
-    method: request.Method,
+    method: http.Method,
     headers: List(request.Header),
     timeout: connection.Timeout,
     prefer_http2: Bool,
@@ -22,7 +23,7 @@ pub type Config {
 
 type ParsedFlags {
   ParsedFlags(
-    method: request.Method,
+    method: http.Method,
     timeout: connection.Timeout,
     prefer_http2: Bool,
     body_preview_bytes: Int,
@@ -88,12 +89,12 @@ fn command() -> clip.Command(ParsedFlags) {
   ))
 }
 
-fn method_opt() -> opt.Opt(request.Method) {
+fn method_opt() -> opt.Opt(http.Method) {
   opt.new("method")
   |> opt.short("X")
   |> opt.help("HTTP method to send")
   |> opt.try_map(method_from_string)
-  |> opt.default(request.Get)
+  |> opt.default(http.Get)
 }
 
 fn timeout_opt() -> opt.Opt(connection.Timeout) {
@@ -132,16 +133,16 @@ fn http2_flag() -> flag.Flag {
   |> flag.help("Prefer HTTP/2 over TLS, falling back to HTTP/1.1")
 }
 
-pub fn method_from_string(input: String) -> Result(request.Method, String) {
+pub fn method_from_string(input: String) -> Result(http.Method, String) {
   case string.uppercase(input) {
-    "GET" -> Ok(request.Get)
-    "HEAD" -> Ok(request.Head)
-    "POST" -> Ok(request.Post)
-    "PUT" -> Ok(request.Put)
-    "PATCH" -> Ok(request.Patch)
-    "DELETE" -> Ok(request.Delete)
-    "OPTIONS" -> Ok(request.Options)
-    "TRACE" -> Ok(request.Trace)
+    "GET" -> Ok(http.Get)
+    "HEAD" -> Ok(http.Head)
+    "POST" -> Ok(http.Post)
+    "PUT" -> Ok(http.Put)
+    "PATCH" -> Ok(http.Patch)
+    "DELETE" -> Ok(http.Delete)
+    "OPTIONS" -> Ok(http.Options)
+    "TRACE" -> Ok(http.Trace)
     other -> Error("Unsupported method: " <> other)
   }
 }

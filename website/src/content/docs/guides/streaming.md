@@ -8,6 +8,7 @@ Use `gluegun/request` when you make the request body in chunks.
 Start with `request.start_stream`. Send zero or more chunks with `fin.NoFin`. Complete the body with `fin.Fin`.
 
 ```gleam
+import gleam/http
 import gluegun/connection
 import gluegun/error
 import gluegun/fin
@@ -21,7 +22,7 @@ pub fn upload_chunks(conn) {
   use stream <- result.try(
     request.start_stream(
       conn,
-      request.Post,
+      http.Post,
       "/upload",
       [#("content-type", "text/plain")],
       request.options(),
@@ -81,11 +82,12 @@ The streaming APIs also control the request:
 Set credit before you start the request:
 
 ```gleam
+import gleam/http
 use options <- result.try(
   request.options() |> request.with_initial_flow(credit: 1),
 )
 use stream <- result.try(
-  request.request(conn, request.Get, path, [], <<>>, options),
+  request.request(conn, http.Get, path, [], <<>>, options),
 )
 ```
 
@@ -131,7 +133,7 @@ Gun 2.1 and 2.2 split setup into three stages on OTP 27:
 | `with_connect_timeout` | Socket connection across addresses returned by lookup | 5000 ms in Gluegun |
 | `with_tls_handshake_timeout` | TLS handshake after TCP connection | Unlimited |
 
-`connect_timeout` does not cover DNS or TLS. Resolver behavior depends on OTP and the host resolver configuration; stage timers do not replace the caller's total deadline. `retry_count(0)` disables retries. The default is five retries; Gun uses a separate five-second retry delay. `with_retry` accepts a `RetryCount`, not a timeout or retry duration.
+`connect_timeout` does not cover DNS or TLS. Resolver behavior depends on OTP and the host resolver configuration; stage timers do not replace the caller's total deadline. `retry_count(0)` disables retries. The default is zero retries; Gun uses a separate five-second retry delay. `with_retry` accepts a `RetryCount`, not a timeout or retry duration.
 
 ## Total deadline and cleanup
 

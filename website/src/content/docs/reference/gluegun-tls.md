@@ -40,7 +40,7 @@ Typed TLS client options for Gun and Erlang SSL.
  import gluegun/tls
 
  pub fn https_options() {
-   let tls_options =
+   let assert Ok(tls_options) =
      tls.options()
      |> tls.with_versions(versions: [tls.TlsV13])
      |> tls.with_cacertfile(cacertfile: "/etc/ssl/cert.pem")
@@ -73,6 +73,7 @@ pub type ServerNameIndication {
 ##### `Disable`
 
 Disable SNI for this connection.
+ Requires explicit `VerifyNone`: OTP also disables hostname verification.
 
 ##### `ServerName(String)`
 
@@ -204,13 +205,15 @@ pub fn with_ciphers(
 
 ### `with_depth`
 
-Set the maximum certificate chain depth.
+Set the maximum certificate chain depth, between zero and 255.
+
+ Invalid numeric options return `InvalidOptions`; they are not clamped.
 
 ```gleam
 pub fn with_depth(
   TlsOptions,
   depth: Int
-) -> TlsOptions
+) -> Result(TlsOptions, error.GluegunError)
 ```
 
 ### `with_keyfile`
@@ -226,7 +229,9 @@ pub fn with_keyfile(
 
 ### `with_server_name_indication`
 
-Set the TLS SNI value, or disable it explicitly.
+Set the TLS SNI value, or disable it with explicit `VerifyNone`.
+
+ Opening with disabled SNI under `VerifyPeer` returns `InvalidOptions`.
 
 ```gleam
 pub fn with_server_name_indication(

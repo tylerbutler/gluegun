@@ -103,11 +103,18 @@ pub fn outbound_frame_encoding_encodes_multiple_frames_test() -> Nil {
   let test_stream = stream_ref()
 
   let actual_9 =
-    websocket.send_many(test_connection, test_stream, [
-      message.Text("hello"),
-      message.Binary(<<1, 2, 3>>),
-      message.Ping(<<"ping":utf8>>),
-    ])
+    websocket.send_many(
+      websocket.socket(
+        test_connection,
+        test_stream,
+        connection.default_timeout(),
+      ),
+      [
+        message.Text("hello"),
+        message.Binary(<<1, 2, 3>>),
+        message.Ping(<<"ping":utf8>>),
+      ],
+    )
   let expected_9 = Ok(Nil)
   let assert #(True, _, _) = #(actual_9 == expected_9, actual_9, expected_9)
 
@@ -693,20 +700,21 @@ pub fn websocket_session_cleanup_returns_the_callback_error_after_callback_failu
 }
 
 pub fn upgrade_routing_accepts_upgrade_messages_test() -> Nil {
-  let actual_71 =
+  let assert Ok(handshake) =
     websocket.await_upgrade_from(Ok(message.Upgrade(["websocket"], [])))
-  let expected_71 = Ok(Nil)
-  let assert #(True, _, _) = #(actual_71 == expected_71, actual_71, expected_71)
+  let assert [] = websocket.handshake_headers(handshake)
+  let assert None = websocket.handshake_subprotocol(handshake)
   Nil
 }
 
 pub fn upgrade_routing_accepts_upgrade_messages_with_headers_test() -> Nil {
-  let actual_72 =
+  let assert Ok(handshake) =
     websocket.await_upgrade_from(
       Ok(message.Upgrade(["websocket"], [#("sec-websocket-protocol", "chat")])),
     )
-  let expected_72 = Ok(Nil)
-  let assert #(True, _, _) = #(actual_72 == expected_72, actual_72, expected_72)
+  let assert [#("sec-websocket-protocol", "chat")] =
+    websocket.handshake_headers(handshake)
+  let assert Some("chat") = websocket.handshake_subprotocol(handshake)
   Nil
 }
 
@@ -741,11 +749,12 @@ pub fn upgrade_routing_propagates_timeout_while_awaiting_upgrade_test() -> Nil {
 
 pub fn upgrade_routing_rejects_http_2_before_calling_ffi_test() -> Nil {
   let actual_76 =
-    websocket.upgrade_with_protocol(
+    websocket.upgrade(
       invalid_connection(),
       connection.Http2,
       "/ws",
       [],
+      websocket.upgrade_options(),
     )
   let expected_76 =
     Error(error.UnsupportedFeature("WebSocket upgrade requires HTTP/1.1"))
@@ -759,7 +768,14 @@ pub fn upgrade_routing_surfaces_ffi_errors_from_upgrade_test() -> Nil {
   // example. This deterministic test does not create an HTTP/2 connection; it
   // verifies that errors raised by gun:ws_upgrade are surfaced as Result errors
   // rather than panicking or producing a misleading success.
-  let actual_77 = websocket.upgrade(invalid_connection(), "/ws", [])
+  let actual_77 =
+    websocket.upgrade(
+      invalid_connection(),
+      connection.Http1,
+      "/ws",
+      [],
+      websocket.upgrade_options(),
+    )
   let expected_77 = Error(error.ErlangError("Error(FunctionClause)"))
   let assert #(True, _, _) = #(actual_77 == expected_77, actual_77, expected_77)
   Nil
@@ -769,8 +785,10 @@ pub fn upgrade_injection_guards_rejects_a_crlf_split_upgrade_path_test() -> Nil 
   let actual_78 =
     websocket.upgrade(
       current_connection(),
+      connection.Http1,
       "/ws HTTP/1.1\r\nX-Injected: evil",
       [],
+      websocket.upgrade_options(),
     )
   let expected_78 = Error(error.InvalidOptions("Request(InvalidPath)"))
   let assert #(True, _, _) = #(actual_78 == expected_78, actual_78, expected_78)
@@ -778,14 +796,28 @@ pub fn upgrade_injection_guards_rejects_a_crlf_split_upgrade_path_test() -> Nil 
 }
 
 pub fn upgrade_injection_guards_rejects_a_literal_space_in_the_upgrade_path_test() -> Nil {
-  let actual_79 = websocket.upgrade(current_connection(), "/ws HTTP/1.1", [])
+  let actual_79 =
+    websocket.upgrade(
+      current_connection(),
+      connection.Http1,
+      "/ws HTTP/1.1",
+      [],
+      websocket.upgrade_options(),
+    )
   let expected_79 = Error(error.InvalidOptions("Request(InvalidPath)"))
   let assert #(True, _, _) = #(actual_79 == expected_79, actual_79, expected_79)
   Nil
 }
 
 pub fn upgrade_injection_guards_rejects_an_empty_upgrade_path_test() -> Nil {
-  let actual_80 = websocket.upgrade(current_connection(), "", [])
+  let actual_80 =
+    websocket.upgrade(
+      current_connection(),
+      connection.Http1,
+      "",
+      [],
+      websocket.upgrade_options(),
+    )
   let expected_80 = Error(error.InvalidOptions("Request(InvalidPath)"))
   let assert #(True, _, _) = #(actual_80 == expected_80, actual_80, expected_80)
   Nil
@@ -793,9 +825,15 @@ pub fn upgrade_injection_guards_rejects_an_empty_upgrade_path_test() -> Nil {
 
 pub fn upgrade_injection_guards_rejects_a_crlf_injected_upgrade_header_value_test() -> Nil {
   let actual_81 =
-    websocket.upgrade(current_connection(), "/ws", [
-      #("X-Trace", "abc\r\nX-Injected: evil"),
-    ])
+    websocket.upgrade(
+      current_connection(),
+      connection.Http1,
+      "/ws",
+      [
+        #("X-Trace", "abc\r\nX-Injected: evil"),
+      ],
+      websocket.upgrade_options(),
+    )
   let expected_81 = Error(error.InvalidOptions("Request(InvalidHeaderValue)"))
   let assert #(True, _, _) = #(actual_81 == expected_81, actual_81, expected_81)
   Nil
@@ -803,9 +841,15 @@ pub fn upgrade_injection_guards_rejects_a_crlf_injected_upgrade_header_value_tes
 
 pub fn upgrade_injection_guards_rejects_a_vertical_tab_byte_in_an_upgrade_header_value_test() -> Nil {
   let actual_82 =
-    websocket.upgrade(current_connection(), "/ws", [
-      #("X-Trace", "abc\u{000B}def"),
-    ])
+    websocket.upgrade(
+      current_connection(),
+      connection.Http1,
+      "/ws",
+      [
+        #("X-Trace", "abc\u{000B}def"),
+      ],
+      websocket.upgrade_options(),
+    )
   let expected_82 = Error(error.InvalidOptions("Request(InvalidHeaderValue)"))
   let assert #(True, _, _) = #(actual_82 == expected_82, actual_82, expected_82)
   Nil
@@ -813,9 +857,15 @@ pub fn upgrade_injection_guards_rejects_a_vertical_tab_byte_in_an_upgrade_header
 
 pub fn upgrade_injection_guards_rejects_an_invalid_upgrade_header_name_test() -> Nil {
   let actual_83 =
-    websocket.upgrade(current_connection(), "/ws", [
-      #("X-Trace: evil", "abc"),
-    ])
+    websocket.upgrade(
+      current_connection(),
+      connection.Http1,
+      "/ws",
+      [
+        #("X-Trace: evil", "abc"),
+      ],
+      websocket.upgrade_options(),
+    )
   let expected_83 = Error(error.InvalidOptions("Request(InvalidHeaderName)"))
   let assert #(True, _, _) = #(actual_83 == expected_83, actual_83, expected_83)
   Nil
@@ -823,9 +873,15 @@ pub fn upgrade_injection_guards_rejects_an_invalid_upgrade_header_name_test() ->
 
 pub fn upgrade_injection_guards_rejects_a_caller_supplied_transfer_encoding_upgrade_header_test() -> Nil {
   let actual_84 =
-    websocket.upgrade(current_connection(), "/ws", [
-      #("Transfer-Encoding", "chunked"),
-    ])
+    websocket.upgrade(
+      current_connection(),
+      connection.Http1,
+      "/ws",
+      [
+        #("Transfer-Encoding", "chunked"),
+      ],
+      websocket.upgrade_options(),
+    )
   let expected_84 =
     Error(error.InvalidOptions("Request(ForbiddenTransferEncodingHeader)"))
   let assert #(True, _, _) = #(actual_84 == expected_84, actual_84, expected_84)
@@ -843,11 +899,13 @@ pub fn websocket_upgrade_options_encodes_default_options_to_an_empty_option_list
 }
 
 pub fn websocket_upgrade_options_encodes_typed_gun_ws_opts_fields_test() -> Nil {
-  let actual_86 = {
+  let assert Ok(flow_options) =
     websocket.upgrade_options()
     |> websocket.with_compress(True)
     |> websocket.with_silence_pings(True)
     |> websocket.with_flow(8)
+  let actual_86 = {
+    flow_options
     |> websocket.with_keepalive(timeout(30_000))
     |> websocket.with_closing_timeout(connection.infinity())
     |> websocket.upgrade_options_to_ffi
@@ -900,11 +958,13 @@ pub fn websocket_upgrade_options_preserves_reply_to_tunnel_and_handler_options_t
 }
 
 pub fn websocket_upgrade_options_normalizes_typed_options_before_calling_gun_test() -> Nil {
-  let actual_89 = {
+  let assert Ok(flow_options) =
     websocket.upgrade_options()
     |> websocket.with_compress(True)
     |> websocket.with_silence_pings(False)
     |> websocket.with_flow(16)
+  let actual_89 = {
+    flow_options
     |> websocket.with_keepalive(timeout(45_000))
     |> websocket.with_closing_timeout(connection.infinity())
     |> websocket.upgrade_options_to_ffi

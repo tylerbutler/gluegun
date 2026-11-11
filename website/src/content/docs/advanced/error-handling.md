@@ -37,6 +37,17 @@ fn safe_get(conn) {
 
 Gluegun normalizes FFI errors at the API boundary. Erlang failures become `GluegunError` values. Raw Erlang terms do not leak.
 
+Match the variant, not the reason string. Maintainers keep variants and
+payload types stable; diagnostic text can change. Incoming data that cannot
+form valid Gleam values returns `DecodeError`. Invalid outgoing frames or a
+message sequence that does not match the operation returns `InvalidMessage`.
+Unexpected runtime failures remain `ErlangError`.
+
+Timeouts and retry counts must be non-negative. Flow credit must be positive;
+TLS depth accepts 0 through 255 and ports accept 0 through 65535. Numeric
+builders return `InvalidOptions` instead of clamping. This includes literal
+timeout construction, so configuration and literal values follow one rule.
+
 ## HTTP collection cleanup
 
 Once a high-level `client` helper gets a stream, it owns failure cleanup. On a collection error, it attempts to cancel the stream and drains queued messages for that stream, even if cancellation fails. It returns the original collection error. Cleanup failures produce a warning instead of replacing that error.
