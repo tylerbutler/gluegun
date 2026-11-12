@@ -1,9 +1,72 @@
-name: Release tag checks
+name: Hex release
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hex-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  package:
+    runs-on: ubuntu-latest
+    outputs:
+      hex: ${{ steps.inspect.outputs.hex }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Require a release tag on main
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          test "${RELEASE_REF#refs/tags/v}" != "$RELEASE_REF"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "$RELEASE_REF^{commit}")"
+          git merge-base --is-ancestor HEAD origin/main
+
+      - name: Setup environment
+        uses: ./.github/actions/setup
+
+      - name: Export Hex package
+        run: gleam export hex-tarball
+
+      - name: Check version and package contents
+        id: inspect
+        run: python3 -B scripts/check_hex_release.py
+
+      - name: Preview Hex publication
+        if: steps.inspect.outputs.hex == 'true'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: trellis publish --dry-run --tag "$RELEASE_TAG"
+
   test:
     uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: [package, test]
+    if: github.event_name == 'workflow_dispatch' && needs.package.outputs.hex == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Setup environment
+        uses: ./.github/actions/setup
+
+      - name: Publish package and API documentation
+        env:
+          HEXPM_API_KEY: ${{ secrets.HEXPM_API_KEY }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          test -n "$HEXPM_API_KEY" || { echo "::error::HEXPM_API_KEY is missing"; exit 1; }
+          trellis publish --tag "$RELEASE_TAG"
+          gleam docs publish

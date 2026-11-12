@@ -6,8 +6,17 @@ next:
   label: Send your first request
 ---
 
-Until version `1.0`, Gluegun is available as a Git dependency. Add it to
-your `gleam.toml`:
+For the 1.0 Hex release, install Gluegun with:
+
+```sh
+gleam add gluegun
+gleam add gleam_http
+```
+
+Add `gleam_http` when you import standard HTTP modules, as the examples do.
+Maintainers have configured Hex publication but have not yet published 1.0.
+Until that release is available, or to use an unreleased revision, add a Git
+dependency to `gleam.toml`:
 
 <nav class="gg-lifecycle" aria-label="Request lifecycle">
   <ol>
@@ -58,7 +67,8 @@ Gluegun uses these packages:
 The package controls these through its `gleam.toml`. Add
 `gleam_http = ">= 4.0.0 and < 5.0.0"` to your application's dependencies when
 you import standard HTTP modules, as the request examples do.
-After maintainers publish the authorized 1.0 release to Hex, use
-`gleam add gluegun`. Until then, use the Git dependency above. See the
+After publication, find versioned API documentation at
+`https://hexdocs.pm/gluegun/<version>/`. Until then, use the Git dependency above
+and the [website API reference](/reference/). See the
 [release setup instructions](https://github.com/tylerbutler/gluegun#hex-release-setup)
 for the steps that remain before publication.

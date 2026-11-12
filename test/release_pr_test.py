@@ -157,15 +157,20 @@ class ReleasePreparationTests(unittest.TestCase):
 
 
 class ReleasePolicyTests(unittest.TestCase):
-    def test_hex_publication_is_disabled(self):
+    def test_hex_publication_requires_manual_tagged_run_after_checks(self):
         config = tomllib.loads((ROOT / "gleam.toml").read_text())
         self.assertEqual(config["tools"]["trellis"]["publish"]["lifecycle"], {
-            "default": "git_only",
+            "default": "hex",
         })
-        for workflow in (ROOT / ".github" / "workflows").glob("*.yml"):
-            with self.subTest(workflow=workflow.name):
-                self.assertNotRegex(workflow.read_text(), r"\b(?:trellis|gleam)\s+publish\b")
-                self.assertNotIn("HEXPM_API_KEY", workflow.read_text())
+        workflow = (ROOT / ".github/workflows/publish.yml").read_text()
+        self.assertIn("needs: [package, test]", workflow)
+        self.assertIn(
+            "if: github.event_name == 'workflow_dispatch' && "
+            "needs.package.outputs.hex == 'true'", workflow,
+        )
+        self.assertIn('trellis publish --tag "$RELEASE_TAG"', workflow)
+        self.assertIn("gleam docs publish", workflow)
+        self.assertIn("git merge-base --is-ancestor HEAD origin/main", workflow)
 
     def test_candidate_cycle_retains_fragments_until_promotion(self):
         with tempfile.TemporaryDirectory() as directory:

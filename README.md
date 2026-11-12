@@ -9,8 +9,17 @@ Gun is an asynchronous HTTP client supporting HTTP/1.1, HTTP/2, and WebSocket ov
 
 ## Installation
 
-Gluegun is distributed as a Git dependency until `1.0`. Add it to your
-`gleam.toml` instead of using `gleam add`:
+For the 1.0 Hex release, install Gluegun with:
+
+```sh
+gleam add gluegun
+gleam add gleam_http
+```
+
+Add `gleam_http` when you import standard HTTP modules, as the examples do.
+Maintainers have configured Hex publication but have not yet published 1.0.
+Until that release is available, or to use an unreleased revision, add a Git
+dependency to `gleam.toml`:
 
 ```toml
 [dependencies]
@@ -484,49 +493,64 @@ just change --kind Added --body "Describe the change"
 
 Preview the next release with `just changelog-preview`. Trellis creates release
 pull requests from pending fragments on `main`. Merge `release/pending` to create
-an exact `v{version}` tag and a GitHub release. Tag pushes run CI. Both candidate
-and stable releases are Git-only: Hex publication is disabled in the Trellis
-configuration and there is no Hex publish job.
+an exact `v{version}` tag and a GitHub release. Tag pushes run CI and package
+inspection without publishing. Trellis uses the `hex` lifecycle; maintainers
+must authorize a manual **Hex release** run to publish a 1.0-or-later version,
+including release candidates. The workflow excludes 0.x versions from publication.
 
 ### Hex release setup
 
-Hex publication remains maintainer work tracked in
-[#55](https://github.com/tylerbutler/gluegun/issues/55). The changes here do
-not enable publication. Keep the Git installation instructions until an
-authorized package release exists.
+The repository configures Hex publication; an actual release still requires
+maintainer authorization. Track publication verification in
+[#55](https://github.com/tylerbutler/gluegun/issues/55). Configuration and dry-run
+checks do not establish that Hex accepted a package or that HexDocs serves it.
 
 Before the first Hex release:
 
 1. Select the intended 1.0 candidate or stable version through the existing
    release process. Do not overwrite or duplicate `release/pending`.
-2. Set `default = "hex"` in `[tools.trellis.publish.lifecycle]` in a
-   reviewed release change. Keep pre-1.0 Git-only releases excluded from the
-   future publishing workflow.
-3. Configure that workflow to check out an immutable approved tag, check that
-   `v{version}` matches `gleam.toml`, and require CI, compatibility, example,
-   documentation, and reference freshness checks before publication.
-4. Build and inspect with `gleam export hex-tarball`. Check `metadata.config`
+2. Merge the reviewed release PR and confirm the immutable `v{version}` tag
+   points to that commit on `main`. The **Hex release** workflow checks the
+   tag against `gleam.toml`, package contents, and ancestry on `main`. It requires
+   CI, compatibility, examples, documentation, and reference freshness checks.
+   A push runs these checks only; it does not publish.
+3. Build and inspect with `gleam export hex-tarball`. Check `metadata.config`
    and its nested `contents.tar.gz`: include the licence, Gleam modules, and
    `src/gluegun_ffi.erl`; exclude test/compatibility helpers, build output,
    credentials, and development artifacts. Review production dependencies.
-   `trellis publish --dry-run gluegun` checks selection and dependency
-   rewrites after lifecycle enablement; it does not replace the test suite.
-5. Add a scoped Hex publishing credential through the repository's approved
-   secret process. Gleam supports `HEXPM_API_KEY`; the workflow must reference
-   the configured name without printing its value. Existing
+   `trellis publish --dry-run --tag v1.0.0` checks tag selection and dependency
+   rewrites from the corresponding checkout; it does not replace the test suite.
+4. Confirm the repository's `HEXPM_API_KEY` Actions secret contains a scoped
+   Hex key with package and documentation publishing access. Read secret names
+   with `gh secret list --repo tylerbutler/gluegun`; do not print secret values.
+   The required secret names were present during setup, but this check cannot
+   establish key validity, scope, or package ownership. Existing
    `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` support GitHub release
-   operations, not Hex publication. Verify access with maintainers; this
-   change does not inspect or alter secrets.
-6. Only after explicit authorization, use Trellis's Hex publication path.
-   Verify the package version and API documentation on Hex/HexDocs, then
-   update installation examples to `gleam add gluegun` and link the
-   published documentation. If documentation needs a separate upload,
-   maintainers must authorize `gleam docs publish` for the same version.
+   operations, not Hex publication. Report missing credentials or access to
+   maintainers; configuration work does not authorize secret/settings changes.
+5. Only after explicit publication authorization, dispatch **Hex release**
+   on the approved tag, for example:
+
+   ```sh
+   gh workflow run publish.yml --repo tylerbutler/gluegun --ref v1.0.0
+   ```
+
+   Do not run it on a branch. The workflow checks the tagged source again,
+   runs `trellis publish --tag "$RELEASE_TAG"` with `HEXPM_API_KEY`, then
+   runs `gleam docs publish` for that same version. Trellis calls
+   `gleam publish --yes`, which uploads the package and API documentation.
+   The explicit docs step also completes documentation after a partial upload
+   where Trellis skips an existing Hex version.
+6. Confirm the version on [Hex](https://hex.pm/packages/gluegun) and its API
+   reference at `https://hexdocs.pm/gluegun/<version>/`. Remove the pending
+   publication notice from installation instructions after this verification.
 
 If publication fails, retain the approved tag and inspect whether Hex
 accepted the version before retrying. Do not retag or overwrite a published
-version. Trellis checks existing Hex versions, but maintainers must check
-documentation completion after a partial release.
+version. After confirming the accepted package matches the approved tag,
+maintainers can authorize another manual run on the same tag. Trellis skips
+existing Hex versions; the docs step uploads documentation for that version.
+Do not use `--replace` as a recovery shortcut.
 
 ### Website reference builds
 
@@ -606,7 +630,9 @@ just changelog-preview --pre none
 The last two commands require a candidate version in the local manifest.
 The **Auto-tag release** workflow also supports a manual run on `main` to recover
 missing tags or GitHub releases. Release preparation requires the
-`RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` Actions secrets; no Hex key is used.
+`RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` Actions secrets. Those workflows
+do not use the Hex key; the separate manual **Hex release** publish job uses
+`HEXPM_API_KEY`.
 
 ## License
 
