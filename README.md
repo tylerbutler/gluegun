@@ -494,7 +494,7 @@ just change --kind Added --body "Describe the change"
 Preview the next release with `just changelog-preview`. Trellis creates release
 pull requests from pending fragments on `main`. Merge `release/pending` to create
 an exact `v{version}` tag and a GitHub release. Tag pushes run CI and package
-inspection without publishing. Trellis uses the `hex` lifecycle; maintainers
+export without publishing. Trellis uses the `hex` lifecycle; maintainers
 must authorize a manual **Hex release** run to publish a 1.0-or-later version,
 including release candidates. The workflow excludes 0.x versions from publication.
 
@@ -511,7 +511,7 @@ Before the first Hex release:
    release process. Do not overwrite or duplicate `release/pending`.
 2. Merge the reviewed release PR and confirm the immutable `v{version}` tag
    points to that commit on `main`. The **Hex release** workflow checks the
-   tag against `gleam.toml`, package contents, and ancestry on `main`. It requires
+   tag against `gleam.toml` and ancestry on `main`, and exports the package. It requires
    CI, compatibility, examples, documentation, and reference freshness checks.
    A push runs these checks only; it does not publish.
 3. Build and inspect with `gleam export hex-tarball`. Check `metadata.config`

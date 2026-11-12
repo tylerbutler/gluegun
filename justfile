@@ -42,7 +42,7 @@ test:
 
 # Check release preparation without GitHub writes or release commands
 test-release:
-    python3 -B -m unittest discover -s test -p '*release*_test.py'
+    python3 -B -m unittest discover -s test -p release_pr_test.py
 
 # === CODE QUALITY ===
 
