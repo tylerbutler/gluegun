@@ -19,7 +19,9 @@ pub fn connection_options() -> ConnectOptions {
   connection.options()
 }
 
-/// Construct a non-negative timeout, or return `InvalidOptions`.
+/// Construct a timeout from 0 through 4_294_967_295 milliseconds, inclusive.
+///
+/// Returns `InvalidOptions` outside this range. Use `infinity()` for no limit.
 pub fn milliseconds(value: Int) -> Result(Timeout, error.GluegunError) {
   connection.milliseconds(value)
 }

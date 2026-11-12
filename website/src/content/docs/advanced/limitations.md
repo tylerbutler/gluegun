@@ -61,8 +61,10 @@ chunked uploads, or send a complete body with `request.request` or `client`.
 ## Numeric options and incoming strings
 
 Numeric builders return `InvalidOptions` for invalid values instead of
-clamping. Timeouts and retry counts must be non-negative; flow credit must be
-positive; TLS depth accepts 0 through 255; ports accept 0 through 65535.
+clamping. Finite timeouts accept 0 through 4_294_967_295 milliseconds,
+inclusive, as supported by OTP 27. Use `connection.infinity()` for no limit.
+Retry counts must be non-negative; flow credit must be positive; TLS depth
+accepts 0 through 255; ports accept 0 through 65535.
 `connection.milliseconds(5000)` uses `Result` even for literals so configuration
 values follow the same validation rule.
 
