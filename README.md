@@ -461,6 +461,11 @@ just examples-format-check
 just examples-build
 ```
 
+These recipes use Trellis to run tasks across the example workspace members.
+You can also call `trellis run examples-build` or `trellis run examples-test`.
+The examples use the `workspace` release lifecycle, so release commands do not
+version, tag, or publish them.
+
 Networked examples and WebSocket examples are intended for manual `gleam run` because they depend on public endpoints or local servers.
 
 ## Development

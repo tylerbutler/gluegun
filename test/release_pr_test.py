@@ -161,6 +161,7 @@ class ReleasePolicyTests(unittest.TestCase):
         config = tomllib.loads((ROOT / "gleam.toml").read_text())
         self.assertEqual(config["tools"]["trellis"]["publish"]["lifecycle"], {
             "default": "git_only",
+            "packages": {"examples/*": "workspace"},
         })
         for workflow in (ROOT / ".github" / "workflows").glob("*.yml"):
             with self.subTest(workflow=workflow.name):
@@ -171,6 +172,23 @@ class ReleasePolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             fixture = Path(directory)
             (fixture / "gleam.toml").write_text((ROOT / "gleam.toml").read_text())
+            example_versions = {}
+            for manifest in sorted((ROOT / "examples").glob("*/gleam.toml")):
+                relative = manifest.relative_to(ROOT)
+                destination = fixture / relative
+                destination.parent.mkdir(parents=True)
+                destination.write_text(manifest.read_text())
+                example_versions[relative] = tomllib.loads(manifest.read_text())["version"]
+
+            releasable = subprocess.run(
+                ["trellis", "--no-update-check", "-C", directory,
+                 "list", "--releasable", "--json"],
+                check=True, capture_output=True, text=True,
+            )
+            self.assertEqual(
+                [package["name"] for package in json.loads(releasable.stdout)["packages"]],
+                ["gluegun"],
+            )
 
             def git(*args):
                 return subprocess.run(
@@ -181,7 +199,7 @@ class ReleasePolicyTests(unittest.TestCase):
                 ).stdout.strip()
 
             git("init")
-            git("add", "gleam.toml")
+            git("add", ".")
             git("commit", "-m", "Initial fixture")
             base = git("rev-parse", "HEAD")
             fragments = fixture / ".changes" / "unreleased"
@@ -204,6 +222,11 @@ class ReleasePolicyTests(unittest.TestCase):
                     version = tomllib.loads((fixture / "gleam.toml").read_text())["version"]
                     self.assertEqual(version, expected)
                     self.assertEqual(fragment.exists(), retained)
+                    for relative, original in example_versions.items():
+                        self.assertEqual(
+                            tomllib.loads((fixture / relative).read_text())["version"],
+                            original,
+                        )
                     if retained:
                         git("add", ".")
                         git("commit", "-m", f"Prepare {expected}")

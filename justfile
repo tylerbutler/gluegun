@@ -62,30 +62,23 @@ check:
 
 # Download dependencies for every standalone example package
 examples-deps:
-    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && gleam deps download); fi; done
+    trellis run examples-deps
 
 # Format every standalone example package
 examples-format:
-    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && if [ -d test ]; then gleam format src test; else gleam format src; fi) || exit 1; fi; done
+    trellis run examples-format
 
 # Check formatting for every standalone example package
 examples-format-check:
-    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && if [ -d test ]; then gleam format --check src test; else gleam format --check src; fi) || exit 1; fi; done
+    trellis run examples-format-check
 
 # Run tests for standalone example packages with test directories
 examples-test:
-    for dir in examples/*; do if [ -f "$dir/gleam.toml" ] && [ -d "$dir/test" ]; then (cd "$dir" && gleam test) || exit 1; fi; done
+    trellis run examples-test --serial
 
 # Build every standalone example package; package escripts for examples that depend on gleescript
 examples-build:
-    for dir in examples/*; do \
-        if [ -f "$dir/gleam.toml" ]; then \
-            (cd "$dir" && gleam build) || exit 1; \
-            if grep -q '^gleescript ' "$dir/gleam.toml" || grep -q '^gleescript ' "$dir/manifest.toml" 2>/dev/null; then \
-                (cd "$dir" && gleam run -m gleescript -- --out=dist) || exit 1; \
-            fi; \
-        fi; \
-    done
+    trellis run examples-build
 
 # === DOCUMENTATION ===
 

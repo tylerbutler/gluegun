@@ -53,7 +53,7 @@ The Erlang FFI boundary is centralized in `src/gluegun_ffi.erl` and the `@extern
 
 `Connection` and `Stream` are external foreign types declared in `gluegun/internal.gleam`: they name a Gun connection process identifier and a Gun stream reference, have no Gleam constructors, and can only come from Gun (or, in tests, from typed constructors in `test/gluegun_ffi_test.erl`).
 
-Examples under `examples/` are standalone Erlang-target Gleam packages; each can be built with `gleam build` and run with `gleam run` from its directory. Root `just` recipes `examples-deps`, `examples-format-check`, `examples-test`, and `examples-build` operate on examples. `just ci` checks example formatting and runs their tests; `just main` also builds examples.
+Examples under `examples/` are standalone Erlang-target Gleam packages and Trellis workspace members. Their `workspace` release lifecycle excludes them from changelogs, version bumps, tags, and publishing. Each can be built with `gleam build` and run with `gleam run` from its directory. Root `just` recipes delegate to the corresponding `trellis run examples-*` tasks. These tasks exclude the root package; `examples-test` runs only packages with test directories, and `examples-build` also packages escripts when a package depends on `gleescript`. `just ci` checks example formatting and runs their tests; `just main` also builds examples.
 
 `just docs-examples` extracts import-and-function Gleam blocks from the README
 and website guides into a temporary package. It also checks the landing-page
