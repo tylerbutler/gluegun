@@ -26,6 +26,22 @@ pub fn typed_option_conversion_rejects_negative_timeouts_test() -> Nil {
   Nil
 }
 
+pub fn typed_option_conversion_accepts_zero_timeout_test() -> Nil {
+  let assert Ok(_) = connection.milliseconds(0)
+  Nil
+}
+
+pub fn typed_option_conversion_accepts_maximum_timeout_test() -> Nil {
+  let assert Ok(_) = connection.milliseconds(4_294_967_295)
+  Nil
+}
+
+pub fn typed_option_conversion_rejects_oversized_timeout_test() -> Nil {
+  let assert Error(error.InvalidOptions(_)) =
+    connection.milliseconds(4_294_967_296)
+  Nil
+}
+
 pub fn typed_option_conversion_preserves_protocol_ordering_test() -> Nil {
   let actual_3 = {
     connection.options()
