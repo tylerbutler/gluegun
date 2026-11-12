@@ -226,6 +226,10 @@ Receive the next application frame, handling ping/pong control frames.
  another reply. Text, binary, close, and close-with-reason frames are returned
  to the caller. Use `pong` to send an explicit pong.
 
+ Each call uses one total deadline from the socket's timeout. Skipped
+ control frames do not restart it. `Infinity` permits an unlimited wait;
+ a zero timeout returns `Timeout` without consuming queued frames.
+
 ```gleam
 pub fn receive_app_frame(socket: Socket) -> Result(message.Frame, error.GluegunError)
 ```
@@ -446,7 +450,9 @@ Open a WebSocket, run a callback, then send the close frame and close
  Scoped lifecycle helper. Use this when the WebSocket session is
  self-contained. The callback receives a reusable `Socket`. Errors from
  the callback take precedence over cleanup errors; cleanup is attempted
- even when the callback fails.
+ even when the callback fails. If the callback panics, fails an assertion,
+ or raises an Erlang exception, bounded teardown runs before re-raising
+ the original exception class, reason, and stack. Cleanup cannot replace it.
 
 ```gleam
 pub fn with_socket(
