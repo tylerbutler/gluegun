@@ -96,6 +96,12 @@ pub fn echo_once() {
 
 `with_socket` calls `websocket.close` after the callback returns, including when it returns an error. Callback errors take precedence over cleanup errors. If the callback succeeds, a teardown error becomes the result of `with_socket`. A callback can close its own socket; the later scoped close remains safe.
 
+If the callback panics, fails an assertion, or raises an Erlang exception,
+`with_socket` performs the same bounded teardown, then re-raises the original
+exception with its class, reason, and stack. Cleanup errors cannot replace the
+callback exception. This also releases the socket when you catch the exception
+outside `with_socket` and keep the owner process alive.
+
 ## Control frames
 
 Gun automatically sends one matching pong for each incoming ping. The
@@ -104,6 +110,12 @@ receiver; it does not disable automatic replies. `receive_app_frame` skips
 visible ping and pong frames, including empty payloads, and returns the next
 text, binary, or close frame. It does not send another pong. Use
 `websocket.pong` when you need to send an explicit pong.
+
+Each `receive_app_frame` call uses one total deadline from the socket's
+configured timeout. Skipped control frames do not restart the deadline.
+`Infinity` permits an unlimited wait. A zero timeout returns `Error(Timeout)`
+without consuming queued frames. `receive_frame` waits for one frame using
+the socket's timeout.
 
 You can send up to 125 bytes in a Ping or Pong payload. A `CloseWithReason`
 reason must contain valid UTF-8 and at most 123 bytes. The close code uses two
