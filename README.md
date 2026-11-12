@@ -536,7 +536,9 @@ and `website/reference-state.json` with changes to source files, `gleam.toml`,
 
 Install the tools listed in `.mise.toml` and enable Corepack for the pnpm
 version in `website/package.json`. Reference generation requires Gleam, Erlang,
-and rebar3. Use these commands from the repository root:
+and rebar3. Linux tool locks use the Ubuntu 24.04 OTP build. The rebar3 pin
+uses the official GitHub release, not a local mise plugin.
+Use these commands from the repository root:
 
 ```sh
 just site-deps             # Install website dependencies

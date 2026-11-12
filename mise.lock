@@ -38,6 +38,36 @@ checksum = "sha256:3b7a54b6d2488be2985baf15ab514cb65738a5a952fb2adea8617aced2d27
 url = "https://github.com/erlang/otp/releases/download/OTP-27.2.1/otp_win64_27.2.1.zip"
 url_api = "https://api.github.com/repos/erlang/otp/releases/assets/222872236"
 
+[[tools."github:erlang/rebar3"]]
+version = "3.26.0"
+backend = "github:erlang/rebar3"
+specifiers = ["3.26.0"]
+
+[tools."github:erlang/rebar3"."platforms.linux-arm64"]
+checksum = "sha256:cd9bfe244c5919292d234ca35acb51d2ca75dce89ef6d9e49f5e3b7f70009782"
+url = "https://github.com/erlang/rebar3/releases/download/3.26.0/rebar3"
+url_api = "https://api.github.com/repos/erlang/rebar3/releases/assets/337644584"
+
+[tools."github:erlang/rebar3"."platforms.linux-x64"]
+checksum = "sha256:cd9bfe244c5919292d234ca35acb51d2ca75dce89ef6d9e49f5e3b7f70009782"
+url = "https://github.com/erlang/rebar3/releases/download/3.26.0/rebar3"
+url_api = "https://api.github.com/repos/erlang/rebar3/releases/assets/337644584"
+
+[tools."github:erlang/rebar3"."platforms.macos-arm64"]
+checksum = "sha256:cd9bfe244c5919292d234ca35acb51d2ca75dce89ef6d9e49f5e3b7f70009782"
+url = "https://github.com/erlang/rebar3/releases/download/3.26.0/rebar3"
+url_api = "https://api.github.com/repos/erlang/rebar3/releases/assets/337644584"
+
+[tools."github:erlang/rebar3"."platforms.macos-x64"]
+checksum = "sha256:cd9bfe244c5919292d234ca35acb51d2ca75dce89ef6d9e49f5e3b7f70009782"
+url = "https://github.com/erlang/rebar3/releases/download/3.26.0/rebar3"
+url_api = "https://api.github.com/repos/erlang/rebar3/releases/assets/337644584"
+
+[tools."github:erlang/rebar3"."platforms.windows-x64"]
+checksum = "sha256:cd9bfe244c5919292d234ca35acb51d2ca75dce89ef6d9e49f5e3b7f70009782"
+url = "https://github.com/erlang/rebar3/releases/download/3.26.0/rebar3"
+url_api = "https://api.github.com/repos/erlang/rebar3/releases/assets/337644584"
+
 [[tools."github:tylerbutler/trellis"]]
 version = "1.5.0"
 backend = "github:tylerbutler/trellis"
@@ -162,8 +192,3 @@ url = "https://nodejs.org/dist/v24.19.0/node-v24.19.0-darwin-x64.tar.gz"
 [tools.node."platforms.windows-x64"]
 checksum = "sha256:57f71ab3652e797d84acddc79c81cc9ff1c6ddb2a1974cdb83f00fee9bff4c73"
 url = "https://nodejs.org/dist/v24.19.0/node-v24.19.0-win-x64.zip"
-
-[[tools.rebar]]
-version = "3.26.0"
-backend = "asdf:rebar"
-specifiers = ["3.26.0"]
