@@ -63,8 +63,11 @@ Gluegun targets Erlang only and declares these bounds:
 The compatibility CI job builds a separate consumer with minimum production
 dependencies and a current compatible set. It excludes Gluegun's test-runner
 dependencies and exercises public HTTP, WebSocket upgrade/adoption,
-subprotocols, and finite-credit close against loopback peers.
-The pinned root suite covers additional HTTP/2, TLS, and WebSocket wire contracts.
+subprotocols, and finite-credit close against loopback peers. The current set
+also runs the root bounded-streaming suite, including real HTTP/2 push arrival
+and cleanup, flow control, and TLS trust and hostname verification over IPv4
+and IPv6. The pinned root suite covers these and additional WebSocket wire
+contracts.
 
 The minimum compiler and standard library bounds follow `gleam_erlang` 1.0:
 it requires Gleam 1.11 and `gleam_stdlib` 0.53. Earlier Gluegun declarations

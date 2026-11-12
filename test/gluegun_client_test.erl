@@ -112,7 +112,10 @@ malformed_push_cleanup() ->
         %% Public low-level await must still decode without cancellation.
         self() ! {gun_push, self(), Stream, Child, <<"GET">>, <<"/push">>, BadHeaders},
         Expected = gluegun_ffi:await(self(), Stream, {milliseconds, 0}),
-        receive {'$gen_cast', {cancel, _, _}} -> error(low_level_cancelled_push)
+        receive
+            {'$gen_cast', {cancel, _, Cancelled}}
+                when Cancelled =:= Stream; Cancelled =:= Child; Cancelled =:= Nested ->
+                error(low_level_cancelled_push)
         after 0 -> ok end,
         Request = fun(_, _, _, _, _, _) ->
             self() ! {gun_push, self(), Stream, Child, <<"GET">>, <<"/push">>, BadHeaders},

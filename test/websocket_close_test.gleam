@@ -3,6 +3,73 @@ import gluegun/error
 import gluegun/message
 import gluegun/websocket
 
+pub fn tears_down_before_reraising_a_gleam_panic_test() -> Nil {
+  let assert Ok(Nil) =
+    assert_scoped_exception("normal", fn() {
+      panic as "scoped WebSocket callback panic"
+    })
+  Nil
+}
+
+pub fn preserves_a_failed_assertion_after_cleanup_timeout_test() -> Nil {
+  let assert Ok(Nil) =
+    assert_scoped_exception("stall", fn() {
+      let assert Ok(_) = connection.milliseconds(-1)
+      Ok(Nil)
+    })
+  Nil
+}
+
+@external(erlang, "gluegun_ws_close_test", "assert_scoped_exception")
+fn assert_scoped_exception(
+  mode: String,
+  failure_callback: fn() -> Result(Nil, error.GluegunError),
+) -> Result(Nil, error.GluegunError)
+
+pub fn preserves_erlang_error_after_teardown_test() -> Nil {
+  let assert Ok(Nil) = assert_exception_cleanup("normal", "error")
+  Nil
+}
+
+pub fn preserves_erlang_exit_after_teardown_test() -> Nil {
+  let assert Ok(Nil) = assert_exception_cleanup("normal", "exit")
+  Nil
+}
+
+pub fn preserves_erlang_throw_after_teardown_test() -> Nil {
+  let assert Ok(Nil) = assert_exception_cleanup("normal", "throw")
+  Nil
+}
+
+pub fn preserves_erlang_error_after_cleanup_timeout_test() -> Nil {
+  let assert Ok(Nil) = assert_exception_cleanup("stall", "error")
+  Nil
+}
+
+pub fn preserves_erlang_exit_after_cleanup_timeout_test() -> Nil {
+  let assert Ok(Nil) = assert_exception_cleanup("stall", "exit")
+  Nil
+}
+
+pub fn preserves_erlang_throw_after_cleanup_timeout_test() -> Nil {
+  let assert Ok(Nil) = assert_exception_cleanup("stall", "throw")
+  Nil
+}
+
+pub fn cleanup_cannot_replace_the_original_callback_exception_test() -> Nil {
+  let assert Ok(Nil) = cleanup_guard_paths()
+  Nil
+}
+
+@external(erlang, "gluegun_ws_close_test", "assert_exception_cleanup")
+fn assert_exception_cleanup(
+  mode: String,
+  class: String,
+) -> Result(Nil, error.GluegunError)
+
+@external(erlang, "gluegun_ws_close_test", "cleanup_guard_paths")
+fn cleanup_guard_paths() -> Result(Nil, error.GluegunError)
+
 pub fn keeps_errors_typed_and_accepts_an_already_exited_process_test() -> Nil {
   let actual_1 = error_paths()
   let expected_1 = Ok(Nil)

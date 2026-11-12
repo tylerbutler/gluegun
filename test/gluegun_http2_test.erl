@@ -339,7 +339,7 @@ run(Mode, ConnectOptions, RequestOptions) ->
                 {ok, Stream} = gluegun_ffi:request(Conn, <<"GET">>, <<"/">>,
                     [], <<>>, RequestOptions),
                 await_response(Mode, Conn, Stream),
-                consume(Mode, Conn, Stream, Server)
+                consume(Mode, Conn, Stream, Server, Port)
             after
                 {ok, nil} = gluegun_ffi:terminate(Conn)
             end,
@@ -371,7 +371,7 @@ await_response(_Mode, Conn, Stream) ->
     {ok, {response, no_fin, 200, _}} =
         gluegun_ffi:await(Conn, Stream, {milliseconds, 1000}).
 
-consume(<<"flow">>, Conn, Stream, Server) ->
+consume(<<"flow">>, Conn, Stream, Server, _Port) ->
     Window = receive
         {initial_window, Server, Size} -> Size
     after 1000 -> error(no_initial_window)
@@ -392,13 +392,13 @@ consume(<<"flow">>, Conn, Stream, Server) ->
     end,
     {ok, {data, fin, Final}} = gluegun_ffi:await(Conn, Stream, {milliseconds, 1000}),
     Final = binary:copy(<<"y">>, 32);
-consume(<<"limit">>, Conn, Stream, _Server) ->
+consume(<<"limit">>, Conn, Stream, _Server, _Port) ->
     {ok, {data, no_fin, First}} = gluegun_ffi:await(Conn, Stream, {milliseconds, 1000}),
     32 = byte_size(First),
     {ok, {data, fin, Final}} = gluegun_ffi:await(Conn, Stream, {milliseconds, 1000}),
     true = byte_size(First) + byte_size(Final) > 64,
     {ok, nil} = gluegun_ffi:cancel(Conn, Stream);
-consume(<<"cleanup">>, Conn, Stream, _Server) ->
+consume(<<"cleanup">>, Conn, Stream, _Server, Port) ->
     %% Leave the preceding real PUSH_PROMISE queued while selecting the
     %% parent's DATA. Both signals come from Gun, so receipt proves ordering.
     receive
@@ -406,7 +406,8 @@ consume(<<"cleanup">>, Conn, Stream, _Server) ->
     after 1000 -> error({no_parent_data, process_info(self(), messages)})
     end,
     {messages, Messages} = process_info(self(), messages),
-    [{gun_push, Conn, Stream, _, <<"GET">>, <<"http://localhost/pushed">>, _}] =
+    URI = <<"http://localhost:", (integer_to_binary(Port))/binary, "/pushed">>,
+    [{gun_push, Conn, Stream, _, <<"GET">>, URI, _}] =
         [Message || Message = {gun_push, Pid, _, _, _, _, _} <- Messages,
             Pid =:= Conn].
 
@@ -446,9 +447,11 @@ serve(Listener, Parent, Mode) ->
                 ]),
                 wait_closed(Socket, Rest);
             <<"cleanup">> ->
+                {ok, {_, Port}} = inet:sockname(Socket),
+                Authority = <<"localhost:", (integer_to_binary(Port))/binary>>,
                 {PushHeaders, _} = cow_hpack:encode([
                     {<<":method">>, <<"GET">>}, {<<":scheme">>, <<"http">>},
-                    {<<":authority">>, <<"localhost">>}, {<<":path">>, <<"/pushed">>}
+                    {<<":authority">>, Authority}, {<<":path">>, <<"/pushed">>}
                 ]),
                 ok = gen_tcp:send(Socket, [
                     cow_http2:push_promise(StreamID, 2, PushHeaders),
