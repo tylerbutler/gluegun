@@ -1,11 +1,14 @@
 """Release mode checks with no GitHub writes, tags, or publication."""
 
 import importlib.util
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
+import threading
 import tomllib
 import unittest
 from unittest.mock import patch
@@ -17,7 +20,10 @@ SPEC = importlib.util.spec_from_file_location(
 )
 release_pr = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(release_pr)
-COMMAND = ["trellis", "release", "pr", "--base", "main", "--branch", "release/pending"]
+COMMAND = [
+    "trellis", "release", "pr", "--base", "main", "--branch", "release/pending",
+    "--prepare-command", "node website/scripts/generate-reference.mjs",
+]
 
 
 class ReleasePreparationTests(unittest.TestCase):
@@ -168,10 +174,50 @@ class ReleasePolicyTests(unittest.TestCase):
                 self.assertNotRegex(workflow.read_text(), r"\b(?:trellis|gleam)\s+publish\b")
                 self.assertNotIn("HEXPM_API_KEY", workflow.read_text())
 
-    def test_candidate_cycle_retains_fragments_until_promotion(self):
+    def test_release_versions_commit_fresh_references(self):
+        class GitHub(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"[]")
+
+            def do_POST(self):
+                self.rfile.read(int(self.headers["Content-Length"]))
+                self.send_response(201)
+                self.end_headers()
+                self.wfile.write(
+                    b'{"number":1,"html_url":"https://example.invalid/release/pull/1"}',
+                )
+
+            def log_message(self, *_args):
+                pass
+
+        server = self.enterContext(HTTPServer(("127.0.0.1", 0), GitHub))
+        thread = threading.Thread(target=server.serve_forever)
+        thread.start()
+        self.addCleanup(thread.join)
+        self.addCleanup(server.shutdown)
+        self.enterContext(patch.dict(os.environ, {
+            "TRELLIS_GITHUB_API_URL": f"http://127.0.0.1:{server.server_port}",
+            "TRELLIS_GITHUB_REPO": "fixture/release",
+            "GITHUB_TOKEN": "local-test-token",
+            "GIT_CONFIG_COUNT": "2",
+            "GIT_CONFIG_KEY_0": "commit.gpgsign",
+            "GIT_CONFIG_VALUE_0": "false",
+            "GIT_CONFIG_KEY_1": "core.hooksPath",
+            "GIT_CONFIG_VALUE_1": "/dev/null",
+        }))
+        remote = self.enterContext(tempfile.TemporaryDirectory())
+        subprocess.run(["git", "init", "--bare", remote], check=True, capture_output=True)
         with tempfile.TemporaryDirectory() as directory:
             fixture = Path(directory)
-            (fixture / "gleam.toml").write_text((ROOT / "gleam.toml").read_text())
+            for file in ("gleam.toml", "manifest.toml", ".mise.toml", ".gitignore"):
+                shutil.copyfile(ROOT / file, fixture / file)
+            shutil.copytree(ROOT / "src", fixture / "src")
+            scripts = fixture / "website" / "scripts"
+            scripts.mkdir(parents=True)
+            for file in ("generate-reference.mjs", "reference-state.mjs"):
+                shutil.copyfile(ROOT / "website" / "scripts" / file, scripts / file)
             example_versions = {}
             for manifest in sorted((ROOT / "examples").glob("*/gleam.toml")):
                 relative = manifest.relative_to(ROOT)
@@ -198,45 +244,100 @@ class ReleasePolicyTests(unittest.TestCase):
                     check=True, capture_output=True, text=True,
                 ).stdout.strip()
 
-            git("init")
+            def generate():
+                subprocess.run(
+                    ["node", "website/scripts/generate-reference.mjs"],
+                    cwd=directory, check=True, capture_output=True, text=True,
+                )
+
+            def fresh():
+                subprocess.run(
+                    ["node", "website/scripts/reference-state.mjs"],
+                    cwd=directory, check=True, capture_output=True, text=True,
+                )
+
+            git("init", "-b", "main")
+            git("config", "user.name", "Release Test")
+            git("config", "user.email", "test@example.invalid")
+            git("remote", "add", "origin", remote)
+            generate()
             git("add", ".")
             git("commit", "-m", "Initial fixture")
-            base = git("rev-parse", "HEAD")
             fragments = fixture / ".changes" / "unreleased"
             fragments.mkdir(parents=True)
             fragment = fragments / "gluegun-candidate.toml"
             fragment.write_text(
                 'package = "gluegun"\nkind = "Added"\nbody = "Add candidate support"\n',
             )
-            for args, expected, retained in [
-                (["--set", "gluegun=1.0.0", "--pre", "rc"], "1.0.0-rc.0", True),
-                (["--pre", "rc"], "1.0.0-rc.1", True),
-                (["--pre", "none"], "1.0.0", False),
+            for args, expected in [
+                (["--set", "gluegun=1.0.0", "--pre", "rc"], "1.0.0-rc.0"),
+                (["--pre", "rc"], "1.0.0-rc.1"),
+                (["--pre", "none"], "1.0.0"),
+                (["--set", "gluegun=1.0.1"], "1.0.1"),
             ]:
                 with self.subTest(expected=expected):
+                    fragments.mkdir(parents=True, exist_ok=True)
+                    if expected == "1.0.0-rc.1":
+                        fragment.write_text(
+                            'package = "gluegun"\nkind = "Fixed"\nbody = "Fix candidate support"\n',
+                        )
+                    if expected == "1.0.1":
+                        fragment.write_text(
+                            'package = "gluegun"\nkind = "Fixed"\nbody = "Fix stable release"\n',
+                        )
+                    if fragment.exists():
+                        git("add", ".changes/unreleased")
+                        git("commit", "-m", "Add release fragment")
+                    source = git("rev-parse", "HEAD")
                     subprocess.run(
-                        ["trellis", "--no-update-check", "-C", directory,
-                         "version", "apply", *args],
+                        [*COMMAND, "--no-update-check", "-C", directory, *args],
                         check=True, capture_output=True, text=True,
                     )
+                    git("fetch", "origin", "release/pending")
+                    git("merge", "--ff-only", "FETCH_HEAD")
+                    self.assertEqual(git("rev-parse", "HEAD^"), source)
                     version = tomllib.loads((fixture / "gleam.toml").read_text())["version"]
                     self.assertEqual(version, expected)
-                    self.assertEqual(fragment.exists(), retained)
                     for relative, original in example_versions.items():
                         self.assertEqual(
                             tomllib.loads((fixture / relative).read_text())["version"],
                             original,
                         )
-                    if retained:
-                        git("add", ".")
-                        git("commit", "-m", f"Prepare {expected}")
-                        check = subprocess.run(
-                            ["trellis", "--no-update-check", "-C", directory,
-                             "changelog", "check", "--base", base, "--head", "HEAD",
-                             "--format", "github"],
-                            check=True, capture_output=True, text=True,
-                        )
-                        self.assertIn("ok=true", check.stdout)
+                    self.assertFalse(fragment.exists())
+                    archive = fixture / ".changes" / "gluegun" / "v1.0.0-rc.0.toml"
+                    self.assertIn("Add candidate support", archive.read_text())
+                    if expected == "1.0.0":
+                        changelog = (fixture / "CHANGELOG.md").read_text()
+                        stable = changelog.split("## 1.0.0 -", 1)[1].split("\n## ", 1)[0]
+                        self.assertIn("Add candidate support", stable)
+                        self.assertIn("Fix candidate support", stable)
+                    fresh()
+                    index = "website/src/content/docs/reference/index.md"
+                    self.assertIn(f"`{expected}`", (fixture / index).read_text())
+                    self.assertIn(f"`{expected}`", git("show", f"HEAD:{index}"))
+                    self.assertEqual(
+                        git("show", "HEAD:website/reference-state.json"),
+                        (fixture / "website" / "reference-state.json").read_text().strip(),
+                    )
+                    self.assertEqual(git("status", "--porcelain"), "")
+
+            previous = git("ls-remote", "origin", "refs/heads/release/pending")
+            fragments.mkdir(parents=True, exist_ok=True)
+            fragment.write_text(
+                'package = "gluegun"\nkind = "Fixed"\nbody = "Check generation failure"\n',
+            )
+            git("add", ".changes/unreleased")
+            git("commit", "-m", "Add failing release fragment")
+            failed = subprocess.run(
+                ["trellis", "--no-update-check", "-C", directory, "release", "pr",
+                 "--prepare-command", 'node -e "process.exit(1)"'],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn("prepare command", failed.stderr)
+            self.assertEqual(
+                git("ls-remote", "origin", "refs/heads/release/pending"), previous,
+            )
 
 
 if __name__ == "__main__":

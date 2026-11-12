@@ -19,7 +19,7 @@ def git_stdout(*args):
 
 
 def new_candidate_changes():
-    # RC fragments survive release; compare against the last version change.
+    # Compare new fragments against the last version change.
     baseline = git_stdout(
         "log", "-1", "--format=%H", "-G", "^version[[:space:]]*=", "--", "gleam.toml",
     )
@@ -60,7 +60,10 @@ def prepare(event, pre="", version=""):
                 return False
             pre = current_pre
 
-    args = ["trellis", "release", "pr", "--base", "main", "--branch", "release/pending"]
+    args = [
+        "trellis", "release", "pr", "--base", "main", "--branch", "release/pending",
+        "--prepare-command", "node website/scripts/generate-reference.mjs",
+    ]
     if pre.strip():
         args.extend(["--pre", pre.strip()])
     if version.strip():
