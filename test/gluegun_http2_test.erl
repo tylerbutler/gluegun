@@ -1,7 +1,203 @@
 -module(gluegun_http2_test).
 -include_lib("public_key/include/public_key.hrl").
 
--export([run/3, with_tls_cancel_server/1]).
+-export([run/3, with_tls_cancel_server/1, http2_push_cleanup/1]).
+
+%% Result(Nil, String), called by the Gleam client regression entrypoints.
+http2_push_cleanup(Mode) ->
+    try
+        true = lists:member(Mode, [<<"headers">>, <<"body">>, <<"cleanup">>, <<"malformed">>]),
+        {ok, Listener} = gen_tcp:listen(0,
+            [binary, {active, false}, {ip, {127,0,0,1}}, {reuseaddr, true}]),
+        {ok, {_, Port}} = inet:sockname(Listener),
+        Owner = self(),
+        {Server, Monitor} = spawn_monitor(fun() ->
+            serve_push_cleanup(Listener, Owner, Port, Mode)
+        end),
+        try
+            Options = gluegun@connection:with_protocols(
+                gluegun@connection:with_transport(gluegun@connection:options(), tcp),
+                [http2]),
+            {ok, Conn} = gluegun@connection:open(Options, <<"localhost">>, Port),
+            try
+                {ok, http2} = gluegun_ffi:await_up(Conn, {milliseconds, 2000}),
+                {ok, Other} = gluegun@request:request(Conn, get, <<"/other">>,
+                    [], <<>>, gluegun@request:options()),
+                Next = make_ref(),
+                Request = fun(C, Method, Path, Headers, Body, Opts) ->
+                    {ok, Stream} = gluegun@request:request(C, Method, Path, Headers, Body, Opts),
+                    %% Last event in one peer write. Selecting it leaves real
+                    %% PUSH_PROMISE and unfinished promised bodies queued.
+                    receive
+                        {gun_data, C, Stream, nofin, <<"barrier">>} -> ok
+                    after 2000 -> error({missing_push_barrier, process_info(self(), messages)})
+                    end,
+                    {messages, Mail} = process_info(self(), messages),
+                    Promised = [Child || {gun_push, Pid, Parent, Child, _, _, _} <- Mail,
+                        Pid =:= C, Parent =:= Stream],
+                    2 = length(Promised),
+                    case Mode of
+                        <<"body">> ->
+                            %% Cowlib bundled with Gun 2.2 only accepts pushes
+                            %% before response HEADERS. Defer consuming those
+                            %% real push events until the collector has consumed
+                            %% these real response/body events instead.
+                            receive
+                                {gun_response, C, Stream, nofin, 200, H} ->
+                                    self() ! {Next, {ok, {response, no_fin, 200, H}}}
+                            after 0 -> error(missing_parent_headers)
+                            end,
+                            receive
+                                {gun_data, C, Stream, nofin, <<"part">>} ->
+                                    self() ! {Next, {ok, {data, no_fin, <<"part">>}}}
+                            after 0 -> error(missing_parent_body)
+                            end;
+                        _ -> ok
+                    end,
+                    self() ! {push_test_streams, Stream, Promised},
+                    {ok, Stream}
+                end,
+                Await = case Mode of
+                    <<"cleanup">> -> fun(_, _, _) -> {error, timeout} end;
+                    <<"body">> -> fun(C, S, T) ->
+                        receive {Next, Event} -> Event
+                        after 0 -> gluegun_ffi:await(C, S, T)
+                        end
+                    end;
+                    _ -> fun gluegun_ffi:await/3
+                end,
+                Result = case Mode of
+                    <<"malformed">> ->
+                        gluegun@client:get(Conn, <<"/push">>, [], {milliseconds, 2000});
+                    _ -> gluegun@client:get_with(Conn, <<"/push">>, [],
+                        {milliseconds, 2000}, Request, Await)
+                end,
+                case Mode of
+                    <<"cleanup">> -> {error, timeout} = Result;
+                    <<"malformed">> -> {error, {decode_error, <<"InvalidUtf8">>}} = Result;
+                    _ -> {error, {invalid_message,
+                        <<"HTTP helper received push message">>}} = Result
+                end,
+                case Mode of
+                    <<"malformed">> -> ok;
+                    _ -> receive
+                    {push_test_streams, Parent, Promised} ->
+                        lists:foreach(fun(Ref) ->
+                            %% Synchronous call orders every preceding cancel
+                            %% from this owner; no sleeps or stream completion.
+                            {ok, Info} = gun:stream_info(Conn, Ref),
+                            case Info of
+                                undefined -> ok;
+                                #{state := State} when State =/= running -> ok;
+                                _ -> error({stream_still_running, Ref, Info})
+                            end,
+                            assert_push_drained(Conn, Ref)
+                        end, [Parent | Promised])
+                after 0 -> error(missing_push_test_streams)
+                    end
+                end,
+                receive
+                    {push_cancelled, Server} -> ok;
+                    {'DOWN', Monitor, process, Server, PeerReason} ->
+                        error({push_peer_failed, PeerReason})
+                after 2000 -> error(no_wire_push_cancellation)
+                end,
+                {ok, {response, no_fin, 200, _}} =
+                    gluegun_ffi:await(Conn, Other, {milliseconds, 2000}),
+                {ok, {data, fin, <<"unrelated">>}} =
+                    gluegun_ffi:await(Conn, Other, {milliseconds, 2000})
+            after
+                gun:close(Conn),
+                gun:flush(Conn)
+            end
+        after
+            gen_tcp:close(Listener),
+            stop_tls_peer(Server, Monitor)
+        end,
+        {ok, nil}
+    catch Class:Reason:Stack ->
+        {error, iolist_to_binary(io_lib:format("~p:~p at ~p", [Class, Reason, Stack]))}
+    end.
+
+assert_push_drained(Conn, Ref) ->
+    receive
+        {gun_push, Conn, Ref, _, _, _, _} -> error(undrained_push);
+        {gun_response, Conn, Ref, _, _, _} -> error(undrained_push_response);
+        {gun_data, Conn, Ref, _, _} -> error(undrained_push_data);
+        {gun_error, Conn, Ref, _} -> error(undrained_push_error)
+    after 0 -> ok
+    end.
+
+serve_push_cleanup(Listener, Owner, Port, Mode) ->
+    {ok, Socket} = gen_tcp:accept(Listener, 2000),
+    try
+        {ok, <<"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n">>} = gen_tcp:recv(Socket, 24, 2000),
+        ok = gen_tcp:send(Socket, cow_http2:settings(#{})),
+        {Other, _, Rest0} = request_headers(Socket, <<>>, 65535, 65535),
+        {Parent, _, Rest} = request_headers(Socket, Rest0, 65535, 65535),
+        %% Gun validates the push origin against the request, including port.
+        Authority = iolist_to_binary([<<"localhost:">>, integer_to_binary(Port)]),
+        PushHeaders = [
+            {<<":method">>, <<"GET">>}, {<<":scheme">>, <<"http">>},
+            {<<":authority">>, Authority}, {<<":path">>, <<"/promised">>}
+        ],
+        BadHeaders = case Mode of
+            <<"malformed">> -> [{<<"x-obs-text">>, <<255>>}];
+            _ -> []
+        end,
+        {Push, _} = cow_hpack:encode(PushHeaders ++ BadHeaders),
+        {Headers, _} = cow_hpack:encode([{<<":status">>, <<"200">>}]),
+        ParentHeaders = cow_http2:headers(Parent, nofin, Headers),
+        Body = case Mode of
+            <<"body">> -> cow_http2:data(Parent, nofin, <<"part">>);
+            _ -> []
+        end,
+        {Sibling, CancelIDs} = case Mode of
+            %% Public get starts awaiting immediately: a second promise can
+            %% legitimately arrive after its zero-time cleanup has finished.
+            %% Queued sibling cleanup is covered by the barrier modes above.
+            <<"malformed">> -> {[], [Parent, 2]};
+            _ -> {[
+                cow_http2:push_promise(Parent, 4, Push),
+                cow_http2:headers(4, nofin, Headers),
+                cow_http2:data(4, nofin, <<"unfinished sibling">>)
+            ], [Parent, 2, 4]}
+        end,
+        ok = gen_tcp:send(Socket, [
+            cow_http2:push_promise(Parent, 2, Push),
+            cow_http2:headers(2, nofin, Headers),
+            cow_http2:data(2, nofin, <<"unfinished first">>),
+            Sibling,
+            ParentHeaders, Body,
+            cow_http2:data(Parent, nofin, <<"barrier">>)
+        ]),
+        Buffered = push_cancels(Socket, Rest, CancelIDs),
+        Owner ! {push_cancelled, self()},
+        %% An unrelated concurrent request succeeds only after all expected
+        %% exact RST_STREAM CANCEL (wire code 8) frames have arrived.
+        ok = gen_tcp:send(Socket, [
+            cow_http2:headers(Other, nofin, Headers),
+            cow_http2:data(Other, fin, <<"unrelated">>)
+        ]),
+        wait_closed(Socket, Buffered)
+    after gen_tcp:close(Socket)
+    end.
+
+push_cancels(_Socket, Buffer, []) -> Buffer;
+push_cancels(Socket, Buffer, Remaining) ->
+    {Frame, Rest} = next_frame(Socket, Buffer),
+    case Frame of
+        {rst_stream, ID, cancel} ->
+            true = lists:member(ID, Remaining),
+            push_cancels(Socket, Rest, lists:delete(ID, Remaining));
+        {settings, _} ->
+            ok = gen_tcp:send(Socket, cow_http2:settings_ack()),
+            push_cancels(Socket, Rest, Remaining);
+        settings_ack -> push_cancels(Socket, Rest, Remaining);
+        {window_update, _} -> push_cancels(Socket, Rest, Remaining);
+        {window_update, _, _} -> push_cancels(Socket, Rest, Remaining);
+        _ -> error({expected_push_cancel, Remaining, Frame})
+    end.
 
 %% Gleam callback: fn(Int, List(BitArray)) -> Result(Nil, GluegunError).
 %% A successful second response is gated on observing CANCEL on the first

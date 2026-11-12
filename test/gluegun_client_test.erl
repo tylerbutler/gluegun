@@ -1,12 +1,14 @@
 -module(gluegun_client_test).
 
 -export([failure_cleanup/3, no_cleanup/1, delayed_response/1, local_failure/1,
-    late_after_drain/0]).
+    late_after_drain/0, push_cleanup/1, malformed_push_cleanup/0]).
 
 failure_cleanup(Messages, Expected, InvalidConnection) ->
     check(fun() ->
         Stream = make_ref(),
         Other = make_ref(),
+        Children = [make_ref(), make_ref(), make_ref()],
+        [First, Second, Nested] = Children,
         Conn = case InvalidConnection of
             true -> <<"not-a-pid">>;
             false -> self()
@@ -15,7 +17,12 @@ failure_cleanup(Messages, Expected, InvalidConnection) ->
         Request = fun(_, _, _, _, _, _) ->
             lists:foreach(fun(Message) -> self() ! {Next, Message} end, Messages),
             self() ! {gun_data, self(), Stream, fin, <<"discard">>},
-            self() ! {gun_push, self(), Stream, make_ref(), <<"GET">>, <<"/push">>, []},
+            queue_push(Stream, First),
+            %% Cover both Gun's emitted shape and the historical flush shape.
+            self() ! {gun_push, self(), Stream, Second, <<"GET">>, <<"/">>, <<"/push">>, []},
+            queue_push(First, Nested),
+            queue_push(Nested, First),
+            lists:foreach(fun queue_body/1, Children),
             self() ! {gun_upgrade, self(), Stream, [<<"websocket">>], []},
             self() ! {gun_error, self(), Stream, reset},
             self() ! {gun_response, self(), Other, nofin, 200, []},
@@ -33,13 +40,23 @@ failure_cleanup(Messages, Expected, InvalidConnection) ->
         ),
         case InvalidConnection of
             false ->
-                receive
-                    {'$gen_cast', {cancel, Owner, Stream}} when Owner =:= self() -> ok
-                after 0 -> error(missing_cancellation)
-                end;
+                lists:foreach(fun assert_cancel/1, [Stream | Children]);
             true -> ok
         end,
-        assert_empty_stream(Stream),
+        lists:foreach(fun assert_empty_stream/1, [Stream | Children]),
+        case InvalidConnection of
+            true ->
+                %% Even a failed cancellation must drain every sibling; the
+                %% root cancel error keeps precedence over descendant errors.
+                ExpectedCancel = gluegun_ffi:cancel(Conn, Stream),
+                queue_push(Stream, First),
+                queue_push(Stream, Second),
+                queue_push(First, Nested),
+                lists:foreach(fun queue_body/1, Children),
+                ExpectedCancel = gluegun_ffi:cleanup_stream(Conn, Stream),
+                lists:foreach(fun assert_empty_stream/1, [Stream | Children]);
+            false -> ok
+        end,
         {ok, {response, no_fin, 200, []}} = gluegun_ffi:await(self(), Other, {milliseconds, 0}),
         {ok, {data, fin, <<"keep">>}} = gluegun_ffi:await(self(), Other, {milliseconds, 0}),
         receive {gun_push, OtherConn, Other, _, _, _, _} when OtherConn =:= self() -> ok
@@ -49,6 +66,87 @@ failure_cleanup(Messages, Expected, InvalidConnection) ->
         receive {application_message, Next} -> ok
         after 0 -> error(lost_application_message) end
     end).
+
+push_cleanup(BodyStarted) ->
+    check(fun() ->
+        Stream = make_ref(),
+        Promised = make_ref(),
+        Nested = make_ref(),
+        Other = make_ref(),
+        Request = fun(_, _, _, _, _, _) ->
+            case BodyStarted of
+                true ->
+                    self() ! {gun_response, self(), Stream, nofin, 200, []},
+                    self() ! {gun_data, self(), Stream, nofin, <<"part">>};
+                false -> ok
+            end,
+            queue_push(Stream, Promised),
+            queue_push(Promised, Nested),
+            lists:foreach(fun queue_body/1, [Stream, Promised, Nested, Other]),
+            self() ! {gun_error, self(), <<"connection event">>},
+            {ok, Stream}
+        end,
+        {error, {invalid_message, <<"HTTP helper received push message">>}} = gluegun@client:get_with(
+            self(), <<"/">>, [], {milliseconds, 1000}, Request, fun gluegun_ffi:await/3
+        ),
+        lists:foreach(fun assert_cancel/1, [Stream, Promised, Nested]),
+        lists:foreach(fun assert_empty_stream/1, [Stream, Promised, Nested]),
+        {ok, {response, no_fin, 200, []}} =
+            gluegun_ffi:await(self(), Other, {milliseconds, 0}),
+        {ok, {data, no_fin, <<"unfinished">>}} =
+            gluegun_ffi:await(self(), Other, {milliseconds, 0}),
+        receive {gun_error, Pid, <<"connection event">>} when Pid =:= self() -> ok
+        after 0 -> error(lost_connection_event) end
+    end).
+
+malformed_push_cleanup() ->
+    check(fun() ->
+        Stream = make_ref(),
+        Child = make_ref(),
+        Nested = make_ref(),
+        Other = make_ref(),
+        BadHeaders = [{<<"x-obs-text">>, <<255>>}],
+        Expected = {error, {decode_error, <<"InvalidUtf8">>}},
+        Expected = gluegun_ffi:safe_decode_message(
+            {push, Child, <<"GET">>, <<"/push">>, BadHeaders}),
+        %% Public low-level await must still decode without cancellation.
+        self() ! {gun_push, self(), Stream, Child, <<"GET">>, <<"/push">>, BadHeaders},
+        Expected = gluegun_ffi:await(self(), Stream, {milliseconds, 0}),
+        receive {'$gen_cast', {cancel, _, _}} -> error(low_level_cancelled_push)
+        after 0 -> ok end,
+        Request = fun(_, _, _, _, _, _) ->
+            self() ! {gun_push, self(), Stream, Child, <<"GET">>, <<"/push">>, BadHeaders},
+            queue_push(Child, Nested),
+            lists:foreach(fun queue_body/1, [Stream, Child, Nested, Other]),
+            self() ! {gun_error, self(), <<"connection event">>},
+            {ok, Stream}
+        end,
+        Expected = gluegun@client:get_with(self(), <<"/">>, [],
+            {milliseconds, 1000}, Request, fun gluegun_ffi:client_await/3),
+        lists:foreach(fun assert_cancel/1, [Stream, Child, Nested]),
+        lists:foreach(fun assert_empty_stream/1, [Stream, Child, Nested]),
+        {ok, {response, no_fin, 200, []}} =
+            gluegun_ffi:await(self(), Other, {milliseconds, 0}),
+        {ok, {data, no_fin, <<"unfinished">>}} =
+            gluegun_ffi:await(self(), Other, {milliseconds, 0}),
+        receive {gun_error, Pid, <<"connection event">>} when Pid =:= self() -> ok
+        after 0 -> error(lost_connection_event) end,
+        %% Also exercise the actual public get callback, not just get_with.
+        {ok, nil} = gluegun_http2_test:http2_push_cleanup(<<"malformed">>)
+    end).
+
+queue_push(Stream, Promised) ->
+    self() ! {gun_push, self(), Stream, Promised, <<"GET">>, <<"/push">>, []}.
+
+queue_body(Stream) ->
+    self() ! {gun_response, self(), Stream, nofin, 200, []},
+    self() ! {gun_data, self(), Stream, nofin, <<"unfinished">>}.
+
+assert_cancel(Stream) ->
+    receive
+        {'$gen_cast', {cancel, Owner, Stream}} when Owner =:= self() -> ok
+    after 0 -> error({missing_cancellation, Stream})
+    end.
 
 no_cleanup(SendFailure) ->
     check(fun() ->
@@ -204,8 +302,10 @@ response(Body) ->
 
 assert_empty_stream(Stream) ->
     receive
+        {gun_response, _, Stream, _, _, _} -> error(failed_response_not_drained);
         {gun_data, _, Stream, _, _} -> error(failed_stream_not_drained);
         {gun_push, _, Stream, _, _, _, _} -> error(failed_push_not_drained);
+        {gun_push, _, Stream, _, _, _, _, _} -> error(failed_push_not_drained);
         {gun_upgrade, _, Stream, _, _} -> error(failed_upgrade_not_drained);
         {gun_error, _, Stream, _} -> error(failed_error_not_drained)
     after 0 -> ok end.

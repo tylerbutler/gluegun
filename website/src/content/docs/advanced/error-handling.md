@@ -52,6 +52,8 @@ timeout construction, so configuration and literal values follow one rule.
 
 Once a high-level `client` helper gets a stream, it owns failure cleanup. On a collection error, it attempts to cancel the stream and drains queued messages for that stream, even if cancellation fails. It returns the original collection error. Cleanup failures produce a warning instead of replacing that error.
 
+When the helper rejects a push, it also cancels and drains the promised stream. Cleanup does the same for each push still queued for the failed stream.
+
 Cleanup preserves concurrent streams and connection-level messages. It does not close the shared connection or flush all of its messages. Gun processes cancellation asynchronously; messages in transit can arrive after the drain. The high-level helper does not return the failed stream handle. For strict mailbox isolation, use low-level stream ownership in a separate receiving process.
 
 ## Error variants
