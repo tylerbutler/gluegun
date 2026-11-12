@@ -2,7 +2,127 @@
 -include_lib("public_key/include/public_key.hrl").
 
 -export([with_server/2, owned_connection/0, assert_released/1, timed/1,
-    remember_connection/1, remembered_connection/0, error_paths/0, with_tls_server/1]).
+    remember_connection/1, remembered_connection/0, error_paths/0, with_tls_server/1,
+    assert_exception_cleanup/2, assert_scoped_exception/2,
+    cleanup_guard_paths/0,
+    with_control_frames/2, queue_control_frame/0]).
+
+queue_control_frame() ->
+    Connection = self(),
+    Stream = make_ref(),
+    self() ! {gun_ws, Connection, Stream, ping},
+    {Connection, Stream}.
+
+%% Mode is the same String as with_server ("normal" or "stall").
+%% FailureCallback is fn() -> Result(Nil, GluegunError), supplied by Gleam for
+%% real panic/failed-assert coverage, or by exception_paths for Erlang failures.
+assert_scoped_exception(Mode, FailureCallback) ->
+    with_server(Mode, fun(Port) ->
+        Key = make_ref(),
+        Options = gluegun@websocket:with_timeout(
+            gluegun@websocket:options(), {milliseconds, 50}),
+        Start = erlang:monotonic_time(millisecond),
+        try
+            Actual = capture_exception(fun() ->
+                gluegun@websocket:with_socket(
+                    <<"127.0.0.1">>, Port, <<"/echo">>, Options, fun(_) ->
+                        {ok, Connection} = owned_connection(),
+                        remember_connection(Connection),
+                        try FailureCallback()
+                        catch Class:Reason:Stack ->
+                            put(Key, {Class, Reason, Stack}),
+                            erlang:raise(Class, Reason, Stack)
+                        end
+                    end)
+            end),
+            Expected = erase(Key),
+            case Expected of
+                undefined -> error(callback_did_not_raise);
+                _ -> Expected = Actual
+            end,
+            Elapsed = erlang:monotonic_time(millisecond) - Start,
+            case Mode of
+                <<"stall">> -> true = Elapsed >= 40 andalso Elapsed < 500;
+                _ -> ok
+            end,
+            {ok, Connection} = remembered_connection(),
+            assert_released(Connection)
+        after
+            erase(Key),
+            erase(ws_test_connection)
+        end
+    end).
+
+assert_exception_cleanup(Mode, Class) ->
+    assert_scoped_exception(Mode, fun() ->
+        case Class of
+            <<"error">> -> error(deliberate_ws_error);
+            <<"exit">> -> exit(deliberate_ws_exit);
+            <<"throw">> -> throw(deliberate_ws_throw)
+        end
+    end).
+
+cleanup_guard_paths() ->
+    checked(fun() ->
+        Key = make_ref(),
+        try
+            %% Neither an Error result nor an exception from cleanup may mask
+            %% the callback exception. Check all three Erlang exception classes.
+            lists:foreach(fun(CleanupFailure) ->
+                put(Key, 0),
+                Original = make_ref(),
+                Actual = capture_exception(fun() ->
+                    gluegun_ffi:ws_with_cleanup(fun() ->
+                        try error(Original)
+                        catch C:R:S ->
+                            put({Key, original}, {C, R, S}),
+                            erlang:raise(C, R, S)
+                        end
+                    end, fun() ->
+                        put(Key, get(Key) + 1),
+                        CleanupFailure()
+                    end)
+                end),
+                Actual = erase({Key, original}),
+                1 = erase(Key)
+            end, [
+                fun() -> {error, timeout} end,
+                fun() -> error(cleanup_error) end,
+                fun() -> exit(cleanup_exit) end,
+                fun() -> throw(cleanup_throw) end
+            ]),
+            lists:foreach(fun({CallbackResult, CleanupResult}) ->
+                {CallbackResult, CleanupResult} = gluegun_ffi:ws_with_cleanup(
+                    fun() -> CallbackResult end, fun() -> CleanupResult end)
+            end, [{{ok, nil}, {ok, nil}}, {{ok, nil}, {error, timeout}},
+                {{error, {connection_down, <<"callback">>}}, {ok, nil}},
+                {{error, {connection_down, <<"callback">>}}, {error, timeout}}]),
+            %% A normal-path cleanup exception propagates, without retrying.
+            put(Key, 0),
+            {throw, cleanup_normal, _} = capture_exception(fun() ->
+                gluegun_ffi:ws_with_cleanup(fun() -> {ok, nil} end, fun() ->
+                    put(Key, get(Key) + 1),
+                    throw(cleanup_normal)
+                end)
+            end),
+            1 = erase(Key),
+            {ok, nil}
+        after
+            erase(Key),
+            erase({Key, original})
+        end
+    end).
+
+capture_exception(Callback) ->
+    try Callback() of
+        Value -> error({expected_exception, Value})
+    catch Class:Reason:Stack -> {Class, Reason, Stack}
+    end.
+
+%% Duration is milliseconds. The server owns all I/O; no detached sender can
+%% outlive the session or delay responding to a close during the control burst.
+with_control_frames(Duration, Callback) when is_integer(Duration), Duration > 0 ->
+    with_server({control_frames, Duration}, Callback).
 
 with_tls_server(Callback) ->
     checked(fun() ->
@@ -210,6 +330,38 @@ serve(Listener, Parent, Name) ->
     end.
 
 serve_frames(Socket, Name) ->
+    case Name of
+        {control_frames, Duration} -> control_frames(Socket, Duration);
+        <<"controls">> -> control_frames(Socket, 260);
+        <<"controls_deadline">> -> control_frames(Socket, 260);
+        _ -> serve_application_frames(Socket, Name)
+    end.
+
+control_frames(Socket, Duration) ->
+    control_frames(Socket, erlang:monotonic_time(millisecond) + Duration, 0).
+
+control_frames(Socket, Deadline, Sequence) ->
+    case erlang:monotonic_time(millisecond) >= Deadline of
+        true ->
+            ok = send_frame(Socket, 1, <<"late text">>),
+            exchange(Socket, <<"normal">>);
+        false ->
+            Payload = <<Sequence:32>>,
+            ok = send_frame(Socket, 9, Payload),
+            ok = send_frame(Socket, 10, Payload),
+            %% Gun must automatically echo this exact ping payload as a pong.
+            case read_frame(Socket, 1000) of
+                {ok, 10, Payload} ->
+                    case read_frame(Socket, 20) of
+                        {error, timeout} -> control_frames(Socket, Deadline, Sequence + 1);
+                        {ok, 8, _} -> reply_close(Socket);
+                        Other -> error({unexpected_control_response, Other})
+                    end;
+                Other -> error({missing_automatic_pong, Payload, Other})
+            end
+    end.
+
+serve_application_frames(Socket, Name) ->
         case Name of
             <<"peer_close">> -> ok = send_frame(Socket, 8, <<>>);
             <<"peer_reason">> -> ok = send_frame(Socket, 8, <<1000:16, "bye">>);
@@ -267,7 +419,10 @@ reply_close(Socket) ->
     await_closed(Socket).
 
 read_frame(Socket) ->
-    case gen_tcp:recv(Socket, 2, 7000) of
+    read_frame(Socket, 7000).
+
+read_frame(Socket, Timeout) ->
+    case gen_tcp:recv(Socket, 2, Timeout) of
         {ok, <<_Fin:1, _Rsv:3, Opcode:4, 1:1, Length:7>>} when Length < 126 ->
             {ok, <<Mask:4/binary>>} = gen_tcp:recv(Socket, 4, 2000),
             Data = case Length of
@@ -277,7 +432,8 @@ read_frame(Socket) ->
                     Payload
             end,
             {ok, Opcode, unmask(Data, Mask, 0, <<>>)};
-        {error, closed} -> {error, closed}
+        {error, closed} -> {error, closed};
+        {error, timeout} -> {error, timeout}
     end.
 
 unmask(<<>>, _, _, Acc) -> Acc;

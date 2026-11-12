@@ -22,6 +22,7 @@
     ws_peer_close/0,
     ws_record_peer_close/2,
     ws_close/4,
+    ws_with_cleanup/2,
     decode_message/1,
     safe_decode_message/1,
     protocol_result/1,
@@ -303,6 +304,19 @@ ws_record_peer_close({ok, _} = Result, PeerClose) ->
     atomics:add(PeerClose, 2, 1),
     Result;
 ws_record_peer_close(Result, _) -> Result.
+
+%% Both callbacks are receiver-owned, zero-argument Gleam functions. Keep the
+%% normal cleanup outside the protected expression: only callback exceptions
+%% trigger best-effort cleanup, never a second attempt after cleanup itself fails.
+ws_with_cleanup(Callback, Cleanup) ->
+    Result = try Callback()
+    catch Class:Reason:Stack ->
+        try Cleanup()
+        catch _:_ -> ok
+        end,
+        erlang:raise(Class, Reason, Stack)
+    end,
+    {Result, Cleanup()}.
 
 ws_close(ConnPid, StreamRef, Timeout, PeerClose)
     when is_pid(ConnPid), ConnPid =/= self(), node(ConnPid) =:= node() ->
