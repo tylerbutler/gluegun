@@ -35,9 +35,11 @@ you need HTTP reconnection. After an `await_up` error, call
 when you selected retries or setup has not finished.
 
 Numeric options reject invalid input with `InvalidOptions`; they do not clamp.
-Timeouts and retry counts must be non-negative, flow credit must be positive,
-TLS depth accepts 0 through 255, and ports accept 0 through 65535. Timeout
-construction returns `Result` for literals and configuration values alike.
+Finite timeouts accept 0 through 4_294_967_295 milliseconds, inclusive, as
+supported by OTP 27. Use `connection.infinity()` for no limit. Retry counts
+must be non-negative, flow credit must be positive, TLS depth accepts 0 through
+255, and ports accept 0 through 65535. Timeout construction returns `Result`
+for literals and configuration values alike.
 
 ## Security
 

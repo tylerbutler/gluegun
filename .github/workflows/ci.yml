@@ -69,6 +69,12 @@ jobs:
         working-directory: compatibility
         run: gleam build --warnings-as-errors && gleam run
 
+      - name: Exercise HTTP/2 and TLS wire contracts with current dependencies
+        if: matrix.resolution == 'current'
+        run: |
+          gleam deps update
+          gleam test -- test/bounded_streaming_test.gleam
+
   docs:
     runs-on: ubuntu-latest
     name: Docs
