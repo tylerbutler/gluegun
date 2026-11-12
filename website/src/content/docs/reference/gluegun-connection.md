@@ -168,7 +168,9 @@ pub fn infinity() -> Timeout
 
 Construct a finite timeout.
 
- Returns `InvalidOptions` if `value` is negative.
+ Accepts 0 through 4_294_967_295 milliseconds, inclusive, as supported by
+ OTP 27. Returns `InvalidOptions` outside this range; does not clamp.
+ Use `infinity()` to wait without a limit.
 
 ```gleam
 pub fn milliseconds(Int) -> Result(Timeout, error.GluegunError)
