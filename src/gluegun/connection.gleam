@@ -45,7 +45,7 @@ pub type Protocol {
 
 /// Timeout in milliseconds, or no limit.
 pub opaque type Timeout {
-  /// A finite duration in milliseconds. Must be non-negative.
+  /// A finite duration from 0 through 4_294_967_295 milliseconds, inclusive.
   Milliseconds(Int)
   /// No upper bound. Wait indefinitely.
   Infinity
@@ -131,11 +131,16 @@ pub fn default_retry_count() -> RetryCount {
 
 /// Construct a finite timeout.
 ///
-/// Returns `InvalidOptions` if `value` is negative.
+/// Accepts 0 through 4_294_967_295 milliseconds, inclusive, as supported by
+/// OTP 27. Returns `InvalidOptions` outside this range; does not clamp.
+/// Use `infinity()` to wait without a limit.
 pub fn milliseconds(value: Int) -> Result(Timeout, error.GluegunError) {
-  case value >= 0 {
-    True -> Ok(Milliseconds(value))
-    False -> Error(error.InvalidOptions("timeout must be non-negative"))
+  case value {
+    value if value < 0 ->
+      Error(error.InvalidOptions("timeout must be non-negative"))
+    value if value > 4_294_967_295 ->
+      Error(error.InvalidOptions("timeout must not exceed 4294967295 ms"))
+    _ -> Ok(Milliseconds(value))
   }
 }
 

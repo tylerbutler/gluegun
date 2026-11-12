@@ -259,9 +259,12 @@ end).
 %% Only the selected connection/stream is consumed. The temporary monitor is
 %% always removed, including its raced DOWN message.
 ws_await(ConnPid, StreamRef, Timeout) ->
-    try ws_await_message(ConnPid, StreamRef, Timeout)
-    catch Class:Reason:_Stack ->
-        {error, gleam_error({erlang_error, {Class, Reason}})}
+    try ws_await_message(ConnPid, StreamRef, timeout_to_gun(Timeout))
+    catch
+        error:{invalid_options, Reason}:_Stack ->
+            {error, gleam_error({invalid_options, Reason})};
+        Class:Reason:_Stack ->
+            {error, gleam_error({erlang_error, {Class, Reason}})}
     end.
 
 ws_await_message(ConnPid, StreamRef, Timeout) ->
@@ -289,7 +292,7 @@ ws_await_message(ConnPid, StreamRef, Timeout) ->
                 {error, gleam_error({connection_down, Reason})};
             {'DOWN', Monitor, process, ConnPid, Reason} ->
                 {error, gleam_error({connection_down, Reason})}
-        after timeout_to_gun(Timeout) ->
+        after Timeout ->
             {error, timeout}
         end
     after erlang:demonitor(Monitor, [flush])
@@ -370,13 +373,22 @@ ws_with_cleanup(Callback, Cleanup) ->
 
 ws_close(ConnPid, StreamRef, Timeout, PeerClose)
     when is_pid(ConnPid), ConnPid =/= self(), node(ConnPid) =:= node() ->
+    try ws_close_validated(ConnPid, StreamRef, ws_close_timeout(Timeout), PeerClose)
+    catch
+        error:{invalid_options, Reason}:_Stack ->
+            {error, gleam_error({invalid_options, Reason})}
+    end;
+ws_close(_, _, _, _) ->
+    {error, gleam_error({invalid_options, terminate_requires_local_connection})}.
+
+ws_close_validated(ConnPid, StreamRef, Timeout, PeerClose) ->
     Handshake = with_normalize(connection_error, fun() ->
         case is_process_alive(ConnPid) of
             false -> ok;
             true ->
                 Monitor = erlang:monitor(process, ConnPid),
                 try
-                    Deadline = erlang:monotonic_time(millisecond) + ws_close_timeout(Timeout),
+                    Deadline = erlang:monotonic_time(millisecond) + Timeout,
                     %% Reimburse all frames already consumed by this receiver.
                     %% Coalesced input can drive Gun's credit below zero, so a
                     %% single wake-up credit is not sufficient.
@@ -395,12 +407,10 @@ ws_close(ConnPid, StreamRef, Timeout, PeerClose)
     case Handshake of
         {ok, nil} -> Cleanup;
         {error, _} -> Handshake
-    end;
-ws_close(_, _, _, _) ->
-    {error, gleam_error({invalid_options, terminate_requires_local_connection})}.
+    end.
 
 ws_close_timeout(infinity) -> 5000;
-ws_close_timeout({milliseconds, Milliseconds}) when Milliseconds >= 0 -> Milliseconds.
+ws_close_timeout(Timeout) -> timeout_to_gun(Timeout).
 
 ws_restore_credit(_, _, 0) -> ok;
 ws_restore_credit(ConnPid, StreamRef, Count) ->
@@ -458,6 +468,7 @@ with_normalize(Tag, Fun) ->
         Class:Reason:_Stack -> {error, gleam_error(caught_error(Tag, Class, Reason))}
     end.
 
+caught_error(_Tag, error, {invalid_options, _} = Reason) -> Reason;
 caught_error(connection, Class, Reason) -> {erlang_error, {Class, Reason}};
 caught_error(connection_error, Class, Reason) -> {connection_error, {Class, Reason}};
 caught_error(stream, Class, Reason) -> {stream_error, {Class, Reason}};
@@ -856,7 +867,8 @@ invalid_ws_opt_name(Key) -> Key.
 %% --- Shared value conversions -----------------------------------------------
 
 timeout_to_gun(infinity) -> infinity;
-timeout_to_gun({milliseconds, Timeout}) when is_integer(Timeout), Timeout >= 0 -> Timeout;
+timeout_to_gun({milliseconds, Timeout})
+    when is_integer(Timeout), Timeout >= 0, Timeout =< 4294967295 -> Timeout;
 timeout_to_gun(Value) -> error({invalid_options, {timeout, Value}}).
 
 protocol_to_gun(http1) -> http;

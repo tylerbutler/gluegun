@@ -58,7 +58,9 @@ pub fn infinity() -> connection.Timeout
 
 ### `milliseconds`
 
-Construct a non-negative timeout, or return `InvalidOptions`.
+Construct a timeout from 0 through 4_294_967_295 milliseconds, inclusive.
+
+ Returns `InvalidOptions` outside this range. Use `infinity()` for no limit.
 
 ```gleam
 pub fn milliseconds(Int) -> Result(connection.Timeout, error.GluegunError)

@@ -43,10 +43,12 @@ form valid Gleam values returns `DecodeError`. Invalid outgoing frames or a
 message sequence that does not match the operation returns `InvalidMessage`.
 Unexpected runtime failures remain `ErlangError`.
 
-Timeouts and retry counts must be non-negative. Flow credit must be positive;
-TLS depth accepts 0 through 255 and ports accept 0 through 65535. Numeric
-builders return `InvalidOptions` instead of clamping. This includes literal
-timeout construction, so configuration and literal values follow one rule.
+Finite timeouts accept 0 through 4_294_967_295 milliseconds, inclusive, as
+supported by OTP 27. Use `connection.infinity()` for no limit. Retry counts
+must be non-negative. Flow credit must be positive; TLS depth accepts 0 through
+255 and ports accept 0 through 65535. Numeric builders return `InvalidOptions`
+instead of clamping. This includes literal timeout construction, so
+configuration and literal values follow one rule.
 
 ## HTTP collection cleanup
 
