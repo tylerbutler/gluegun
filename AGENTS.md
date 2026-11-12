@@ -55,6 +55,9 @@ The Erlang FFI boundary is centralized in `src/gluegun_ffi.erl` and the `@extern
 
 Examples under `examples/` are standalone Erlang-target Gleam packages and Trellis workspace members. Their `workspace` release lifecycle excludes them from changelogs, version bumps, tags, and publishing. Each can be built with `gleam build` and run with `gleam run` from its directory. Root `just` recipes delegate to the corresponding `trellis run examples-*` tasks. These tasks exclude the root package; `examples-test` runs only packages with test directories, and `examples-build` also packages escripts when a package depends on `gleescript`. `just ci` checks example formatting and runs their tests; `just main` also builds examples.
 
+Run `examples-deps` and `examples-build` with Trellis `--serial`: the pinned
+Gleam compiler can race when concurrent packages write to its shared Hex cache.
+
 `just docs-examples` extracts import-and-function Gleam blocks from the README
 and website guides into a temporary package. It also checks the landing-page
 Code component's function body with its imports. Partial expression snippets

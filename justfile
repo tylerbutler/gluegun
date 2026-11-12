@@ -62,7 +62,7 @@ check:
 
 # Download dependencies for every standalone example package
 examples-deps:
-    trellis run examples-deps
+    trellis run examples-deps --serial
 
 # Format every standalone example package
 examples-format:
@@ -76,9 +76,9 @@ examples-format-check:
 examples-test:
     trellis run examples-test --serial
 
-# Build every standalone example package; package escripts for examples that depend on gleescript
+# Build examples serially to avoid concurrent Hex cache writes; also package escripts
 examples-build:
-    trellis run examples-build
+    trellis run examples-build --serial
 
 # === DOCUMENTATION ===
 

@@ -463,6 +463,36 @@ pub fn failed_stream_cleanup_defines_the_late_message_drain_race_test() -> Nil {
   Nil
 }
 
+pub fn rejected_push_before_headers_cancels_the_promised_stream_test() -> Nil {
+  let assert Ok(Nil) = push_cleanup(False)
+  Nil
+}
+
+pub fn rejected_push_during_body_cancels_the_promised_stream_test() -> Nil {
+  let assert Ok(Nil) = push_cleanup(True)
+  Nil
+}
+
+pub fn malformed_push_cancels_the_promised_stream_and_keeps_decode_error_test() -> Nil {
+  let assert Ok(Nil) = malformed_push_cleanup()
+  Nil
+}
+
+pub fn http2_rejected_push_before_headers_preserves_concurrent_request_test() -> Nil {
+  let assert Ok(Nil) = http2_push_cleanup("headers")
+  Nil
+}
+
+pub fn http2_rejected_push_during_body_preserves_concurrent_request_test() -> Nil {
+  let assert Ok(Nil) = http2_push_cleanup("body")
+  Nil
+}
+
+pub fn http2_queued_push_cleanup_preserves_concurrent_request_test() -> Nil {
+  let assert Ok(Nil) = http2_push_cleanup("cleanup")
+  Nil
+}
+
 pub fn failed_stream_cleanup_cancels_delayed_headers_and_preserves_shared_requests_test() -> Nil {
   let actual_30 = delayed_response(False)
   let expected_30 = Ok(Nil)
@@ -530,3 +560,12 @@ fn delayed_response(body_delay: Bool) -> Result(Nil, String)
 
 @external(erlang, "gluegun_client_test", "local_failure")
 fn local_failure(receive_failure: Bool) -> Result(Nil, String)
+
+@external(erlang, "gluegun_client_test", "push_cleanup")
+fn push_cleanup(body_started: Bool) -> Result(Nil, String)
+
+@external(erlang, "gluegun_client_test", "malformed_push_cleanup")
+fn malformed_push_cleanup() -> Result(Nil, String)
+
+@external(erlang, "gluegun_http2_test", "http2_push_cleanup")
+fn http2_push_cleanup(mode: String) -> Result(Nil, String)

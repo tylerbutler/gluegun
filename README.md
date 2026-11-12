@@ -124,7 +124,7 @@ fn fetch_json(conn, path, timeout) {
 collection. Informational messages and body chunks do not restart it.
 `Infinity` remains unlimited; a zero budget returns `Timeout`.
 
-When collection fails, `client` helpers attempt to cancel that stream and drain its queued messages. They return the original error and keep other streams and the shared connection open. Cleanup failures produce a warning. Cancellation is asynchronous, so messages in transit can arrive after the drain. The high-level helpers do not return the failed stream handle; use the low-level API in a separate receiving process if you need strict mailbox isolation.
+When collection fails, `client` helpers attempt to cancel that stream and drain its queued messages. They also cancel and drain each promised stream found in a rejected or queued push. They return the original error and keep other streams and the shared connection open. Cleanup failures produce a warning. Cancellation is asynchronous, so messages in transit can arrive after the drain. The high-level helpers do not return the failed stream handle; use the low-level API in a separate receiving process if you need strict mailbox isolation.
 
 ## Standard HTTP types
 
@@ -464,7 +464,9 @@ just examples-build
 ```
 
 These recipes use Trellis to run tasks across the example workspace members.
-You can also call `trellis run examples-build` or `trellis run examples-test`.
+You can also call `trellis run examples-build --serial` or
+`trellis run examples-test --serial`. Run builds and dependency downloads
+serially to avoid concurrent writes to the pinned compiler's shared Hex cache.
 The examples use the `workspace` release lifecycle, so release commands do not
 version, tag, or publish them.
 
