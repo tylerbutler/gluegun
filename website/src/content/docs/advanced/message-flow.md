@@ -81,7 +81,7 @@ import gluegun/websocket
 pub fn upgrade_in_current_process(conn) {
   let options =
     websocket.upgrade_options()
-    |> websocket.with_reply_to(reply_to: process.self())
+    |> websocket.with_reply_to(receiver: process.self())
 
   let assert Ok(timeout) = connection.milliseconds(5000)
   let assert Ok(protocol) = connection.await_up(conn, timeout)

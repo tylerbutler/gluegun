@@ -20,23 +20,24 @@ hero:
 
 import { Code } from "@astrojs/starlight/components";
 
-export const gleamExample = `use conn <- result.try(
+export const gleamExample = `use timeout <- result.try(connection.milliseconds(5000))
+use conn <- result.try(
   connection.options()
   |> connection.open(host: "example.com", port: 443),
 )
 
-use _ <- result.try(
-  connection.await_up(conn, connection.Milliseconds(5000)),
-)
-
-use res <- result.try(
+let exchange = {
+  use _ <- result.try(connection.await_up(conn, timeout))
   client.new(http.Get, "/")
-  |> client.with_timeout(timeout: connection.Milliseconds(5000))
-  |> client.send(connection: conn),
-)
+  |> client.with_timeout(timeout: timeout)
+  |> client.send(connection: conn)
+}
+let cleanup = connection.terminate(conn)
+use res <- result.try(exchange)
+use _ <- result.try(cleanup)
 
 io.println("status: " <> int.to_string(res.response.status))
-connection.close(conn)`;
+Ok(Nil)`;
 
 <style lang="css">{`
   .gluegun-splash {

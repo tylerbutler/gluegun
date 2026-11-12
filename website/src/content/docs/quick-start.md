@@ -23,7 +23,6 @@ Before you start, [install Gluegun](/installation/) and confirm that the package
 import gleam/http
 import gleam/int
 import gleam/io
-import gleam/http
 import gleam/result
 import gluegun/client
 import gluegun/connection
@@ -39,19 +38,15 @@ pub fn main() {
       port: 80,
     ),
   )
-  use _protocol <- result.try(
-    connection.await_up(conn, timeout),
-  )
-
-  use res <- result.try(
+  let exchange = {
+    use _protocol <- result.try(connection.await_up(conn, timeout))
     client.new(http.Get, "/")
-    |> client.with_timeout(
-      timeout: timeout,
-    )
-    |> client.send(
-      connection: conn,
-    ),
-  )
+    |> client.with_timeout(timeout: timeout)
+    |> client.send(connection: conn)
+  }
+  let cleanup = connection.terminate(conn)
+  use res <- result.try(exchange)
+  use _ <- result.try(cleanup)
 
   io.println("status: " <> int.to_string(res.response.status))
 
@@ -63,9 +58,13 @@ pub fn main() {
       )
   }
 
-  connection.close(conn)
+  Ok(Nil)
 }
 ```
+
+Cleanup runs before either result is returned. An exchange error takes
+precedence over a cleanup error. If the exchange succeeds, a cleanup error is
+returned. `terminate` also stops failed or stalled connection setup.
 
 Run the example:
 

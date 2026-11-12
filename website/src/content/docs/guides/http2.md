@@ -17,6 +17,7 @@ import gluegun/client
 import gluegun/connection
 
 pub fn get_over_http2() {
+  use timeout <- result.try(connection.milliseconds(5000))
   let options =
     connection.options()
     |> connection.with_transport(transport: connection.Tls)
@@ -26,17 +27,20 @@ pub fn get_over_http2() {
     options
     |> connection.open(host: "example.com", port: 443),
   )
-  use timeout <- result.try(connection.milliseconds(5000))
-  use protocol <- result.try(connection.await_up(conn, timeout))
-
-  case protocol {
-    connection.Http2 -> Nil
-    connection.Http1 -> Nil
+  let exchange = {
+    use _protocol <- result.try(connection.await_up(conn, timeout))
+    client.get(conn, "/", [], timeout)
   }
-
-  client.get(conn, "/", [], timeout)
+  let cleanup = connection.terminate(conn)
+  use res <- result.try(exchange)
+  use _ <- result.try(cleanup)
+  Ok(res)
 }
 ```
+
+This function owns the connection, so it terminates it after success or a
+returned error, including a readiness timeout. The exchange error takes
+precedence. A cleanup error is returned if the exchange succeeded.
 
 ## WebSocket note
 

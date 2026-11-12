@@ -15,6 +15,7 @@ just examples-test # test standalone examples with test directories
 just format        # gleam format src test
 just format-check  # gleam format --check src test
 just docs          # gleam docs build
+just docs-examples # compile complete docs examples and check HTTP cleanup
 just site-deps     # install website dependencies
 just site-build    # build website
 just site-check    # validate website
@@ -53,6 +54,13 @@ The Erlang FFI boundary is centralized in `src/gluegun_ffi.erl` and the `@extern
 `Connection` and `Stream` are external foreign types declared in `gluegun/internal.gleam`: they name a Gun connection process identifier and a Gun stream reference, have no Gleam constructors, and can only come from Gun (or, in tests, from typed constructors in `test/gluegun_ffi_test.erl`).
 
 Examples under `examples/` are standalone Erlang-target Gleam packages; each can be built with `gleam build` and run with `gleam run` from its directory. Root `just` recipes `examples-deps`, `examples-format-check`, `examples-test`, and `examples-build` operate on examples. `just ci` checks example formatting and runs their tests; `just main` also builds examples.
+
+`just docs-examples` extracts import-and-function Gleam blocks from the README
+and website guides into a temporary package. It also checks the landing-page
+Code component's function body with its imports. Partial expression snippets
+are excluded. Complete examples are not copied into separate source files.
+After compilation, test-only variants redirect owned HTTP exchanges to a
+loopback peer and check repeated-call cleanup and error precedence.
 
 ## Key conventions
 

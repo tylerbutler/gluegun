@@ -77,13 +77,15 @@ pub fn main() {
     connection.options()
     |> connection.open(host: "example.com", port: 80),
   )
-  use _protocol <- result.try(connection.await_up(conn, timeout))
-
-  use res <- result.try(
+  let exchange = {
+    use _protocol <- result.try(connection.await_up(conn, timeout))
     client.new(http.Get, "/")
     |> client.with_timeout(timeout: timeout)
-    |> client.send(connection: conn),
-  )
+    |> client.send(connection: conn)
+  }
+  let cleanup = connection.terminate(conn)
+  use res <- result.try(exchange)
+  use _ <- result.try(cleanup)
 
   io.println("status: " <> int.to_string(res.response.status))
 
@@ -92,9 +94,13 @@ pub fn main() {
     Error(_) -> io.println("response body was not UTF-8")
   }
 
-  connection.close(conn)
+  Ok(Nil)
 }
 ```
+
+Cleanup runs before either result is returned. An exchange error takes
+precedence over a cleanup error. If the exchange succeeds, a cleanup error is
+returned. `terminate` also stops failed or stalled connection setup.
 
 ## One-shot helper on an existing connection
 
@@ -270,6 +276,7 @@ import gluegun/client
 import gluegun/connection
 
 pub fn get_over_http2() {
+  use timeout <- result.try(connection.milliseconds(5000))
   let options =
     connection.options()
     |> connection.with_transport(transport: connection.Tls)
@@ -279,15 +286,14 @@ pub fn get_over_http2() {
     options
     |> connection.open(host: "example.com", port: 443),
   )
-  use timeout <- result.try(connection.milliseconds(5000))
-  use protocol <- result.try(connection.await_up(conn, timeout))
-
-  case protocol {
-    connection.Http2 -> Nil
-    connection.Http1 -> Nil
+  let exchange = {
+    use _protocol <- result.try(connection.await_up(conn, timeout))
+    client.get(conn, "/", [], timeout)
   }
-
-  client.get(conn, "/", [], timeout)
+  let cleanup = connection.terminate(conn)
+  use res <- result.try(exchange)
+  use _ <- result.try(cleanup)
+  Ok(res)
 }
 ```
 

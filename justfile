@@ -93,6 +93,10 @@ examples-build:
 docs:
     gleam docs build
 
+# Compile complete README/website examples and check owned HTTP cleanup
+docs-examples:
+    python3 -B scripts/check_documentation_examples.py
+
 # Generate website reference docs from Gleam docs JSON
 site-reference:
     cd website && pnpm generate:reference
@@ -152,7 +156,7 @@ clean:
 # === CI ===
 
 # Run all CI checks (format, check, test, build, workspace)
-ci: format-check check test test-release examples-format-check examples-test build-strict trellis-doctor
+ci: format-check check test test-release examples-format-check examples-test docs-examples build-strict trellis-doctor
 
 # Alias for PR checks
 alias pr := ci
