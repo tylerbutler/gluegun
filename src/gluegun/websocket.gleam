@@ -327,7 +327,9 @@ fn close_on_error(
 /// Scoped lifecycle helper. Use this when the WebSocket session is
 /// self-contained. The callback receives a reusable `Socket`. Errors from
 /// the callback take precedence over cleanup errors; cleanup is attempted
-/// even when the callback fails.
+/// even when the callback fails. If the callback panics, fails an assertion,
+/// or raises an Erlang exception, bounded teardown runs before re-raising
+/// the original exception class, reason, and stack. Cleanup cannot replace it.
 pub fn with_socket(
   host host: String,
   port port: Int,
@@ -342,8 +344,8 @@ pub fn with_socket(
     options: options,
   ))
 
-  let callback_result = callback(socket)
-  let cleanup_result = close(socket)
+  let #(callback_result, cleanup_result) =
+    ffi_ws_with_cleanup(fn() { callback(socket) }, fn() { close(socket) })
   with_socket_result(callback_result, cleanup_result)
 }
 
@@ -659,12 +661,30 @@ pub fn receive_frame(socket socket: Socket) -> Result(Frame, error.GluegunError)
 /// skips visible ping and pong frames, including empty payloads, without sending
 /// another reply. Text, binary, close, and close-with-reason frames are returned
 /// to the caller. Use `pong` to send an explicit pong.
+///
+/// Each call uses one total deadline from the socket's timeout. Skipped
+/// control frames do not restart it. `Infinity` permits an unlimited wait;
+/// a zero timeout returns `Timeout` without consuming queued frames.
 pub fn receive_app_frame(
   socket socket: Socket,
 ) -> Result(Frame, error.GluegunError) {
-  use frame <- result.try(receive_frame(socket))
+  receive_app_frame_until(socket, connection.deadline(socket.timeout))
+}
+
+fn receive_app_frame_until(
+  socket: Socket,
+  deadline: Option(Int),
+) -> Result(Frame, error.GluegunError) {
+  use _ <- result.try(case connection.expired(deadline) {
+    True -> Error(error.Timeout)
+    False -> Ok(Nil)
+  })
+  use frame <- result.try(receive_frame(
+    Socket(..socket, timeout: connection.remaining(deadline)),
+  ))
   case frame {
-    message.Ping(_) | message.Pong(_) -> receive_app_frame(socket)
+    message.Ping(_) | message.Pong(_) ->
+      receive_app_frame_until(socket, deadline)
     message.Text(_)
     | message.Binary(_)
     | message.Close
@@ -799,6 +819,12 @@ fn ffi_ws_close(
   timeout: Timeout,
   peer_close: PeerClose,
 ) -> Result(Nil, error.GluegunError)
+
+@external(erlang, "gluegun_ffi", "ws_with_cleanup")
+fn ffi_ws_with_cleanup(
+  callback: fn() -> Result(a, error.GluegunError),
+  cleanup: fn() -> Result(Nil, error.GluegunError),
+) -> #(Result(a, error.GluegunError), Result(Nil, error.GluegunError))
 
 fn prepend_optional(
   options: List(UpgradeOption),

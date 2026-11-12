@@ -39,6 +39,63 @@ pub fn skips_empty_controls_before_binary_frame_test() -> Nil {
   )
 }
 
+pub fn zero_application_budget_preserves_queued_frames_test() -> Nil {
+  let #(conn, stream) = queue_control_frame()
+  let assert Ok(zero) = connection.milliseconds(0)
+  let socket = websocket.socket(conn, stream, zero)
+  let assert Error(error.Timeout) = websocket.receive_app_frame(socket)
+  let assert Ok(wait) = connection.milliseconds(500)
+  let assert Ok(message.WebSocket(message.Ping(<<>>))) =
+    message.await(conn, stream, wait)
+  Nil
+}
+
+pub fn visible_controls_do_not_restart_the_application_deadline_test() -> Nil {
+  let assert Ok(Nil) =
+    with_control_frames(500, fn(port) {
+      let assert Ok(wait) = connection.milliseconds(100)
+      let assert Ok(socket) = connect_with_controls(port, wait)
+      let #(received, elapsed) =
+        timed(fn() { websocket.receive_app_frame(socket) })
+      let cleanup = websocket.close(socket)
+      let assert Error(error.Timeout) = received
+      let assert True = elapsed >= 75 && elapsed < 350
+      cleanup
+    })
+  Nil
+}
+
+pub fn unlimited_application_wait_skips_controls_until_text_arrives_test() -> Nil {
+  let assert Ok(Nil) =
+    with_control_frames(500, fn(port) {
+      let assert Ok(socket) = connect_with_controls(port, connection.infinity())
+      let #(received, elapsed) =
+        timed(fn() { websocket.receive_app_frame(socket) })
+      let cleanup = websocket.close(socket)
+      let assert Ok(message.Text("late text")) = received
+      let assert True = elapsed >= 450
+      cleanup
+    })
+  Nil
+}
+
+fn connect_with_controls(
+  port: Int,
+  timeout: connection.Timeout,
+) -> Result(websocket.Socket, error.GluegunError) {
+  websocket.connect(
+    host: "127.0.0.1",
+    port: port,
+    path: "/",
+    options: websocket.options()
+      |> websocket.with_timeout(timeout)
+      |> websocket.with_upgrade_options(
+        websocket.upgrade_options()
+        |> websocket.with_silence_pings(False),
+      ),
+  )
+}
+
 pub fn skips_controls_before_close_frame_test() -> Nil {
   equal(
     websocket.receive_app_frame_from([
@@ -141,6 +198,18 @@ type GunFrame
 
 @external(erlang, "gluegun_ws_receive_test", "empty_ping_frame")
 fn empty_ping_frame() -> GunFrame
+
+@external(erlang, "gluegun_ws_close_test", "queue_control_frame")
+fn queue_control_frame() -> #(connection.Connection, request.Stream)
+
+@external(erlang, "gluegun_ws_close_test", "with_control_frames")
+fn with_control_frames(
+  duration: Int,
+  callback: fn(Int) -> Result(Nil, error.GluegunError),
+) -> Result(Nil, error.GluegunError)
+
+@external(erlang, "gluegun_ws_close_test", "timed")
+fn timed(callback: fn() -> a) -> #(a, Int)
 
 @external(erlang, "gluegun_ws_receive_test", "empty_pong_frame")
 fn empty_pong_frame() -> GunFrame
