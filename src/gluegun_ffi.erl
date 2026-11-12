@@ -10,6 +10,7 @@
     request/6,
     data/4,
     await/3,
+    client_await/3,
     await_body/3,
     cancel/2,
     cleanup_stream/2,
@@ -145,14 +146,35 @@ data(ConnPid, StreamRef, Fin, Data) ->
     end.
 
 await(ConnPid, StreamRef, Timeout) ->
-    case
-        with_normalize(stream_erlang, fun() ->
-            {ok, gun:await(ConnPid, StreamRef, timeout_to_gun(Timeout))}
-        end)
-    of
+    case await_raw(ConnPid, StreamRef, Timeout) of
         {ok, Message} -> safe_decode_message(Message);
         {error, _} = Error -> Error
     end.
+
+%% The collecting client rejects pushes, including malformed ones. Preserve
+%% their handle before decoding can turn the consumed push into only an error.
+%% Low-level await deliberately leaves lifecycle decisions to its caller.
+client_await(ConnPid, StreamRef, Timeout) ->
+    case await_raw(ConnPid, StreamRef, Timeout) of
+        {ok, {push, Child, _, _, _} = Message} ->
+            Decoded = safe_decode_message(Message),
+            case Decoded of
+                {error, _} ->
+                    case valid_stream_ref(Child) of
+                        true -> cleanup_stream(ConnPid, Child);
+                        false -> ok
+                    end;
+                {ok, _} -> ok
+            end,
+            Decoded;
+        {ok, Message} -> safe_decode_message(Message);
+        {error, _} = Error -> Error
+    end.
+
+await_raw(ConnPid, StreamRef, Timeout) ->
+    with_normalize(stream_erlang, fun() ->
+        {ok, gun:await(ConnPid, StreamRef, timeout_to_gun(Timeout))}
+    end).
 
 await_body(ConnPid, StreamRef, Timeout) ->
     with_normalize(stream_erlang, fun() ->
@@ -172,24 +194,55 @@ cancel(ConnPid, StreamRef) ->
     end).
 
 cleanup_stream(ConnPid, StreamRef) ->
+    cleanup_streams(ConnPid, [StreamRef], #{}, {ok, nil}).
+
+cleanup_streams(_ConnPid, [], _Seen, Result) -> Result;
+cleanup_streams(ConnPid, [StreamRef | Rest], Seen, Result) ->
+    case is_map_key(StreamRef, Seen) of
+        true -> cleanup_streams(ConnPid, Rest, Seen, Result);
+        false ->
+            {Current, Promised} = cleanup_one_stream(ConnPid, StreamRef),
+            cleanup_streams(ConnPid, Promised ++ Rest,
+                Seen#{StreamRef => true}, first_cleanup_error(Result, Current))
+    end.
+
+cleanup_one_stream(ConnPid, StreamRef) ->
     Cancel = cancel(ConnPid, StreamRef),
-    Drain = with_normalize(stream, fun() -> flush_stream(StreamRef) end),
+    Drain = with_normalize(stream, fun() -> {ok, drain_stream(StreamRef, [])} end),
     lists:foreach(fun
         ({error, Reason}) ->
             logger:warning("Gluegun HTTP failed-stream cleanup failed: ~p", [Reason]);
-        ({ok, nil}) -> ok
+        ({ok, _}) -> ok
     end, [Cancel, Drain]),
-    case Cancel of
-        {error, _} -> Cancel;
-        {ok, nil} -> Drain
+    case Drain of
+        {ok, Promised} -> {Cancel, Promised};
+        {error, _} -> {first_cleanup_error(Cancel, Drain), []}
     end.
 
-flush_stream(StreamRef) ->
-    gun:flush(StreamRef),
-    %% Gun 2.2 flush_ref matches an eight-field push, but sends seven fields.
+first_cleanup_error({error, _} = Error, _) -> Error;
+first_cleanup_error({ok, nil}, Result) -> Result.
+
+%% Do not call gun:flush here: versions that match PUSH_PROMISE discard the
+%% only handle with which we can cancel its unfinished response. Gun 2.2 also
+%% mismatches the emitted seven-field push with an eight-field flush pattern.
+%% Like Gun's stream flush, this is a caller-mailbox, zero-time drain, not a
+%% barrier against future messages. Stream refs are unique; matching by ref
+%% preserves connection events and other streams even when cancellation fails.
+drain_stream(StreamRef, Promised) ->
     receive
-        {gun_push, _, StreamRef, _, _, _, _} -> flush_stream(StreamRef)
-    after 0 -> ok
+        {gun_push, _, StreamRef, Child, _, _, _} ->
+            drain_stream(StreamRef, [Child | Promised]);
+        {gun_push, _, StreamRef, Child, _, _, _, _} ->
+            drain_stream(StreamRef, [Child | Promised]);
+        {gun_inform, _, StreamRef, _, _} -> drain_stream(StreamRef, Promised);
+        {gun_response, _, StreamRef, _, _, _} -> drain_stream(StreamRef, Promised);
+        {gun_data, _, StreamRef, _, _} -> drain_stream(StreamRef, Promised);
+        {gun_trailers, _, StreamRef, _} -> drain_stream(StreamRef, Promised);
+        {gun_error, _, StreamRef, _} -> drain_stream(StreamRef, Promised);
+        {gun_tunnel_up, _, StreamRef, _} -> drain_stream(StreamRef, Promised);
+        {gun_upgrade, _, StreamRef, _, _} -> drain_stream(StreamRef, Promised);
+        {gun_ws, _, StreamRef, _} -> drain_stream(StreamRef, Promised)
+    after 0 -> lists:reverse(Promised)
     end.
 
 update_flow(ConnPid, StreamRef, Increment) ->

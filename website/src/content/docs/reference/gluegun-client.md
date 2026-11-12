@@ -17,8 +17,9 @@ High-level HTTP helpers for existing Gun connections.
  those flows.
 
  If collection fails, these helpers attempt to cancel the failed stream
- and drain its queued messages, then return the original error. They keep
- other streams and the connection open. Cancellation is asynchronous:
+ and drain its queued messages, then return the original error. They also
+ cancel and drain each promised stream found in a rejected or queued push.
+ They keep other streams and the connection open. Cancellation is asynchronous:
  messages in transit can arrive after the drain. For strict mailbox
  isolation, use the low-level API in a separate receiving process.
 

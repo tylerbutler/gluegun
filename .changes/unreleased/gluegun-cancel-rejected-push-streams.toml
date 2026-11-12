@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Cancel and drain promised HTTP/2 streams when client helpers reject a push or find a queued push during failed-stream cleanup. Preserve the original collection error and unrelated streams on the shared connection."
