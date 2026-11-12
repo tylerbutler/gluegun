@@ -12,8 +12,9 @@
 //// those flows.
 ////
 //// If collection fails, these helpers attempt to cancel the failed stream
-//// and drain its queued messages, then return the original error. They keep
-//// other streams and the connection open. Cancellation is asynchronous:
+//// and drain its queued messages, then return the original error. They also
+//// cancel and drain each promised stream found in a rejected or queued push.
+//// They keep other streams and the connection open. Cancellation is asynchronous:
 //// messages in transit can arrive after the drain. For strict mailbox
 //// isolation, use the low-level API in a separate receiving process.
 
@@ -174,7 +175,7 @@ pub fn send_raw(
     options,
     timeout,
     low_request.request,
-    message.await,
+    await_client_message,
   )
 }
 
@@ -366,6 +367,13 @@ fn cleanup_stream(
   stream: low_request.Stream,
 ) -> Result(Nil, error.GluegunError)
 
+@external(erlang, "gluegun_ffi", "client_await")
+fn await_client_message(
+  connection: Connection,
+  stream: low_request.Stream,
+  timeout: Timeout,
+) -> Result(Message, error.GluegunError)
+
 fn collect_stream_with(
   connection: Connection,
   stream: low_request.Stream,
@@ -380,6 +388,13 @@ fn collect_stream_with(
   })
   let timeout = connection.remaining(deadline)
   use awaited <- result.try(await_fn(connection, stream, timeout))
+  case awaited {
+    message.Push(promised, _, _, _) -> {
+      let _ = cleanup_stream(connection, promised)
+      Nil
+    }
+    _ -> Nil
+  }
   use next <- result.try(step(collection, awaited))
   case next {
     Done(response) -> Ok(response)
