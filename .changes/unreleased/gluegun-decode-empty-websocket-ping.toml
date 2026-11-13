@@ -1,6 +1,0 @@
-package = "gluegun"
-kind = "Fixed"
-body = """
-Decode empty WebSocket ping and pong frames
-
-Empty ping and pong frames now decode correctly. `receive_app_frame` no longer sends a second automatic pong reply."""

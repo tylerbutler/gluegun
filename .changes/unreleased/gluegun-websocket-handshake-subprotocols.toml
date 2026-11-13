@@ -1,6 +1,0 @@
-package = "gluegun"
-kind = "Added"
-body = """
-WebSocket handshake data and subprotocol negotiation
-
-Use `websocket.with_subprotocols` to offer subprotocols, and `websocket.selected_subprotocol` to read the subprotocol that the server selected. Use `websocket.handshake`, `handshake_headers`, and `handshake_subprotocol` to read the upgrade response. Use `websocket.with_reply_to` to send frames to a different receiver process."""

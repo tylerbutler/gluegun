@@ -1,6 +1,0 @@
-package = "gluegun"
-kind = "Fixed"
-body = """
-Reject unsupported finite timeouts
-
-`connection.milliseconds` and `gluegun.milliseconds` accept 0 through 4_294_967_295 milliseconds. Values outside this range return `InvalidOptions` before Gun creates monitors or consumes messages. Use `infinity()` for waits with no limit."""

@@ -3,7 +3,7 @@ title: Reference
 description: Generated Gluegun API reference from Gleam docs metadata.
 ---
 
-This site is the primary reference for `gluegun` `0.2.0`. It is generated from the package metadata and includes every public type, function, and constant.
+This site is the primary reference for `gluegun` `0.3.0`. It is generated from the package metadata and includes every public type, function, and constant.
 
 **Find a symbol:** open Search with `Ctrl+K` or `⌘K`, then enter a module, type, or function name.
 
