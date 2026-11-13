@@ -451,14 +451,14 @@ pub fn auto_empty_tls_options_custom_port_gets_secure_baseline_test() -> Nil {
 
 pub fn public_auto_open_serves_plain_http_on_a_local_custom_port_test() -> Nil {
   use server, port <- with_http_server(False)
-  let assert Ok(conn) =
+  let assert Ok(connection) =
     connection.options()
     |> connection.with_protocols([connection.Http1])
     |> connection.open(host: "127.0.0.1", port: port)
-  use <- with_http_connection(conn)
+  use <- with_http_connection(connection)
   let assert Ok(stream) =
     request.request(
-      conn,
+      connection,
       http.Post,
       "/auto",
       [],
@@ -467,9 +467,9 @@ pub fn public_auto_open_serves_plain_http_on_a_local_custom_port_test() -> Nil {
     )
   let assert Ok(#("/auto", <<"plain HTTP":utf8>>)) = await_http(server)
   let assert Ok(message.Response(fin.NoFin, 200, _)) =
-    message.await(conn, stream, connection.default_timeout())
+    message.await(connection, stream, connection.default_timeout())
   let assert Ok(<<"plain HTTP":utf8>>) =
-    message.await_body(conn, stream, connection.default_timeout())
+    message.await_body(connection, stream, connection.default_timeout())
   Nil
 }
 
@@ -521,7 +521,7 @@ fn with_http_server(
 
 @external(erlang, "gluegun_payload_server_test", "with_connection")
 fn with_http_connection(
-  conn: connection.Connection,
+  connection: connection.Connection,
   callback: fn() -> Nil,
 ) -> Nil
 

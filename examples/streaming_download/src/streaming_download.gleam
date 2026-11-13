@@ -97,7 +97,11 @@ fn await_response(
       }
     }
 
-    Ok(other) -> unexpected(other)
+    Ok(message.Data(_, _) as other)
+    | Ok(message.Trailers(_) as other)
+    | Ok(message.Push(_, _, _, _) as other)
+    | Ok(message.Upgrade(_, _) as other)
+    | Ok(message.WebSocket(_) as other) -> unexpected(other)
     Error(error) -> Error(error)
   }
 }
@@ -132,7 +136,11 @@ fn stream_body(
       Ok(Nil)
     }
 
-    Ok(other) -> unexpected(other)
+    Ok(message.Inform(_, _) as other)
+    | Ok(message.Response(_, _, _) as other)
+    | Ok(message.Push(_, _, _, _) as other)
+    | Ok(message.Upgrade(_, _) as other)
+    | Ok(message.WebSocket(_) as other) -> unexpected(other)
     Error(error) -> Error(error)
   }
 }
@@ -149,7 +157,7 @@ fn check_headers(
           #("content-length", value) ->
             case int.parse(value) {
               Ok(size) if size >= 0 && size <= max_bytes -> Ok(Nil)
-              _ ->
+              Ok(_) | Error(_) ->
                 Error(error.InvalidMessage(
                   "invalid or oversized Content-Length",
                 ))

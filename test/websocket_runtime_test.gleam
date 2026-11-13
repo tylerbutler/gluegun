@@ -133,8 +133,8 @@ pub fn unlimited_upgrade_budget_accepts_informational_responses_test() -> Nil {
 }
 
 pub fn dedicated_receive_preserves_other_connections_streams_and_application_mail_test() -> Nil {
-  with_ws_mailbox(fn(conn, stream) {
-    let socket = websocket.socket(conn, stream, timeout(500))
+  with_ws_mailbox(fn(connection, stream) {
+    let socket = websocket.socket(connection, stream, timeout(500))
     let assert Ok(message.Text("selected")) = websocket.receive_frame(socket)
     let assert Error(error.ConnectionDown(_)) = websocket.receive_frame(socket)
     Nil
@@ -144,17 +144,17 @@ pub fn dedicated_receive_preserves_other_connections_streams_and_application_mai
 pub fn informational_responses_do_not_reset_the_upgrade_deadline_test() -> Nil {
   let assert Ok(Nil) =
     with_server("deadline", fn(port) {
-      let assert Ok(conn) = open(port, 0)
+      let assert Ok(connection) = open(port, 0)
       let assert Ok(stream) =
         websocket.upgrade(
-          conn,
+          connection,
           connection.Http1,
           "/",
           [],
           websocket.upgrade_options(),
         )
-      let #(result, elapsed) = timed_upgrade(conn, stream, timeout(50))
-      let cleanup = connection.terminate(conn)
+      let #(result, elapsed) = timed_upgrade(connection, stream, timeout(50))
+      let cleanup = connection.terminate(connection)
       let assert Error(error.Timeout) = result
       let assert True = elapsed >= 35 && elapsed < 200
       cleanup
@@ -163,18 +163,18 @@ pub fn informational_responses_do_not_reset_the_upgrade_deadline_test() -> Nil {
 }
 
 pub fn zero_upgrade_budget_does_not_consume_a_queued_upgrade_test() -> Nil {
-  let #(conn, stream, raw) = incoming_upgrade()
+  let #(connection, stream, raw) = incoming_upgrade()
   let assert Error(error.Timeout) =
-    websocket.await_upgrade(conn, stream, timeout(0))
+    websocket.await_upgrade(connection, stream, timeout(0))
   let assert Ok(_) = message.decode(raw)
   let assert Ok(message.Upgrade(_, _)) =
-    message.await(conn, stream, timeout(500))
+    message.await(connection, stream, timeout(500))
   Nil
 }
 
 pub fn connect_forces_http1_and_zero_retry_after_caller_options_test() -> Nil {
   let assert Ok(retries) = connection.retry_count(7)
-  let opts =
+  let options =
     websocket.options()
     |> websocket.with_connect_options(
       connection.options()
@@ -182,9 +182,9 @@ pub fn connect_forces_http1_and_zero_retry_after_caller_options_test() -> Nil {
       |> connection.with_retry(retries),
     )
     |> websocket.connect_options
-  let assert Some([connection.Http1]) = connection.protocols(opts)
+  let assert Some([connection.Http1]) = connection.protocols(options)
   let assert Ok(zero) = connection.retry_count(0)
-  let assert True = connection.retry(opts) == zero
+  let assert True = connection.retry(options) == zero
   Nil
 }
 
@@ -247,20 +247,21 @@ fn tls_connect(
 pub fn adopted_retrying_socket_detects_a_dropped_connection_test() -> Nil {
   let assert Ok(Nil) =
     with_server("drop", fn(port) {
-      let assert Ok(conn) = open(port, 5)
+      let assert Ok(connection) = open(port, 5)
       let assert Ok(stream) =
         websocket.upgrade(
-          conn,
+          connection,
           connection.Http1,
           "/",
           [],
           websocket.upgrade_options(),
         )
       let assert Ok(handshake) =
-        websocket.await_upgrade(conn, stream, timeout(500))
-      let socket = websocket.from_upgrade(conn, stream, handshake, timeout(500))
+        websocket.await_upgrade(connection, stream, timeout(500))
+      let socket =
+        websocket.from_upgrade(connection, stream, handshake, timeout(500))
       let result = websocket.receive_frame(socket)
-      let cleanup = connection.terminate(conn)
+      let cleanup = connection.terminate(connection)
       let assert Error(error.ConnectionDown(_)) = result
       cleanup
     })
@@ -297,9 +298,9 @@ fn flow_scenario(mode: String, consume: Bool) -> Nil {
 
         False -> Nil
       }
-      let assert Ok(conn) = owned_connection()
+      let assert Ok(connection) = owned_connection()
       let result = websocket.close(socket)
-      let released = assert_released(conn)
+      let released = assert_released(connection)
       let assert Ok(Nil) = result
       let assert Ok(Nil) = websocket.close(socket)
       released
@@ -319,13 +320,14 @@ fn open(
   retries: Int,
 ) -> Result(connection.Connection, error.GluegunError) {
   let assert Ok(retries) = connection.retry_count(retries)
-  let assert Ok(conn) =
+  let assert Ok(connection) =
     connection.options()
     |> connection.with_protocols([connection.Http1])
     |> connection.with_retry(retries)
     |> connection.open(host: "127.0.0.1", port: port)
-  let assert Ok(connection.Http1) = connection.await_up(conn, timeout(500))
-  Ok(conn)
+  let assert Ok(connection.Http1) =
+    connection.await_up(connection, timeout(500))
+  Ok(connection)
 }
 
 fn connect(
@@ -342,8 +344,8 @@ fn connect(
   )
 }
 
-fn timeout(ms: Int) -> connection.Timeout {
-  let assert Ok(timeout) = connection.milliseconds(ms)
+fn timeout(milliseconds: Int) -> connection.Timeout {
+  let assert Ok(timeout) = connection.milliseconds(milliseconds)
   timeout
 }
 
@@ -394,12 +396,12 @@ fn owned_connection() -> Result(connection.Connection, error.GluegunError)
 
 @external(erlang, "gluegun_ws_close_test", "assert_released")
 fn assert_released(
-  conn: connection.Connection,
+  connection: connection.Connection,
 ) -> Result(Nil, error.GluegunError)
 
 @external(erlang, "gluegun_runtime_regression_test", "timed_upgrade")
 fn timed_upgrade(
-  conn: connection.Connection,
+  connection: connection.Connection,
   stream: request.Stream,
   timeout: connection.Timeout,
 ) -> #(Result(websocket.Handshake, error.GluegunError), Int)

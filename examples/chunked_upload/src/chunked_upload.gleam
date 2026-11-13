@@ -105,7 +105,12 @@ fn await_response(
       }
     }
 
-    Ok(other) -> io.println("unexpected message: " <> message_to_string(other))
+    Ok(message.Data(_, _) as other)
+    | Ok(message.Trailers(_) as other)
+    | Ok(message.Push(_, _, _, _) as other)
+    | Ok(message.Upgrade(_, _) as other)
+    | Ok(message.WebSocket(_) as other) ->
+      io.println("unexpected message: " <> message_to_string(other))
     Error(error) -> io.println("response failed: " <> error_to_string(error))
   }
 }
