@@ -24,31 +24,6 @@ members = [".", "examples/*"]
 
 [tools.trellis.exclude]
 docs = ["examples/*"]
-examples-deps = ["."]
-examples-format = ["."]
-examples-format-check = ["."]
-examples-test = ["."]
-examples-build = ["."]
-
-[tools.trellis.tasks.examples-deps]
-command = "gleam deps download"
-
-[tools.trellis.tasks.examples-format]
-command = "if [ -d test ]; then gleam format src test; else gleam format src; fi"
-
-[tools.trellis.tasks.examples-format-check]
-command = "if [ -d test ]; then gleam format --check src test; else gleam format --check src; fi"
-
-[tools.trellis.tasks.examples-test]
-command = "if [ -d test ]; then gleam test; fi"
-
-[tools.trellis.tasks.examples-build]
-command = """
-gleam build &&
-if grep -q '^gleescript ' gleam.toml || grep -q '^gleescript ' manifest.toml 2>/dev/null; then
-  gleam run -m gleescript -- --out=dist
-fi
-"""
 
 [tools.trellis.changelog]
 header_format = "# Changelog"
