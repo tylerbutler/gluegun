@@ -97,9 +97,9 @@ pub fn echo_once() {
 `with_socket` calls `websocket.close` after the callback returns, including when it returns an error. Callback errors take precedence over cleanup errors. If the callback succeeds, a teardown error becomes the result of `with_socket`. A callback can close its own socket; the later scoped close remains safe.
 
 If the callback panics, fails an assertion, or raises an Erlang exception,
-`with_socket` performs the same bounded teardown, then re-raises the original
-exception with its class, reason, and stack. Cleanup errors cannot replace the
-callback exception. This also releases the socket when you catch the exception
+`with_socket` performs the same teardown with a finite close deadline, then
+re-raises the original exception with its class, reason, and stack. Cleanup
+errors cannot replace the callback exception. This also releases the socket when you catch the exception
 outside `with_socket` and keep the owner process alive.
 
 ## Control frames
@@ -165,7 +165,7 @@ pub fn low_level_echo(conn) {
 `await_upgrade` consumes informational responses until the upgrade completes
 under one deadline. Its handshake result retains the response headers.
 Adopt it before reading application frames, then use the Socket operations
-for send, receive, and bounded close.
+for send, receive, and close with a finite deadline.
 
 ## Subprotocols
 

@@ -64,7 +64,7 @@ The compatibility CI job builds a separate consumer with minimum production
 dependencies and a current compatible set. It excludes Gluegun's test-runner
 dependencies and exercises public HTTP, WebSocket upgrade/adoption,
 subprotocols, and finite-credit close against loopback peers. The current set
-also runs the root bounded-streaming suite, including real HTTP/2 push arrival
+also runs the root streaming-limit suite, including real HTTP/2 push arrival
 and cleanup, flow control, and TLS trust and hostname verification over IPv4
 and IPv6. The pinned root suite covers these and additional WebSocket wire
 contracts.
