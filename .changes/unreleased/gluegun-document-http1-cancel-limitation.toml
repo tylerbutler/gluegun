@@ -1,6 +1,0 @@
-package = "gluegun"
-kind = "Fixed"
-body = """
-Document the HTTP/1.1 cancellation limitation
-
-After you cancel an HTTP/1.1 stream that used all of its finite flow credit, Gun can stop reading from the connection. Terminate the connection and open a new one. Do not use it again."""

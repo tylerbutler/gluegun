@@ -1,6 +1,0 @@
-package = "gluegun"
-kind = "Fixed"
-body = """
-Correct the documentation examples
-
-Five website examples that did not compile now compile. The Quick Start and HTTP/2 examples close their connections after success and after errors."""

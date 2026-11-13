@@ -1,6 +1,0 @@
-package = "gluegun"
-kind = "Fixed"
-body = """
-Correct package requirements
-
-Gluegun requires Gleam 1.11 or later and `gleam_stdlib` 0.53 or later, because `gleam_erlang` 1.0 requires them. Gluegun now depends on `gleam_http` 4.x and no longer depends on `gleam_otp`. The published package includes the MIT licence file."""

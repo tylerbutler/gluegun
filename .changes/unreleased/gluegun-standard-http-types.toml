@@ -1,8 +1,0 @@
-package = "gluegun"
-kind = "Breaking"
-body = """
-Use standard gleam/http methods and responses
-
-HTTP APIs and push messages use `gleam/http.Method`. Replace `request.Get` and the other `request.Method` constructors with the `gleam/http` constructors. Replace `request.Custom` with `http.Other`.
-
-Collected responses have the type `response.Response(BitArray)`. Add `BitArray` to your type annotations. The `response` field contains a standard `gleam/http/response.Response`. The `trailers` and `informational` fields are next to it. Informational responses are standard `Response(Nil)` values, not `response.Informational` records. You can use standard response helpers on the `response` field. Keep the outer value to keep trailers and informational responses. `status`, `headers`, `body`, and `body_text` are still available."""
