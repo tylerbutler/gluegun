@@ -33,7 +33,12 @@ WebSocket helpers for Gun connections.
      use _ <- result.try(websocket.send_frame(socket, message.Text("hello")))
      case websocket.receive_app_frame(socket) {
        Ok(message.Text(reply)) -> Ok(reply)
-       Ok(_) -> Error(error.InvalidMessage("expected a text frame"))
+       Ok(message.Binary(_))
+       | Ok(message.Ping(_))
+       | Ok(message.Pong(_))
+       | Ok(message.Close)
+       | Ok(message.CloseWithReason(_, _)) ->
+         Error(error.InvalidMessage("expected a text frame"))
        Error(error) -> Error(error)
      }
    },

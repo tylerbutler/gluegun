@@ -159,18 +159,18 @@ pub fn message_and_error_shapes_rejects_invalid_utf_8_websocket_text_test() -> N
 }
 
 pub fn gun_mailbox_messages_decodes_gun_inform_mailbox_tuples_test() -> Nil {
-  let conn = current_connection()
+  let connection = current_connection()
   let stream = gluegun_ffi_test_stream_ref()
 
   let actual_16 = {
-    mailbox_inform_message(conn, stream, 103, [
+    mailbox_inform_message(connection, stream, 103, [
       #("Link", "</style.css>"),
     ])
     |> message.decode
   }
   let expected_16 =
     Ok(message.Envelope(
-      conn,
+      connection,
       stream,
       message.Inform(103, [#("link", "</style.css>")]),
     ))
@@ -179,18 +179,18 @@ pub fn gun_mailbox_messages_decodes_gun_inform_mailbox_tuples_test() -> Nil {
 }
 
 pub fn gun_mailbox_messages_decodes_gun_response_mailbox_tuples_test() -> Nil {
-  let conn = current_connection()
+  let connection = current_connection()
   let stream = gluegun_ffi_test_stream_ref()
 
   let actual_17 = {
-    mailbox_response_message(conn, stream, fin.NoFin, 200, [
+    mailbox_response_message(connection, stream, fin.NoFin, 200, [
       #("Server", "gun"),
     ])
     |> message.decode
   }
   let expected_17 =
     Ok(message.Envelope(
-      conn,
+      connection,
       stream,
       message.Response(fin.NoFin, 200, [#("server", "gun")]),
     ))
@@ -199,47 +199,55 @@ pub fn gun_mailbox_messages_decodes_gun_response_mailbox_tuples_test() -> Nil {
 }
 
 pub fn gun_mailbox_messages_decodes_gun_data_mailbox_tuples_test() -> Nil {
-  let conn = current_connection()
+  let connection = current_connection()
   let stream = gluegun_ffi_test_stream_ref()
 
   let actual_18 = {
-    mailbox_data_message(conn, stream, fin.Fin, <<"hello":utf8>>)
+    mailbox_data_message(connection, stream, fin.Fin, <<"hello":utf8>>)
     |> message.decode
   }
   let expected_18 =
-    Ok(message.Envelope(conn, stream, message.Data(fin.Fin, <<"hello":utf8>>)))
+    Ok(message.Envelope(
+      connection,
+      stream,
+      message.Data(fin.Fin, <<"hello":utf8>>),
+    ))
   let assert #(True, _, _) = #(actual_18 == expected_18, actual_18, expected_18)
   Nil
 }
 
 pub fn gun_mailbox_messages_decodes_gun_trailers_mailbox_tuples_test() -> Nil {
-  let conn = current_connection()
+  let connection = current_connection()
   let stream = gluegun_ffi_test_stream_ref()
 
   let actual_19 = {
-    mailbox_trailers_message(conn, stream, [#("Expires", "soon")])
+    mailbox_trailers_message(connection, stream, [#("Expires", "soon")])
     |> message.decode
   }
   let expected_19 =
-    Ok(message.Envelope(conn, stream, message.Trailers([#("expires", "soon")])))
+    Ok(message.Envelope(
+      connection,
+      stream,
+      message.Trailers([#("expires", "soon")]),
+    ))
   let assert #(True, _, _) = #(actual_19 == expected_19, actual_19, expected_19)
   Nil
 }
 
 pub fn gun_mailbox_messages_decodes_gun_push_mailbox_tuples_test() -> Nil {
-  let conn = current_connection()
+  let connection = current_connection()
   let stream = gluegun_ffi_test_stream_ref()
   let pushed = gluegun_ffi_test_stream_ref()
 
   let actual_20 = {
-    mailbox_push_message(conn, stream, pushed, "GET", "/assets/app.css", [
+    mailbox_push_message(connection, stream, pushed, "GET", "/assets/app.css", [
       #("Accept", "text/css"),
     ])
     |> message.decode
   }
   let expected_20 =
     Ok(message.Envelope(
-      conn,
+      connection,
       stream,
       message.Push(pushed, http.Get, "/assets/app.css", [
         #("accept", "text/css"),
@@ -250,18 +258,18 @@ pub fn gun_mailbox_messages_decodes_gun_push_mailbox_tuples_test() -> Nil {
 }
 
 pub fn gun_mailbox_messages_decodes_gun_upgrade_mailbox_tuples_test() -> Nil {
-  let conn = current_connection()
+  let connection = current_connection()
   let stream = gluegun_ffi_test_stream_ref()
 
   let actual_21 = {
-    mailbox_upgrade_message(conn, stream, ["websocket"], [
+    mailbox_upgrade_message(connection, stream, ["websocket"], [
       #("Connection", "Upgrade"),
     ])
     |> message.decode
   }
   let expected_21 =
     Ok(message.Envelope(
-      conn,
+      connection,
       stream,
       message.Upgrade(["websocket"], [#("connection", "Upgrade")]),
     ))
@@ -270,19 +278,23 @@ pub fn gun_mailbox_messages_decodes_gun_upgrade_mailbox_tuples_test() -> Nil {
 }
 
 pub fn gun_mailbox_messages_decodes_gun_ws_mailbox_tuples_test() -> Nil {
-  let conn = current_connection()
+  let connection = current_connection()
   let stream = gluegun_ffi_test_stream_ref()
 
   let actual_22 = {
     mailbox_websocket_frame_message(
-      conn,
+      connection,
       stream,
       gluegun_ffi_test_text_frame(<<"hello":utf8>>),
     )
     |> message.decode
   }
   let expected_22 =
-    Ok(message.Envelope(conn, stream, message.WebSocket(message.Text("hello"))))
+    Ok(message.Envelope(
+      connection,
+      stream,
+      message.WebSocket(message.Text("hello")),
+    ))
   let assert #(True, _, _) = #(actual_22 == expected_22, actual_22, expected_22)
   Nil
 }
@@ -312,12 +324,12 @@ pub fn gun_mailbox_messages_rejects_gun_await_3_style_terms_with_no_embedded_str
 }
 
 pub fn gun_mailbox_messages_collapses_a_malformed_payload_in_a_recognized_mailbox_tuple_to_a_generic_decode_error_test() -> Nil {
-  let conn = current_connection()
+  let connection = current_connection()
   let stream = gluegun_ffi_test_stream_ref()
 
   let actual_26 = {
     mailbox_websocket_frame_message(
-      conn,
+      connection,
       stream,
       gluegun_ffi_test_unknown_frame(),
     )
@@ -329,31 +341,31 @@ pub fn gun_mailbox_messages_collapses_a_malformed_payload_in_a_recognized_mailbo
 }
 
 pub fn gun_mailbox_messages_keeps_two_concurrent_streams_on_the_same_connection_distinct_test() -> Nil {
-  let conn = current_connection()
+  let connection = current_connection()
   let stream_a = gluegun_ffi_test_stream_ref()
   let stream_b = gluegun_ffi_test_stream_ref()
 
   let assert Ok(message.Envelope(
-    connection: envelope_a_conn,
+    connection: envelope_a_connection,
     stream: envelope_a_stream,
     message: message_a,
   )) =
-    mailbox_response_message(conn, stream_a, fin.NoFin, 200, [])
+    mailbox_response_message(connection, stream_a, fin.NoFin, 200, [])
     |> message.decode
 
   let assert Ok(message.Envelope(
-    connection: envelope_b_conn,
+    connection: envelope_b_connection,
     stream: envelope_b_stream,
     message: message_b,
   )) =
-    mailbox_data_message(conn, stream_b, fin.Fin, <<"hi":utf8>>)
+    mailbox_data_message(connection, stream_b, fin.Fin, <<"hi":utf8>>)
     |> message.decode
 
-  let actual_27 = envelope_a_conn
-  let expected_27 = conn
+  let actual_27 = envelope_a_connection
+  let expected_27 = connection
   let assert #(True, _, _) = #(actual_27 == expected_27, actual_27, expected_27)
-  let actual_28 = envelope_b_conn
-  let expected_28 = conn
+  let actual_28 = envelope_b_connection
+  let expected_28 = connection
   let assert #(True, _, _) = #(actual_28 == expected_28, actual_28, expected_28)
   let actual_29 = envelope_a_stream
   let expected_29 = stream_a
@@ -374,13 +386,13 @@ pub fn gun_mailbox_messages_keeps_two_concurrent_streams_on_the_same_connection_
 }
 
 pub fn gun_mailbox_messages_attributes_a_server_push_to_its_owning_stream_not_the_pushed_stream_test() -> Nil {
-  let conn = current_connection()
+  let connection = current_connection()
   let owning_stream = gluegun_ffi_test_stream_ref()
   let pushed_stream = gluegun_ffi_test_stream_ref()
 
   let actual_34 = {
     mailbox_push_message(
-      conn,
+      connection,
       owning_stream,
       pushed_stream,
       "GET",
@@ -391,7 +403,7 @@ pub fn gun_mailbox_messages_attributes_a_server_push_to_its_owning_stream_not_th
   }
   let expected_34 =
     Ok(message.Envelope(
-      conn,
+      connection,
       owning_stream,
       message.Push(pushed_stream, http.Get, "/assets/app.css", []),
     ))

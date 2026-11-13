@@ -40,13 +40,13 @@ pub fn skips_empty_controls_before_binary_frame_test() -> Nil {
 }
 
 pub fn zero_application_budget_preserves_queued_frames_test() -> Nil {
-  let #(conn, stream) = queue_control_frame()
+  let #(connection, stream) = queue_control_frame()
   let assert Ok(zero) = connection.milliseconds(0)
-  let socket = websocket.socket(conn, stream, zero)
+  let socket = websocket.socket(connection, stream, zero)
   let assert Error(error.Timeout) = websocket.receive_app_frame(socket)
   let assert Ok(wait) = connection.milliseconds(500)
   let assert Ok(message.WebSocket(message.Ping(<<>>))) =
-    message.await(conn, stream, wait)
+    message.await(connection, stream, wait)
   Nil
 }
 
@@ -164,11 +164,11 @@ pub fn loopback_cleanup_preserves_unrelated_messages_after_callback_failure_test
 }
 
 fn receive_application_frames(
-  conn: connection.Connection,
+  connection: connection.Connection,
   stream: request.Stream,
 ) -> Nil {
   let assert Ok(timeout) = connection.milliseconds(5000)
-  let socket = websocket.socket(conn, stream, timeout)
+  let socket = websocket.socket(connection, stream, timeout)
   equal(websocket.receive_app_frame(socket), Ok(message.Text("hello")))
   equal(websocket.receive_app_frame(socket), Ok(message.Binary(<<1, 2, 3>>)))
   let assert Ok(Nil) = websocket.send_text(socket, "controls received")
@@ -176,11 +176,15 @@ fn receive_application_frames(
 }
 
 fn assert_decoded(raw_frame: GunFrame, frame: message.Frame) -> Nil {
-  let conn = current_connection()
+  let connection = current_connection()
   let stream = stream_ref()
   let assert Ok(envelope) =
-    message.decode(mailbox_websocket_frame_message(conn, stream, raw_frame))
-  equal(envelope.connection, conn)
+    message.decode(mailbox_websocket_frame_message(
+      connection,
+      stream,
+      raw_frame,
+    ))
+  equal(envelope.connection, connection)
   equal(envelope.stream, stream)
   equal(envelope.message, message.WebSocket(frame))
   equal(
