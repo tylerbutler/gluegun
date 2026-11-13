@@ -11,27 +11,28 @@ import gluegun/message
 import gluegun/response
 import gluegun/websocket
 
-pub fn main() {
+pub fn main() -> Nil {
   let assert Ok(Nil) =
     with_server(fn(port) {
       use timeout <- result.try(gluegun.milliseconds(2000))
-      use conn <- result.try(
+      use connection <- result.try(
         gluegun.connection_options()
         |> gluegun.open(host: "127.0.0.1", port: port),
       )
       let exchange = {
-        use _ <- result.try(gluegun.await_up(conn, timeout))
-        use res <- result.try(
+        use _ <- result.try(gluegun.await_up(connection, timeout))
+        use collected_response <- result.try(
           gluegun.new_request(http.Get, "/")
-          |> gluegun.send(connection: conn),
+          |> gluegun.send(connection: connection),
         )
-        let assert 200 = response.status(res)
-        let assert Ok("hello") = gluegun.body_text(res)
-        let assert [#("x-check", "done")] = response.trailers(res)
+        let assert 200 = response.status(collected_response)
+        let assert Ok("hello") = gluegun.body_text(collected_response)
+        let assert [#("x-check", "done")] =
+          response.trailers(collected_response)
         let assert [http_response.Response(status: 103, headers: _, body: Nil)] =
-          response.informational(res)
+          response.informational(collected_response)
         use next <- result.try(client.options(
-          conn,
+          connection,
           path: "/",
           headers: [],
           timeout: timeout,
@@ -39,7 +40,7 @@ pub fn main() {
         let assert 204 = response.status(next)
         Ok(Nil)
       }
-      let cleanup = gluegun.terminate(conn)
+      let cleanup = gluegun.terminate(connection)
       use _ <- result.try(exchange)
       cleanup
     })
@@ -47,18 +48,18 @@ pub fn main() {
   let assert Ok(Nil) =
     with_websocket_server(fn(port) {
       use timeout <- result.try(connection.milliseconds(2000))
-      use conn <- result.try(
+      use connection <- result.try(
         connection.options() |> connection.open(host: "127.0.0.1", port: port),
       )
       let exchange = {
-        use protocol <- result.try(connection.await_up(conn, timeout))
-        use socket <- result.try(adopt(conn, protocol, timeout))
+        use protocol <- result.try(connection.await_up(connection, timeout))
+        use socket <- result.try(adopt(connection, protocol, timeout))
         let outcome = check_socket(socket)
         let cleanup = websocket.close(socket)
         use _ <- result.try(outcome)
         cleanup
       }
-      let cleanup = connection.terminate(conn)
+      let cleanup = connection.terminate(connection)
       use _ <- result.try(exchange)
       cleanup
     })
@@ -87,7 +88,7 @@ fn check_socket(socket: websocket.Socket) -> Result(Nil, error.GluegunError) {
   Ok(Nil)
 }
 
-fn upgrade_options() {
+fn upgrade_options() -> Result(websocket.UpgradeOptions, error.GluegunError) {
   websocket.upgrade_options()
   |> websocket.with_subprotocols(["chat"])
   |> websocket.with_flow(1)
@@ -95,14 +96,24 @@ fn upgrade_options() {
 
 /// Exercise public low-level adoption and negotiated protocol checking.
 pub fn adopt(
-  conn: connection.Connection,
+  connection: connection.Connection,
   protocol: connection.Protocol,
   timeout: connection.Timeout,
-) {
+) -> Result(websocket.Socket, error.GluegunError) {
   use options <- result.try(upgrade_options())
-  use stream <- result.try(websocket.upgrade(conn, protocol, "/", [], options))
-  use handshake <- result.try(websocket.await_upgrade(conn, stream, timeout))
-  Ok(websocket.from_upgrade(conn, stream, handshake, timeout))
+  use stream <- result.try(websocket.upgrade(
+    connection,
+    protocol,
+    "/",
+    [],
+    options,
+  ))
+  use handshake <- result.try(websocket.await_upgrade(
+    connection,
+    stream,
+    timeout,
+  ))
+  Ok(websocket.from_upgrade(connection, stream, handshake, timeout))
 }
 
 @external(erlang, "compatibility_peer", "with_server")

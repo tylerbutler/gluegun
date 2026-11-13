@@ -42,7 +42,7 @@ pub fn infinite_collection_budget_stays_unlimited_test() -> Nil {
     let assert True = connection.deadline(wait) == None
     Ok(message.Response(fin.Fin, 204, []))
   }
-  let assert Ok(res) =
+  let assert Ok(collected_response) =
     client.get_with(
       invalid_connection(),
       "/",
@@ -51,7 +51,7 @@ pub fn infinite_collection_budget_stays_unlimited_test() -> Nil {
       request_fn,
       await_fn,
     )
-  let assert True = response.status(res) == 204
+  let assert True = response.status(collected_response) == 204
   Nil
 }
 

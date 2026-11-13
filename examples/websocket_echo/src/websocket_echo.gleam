@@ -56,7 +56,11 @@ fn exchange(socket: websocket.Socket) -> Result(Nil, error.GluegunError) {
       io.println("Received: " <> reply)
       Ok(Nil)
     }
-    Ok(other) ->
+    Ok(message.Binary(_) as other)
+    | Ok(message.Ping(_) as other)
+    | Ok(message.Pong(_) as other)
+    | Ok(message.Close as other)
+    | Ok(message.CloseWithReason(_, _) as other) ->
       Error(error.InvalidMessage("Unexpected frame: " <> frame_to_string(other)))
     Error(error) -> Error(error)
   }
@@ -64,7 +68,7 @@ fn exchange(socket: websocket.Socket) -> Result(Nil, error.GluegunError) {
 
 fn frame_to_string(frame: message.Frame) -> String {
   case frame {
-    message.Text(s) -> "Text(" <> s <> ")"
+    message.Text(text) -> "Text(" <> text <> ")"
     message.Binary(_) -> "Binary(<binary>)"
     message.Ping(_) -> "Ping"
     message.Pong(_) -> "Pong"

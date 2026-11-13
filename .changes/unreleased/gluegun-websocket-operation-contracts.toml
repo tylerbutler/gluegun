@@ -1,3 +1,0 @@
-package = "gluegun"
-kind = "Fixed"
-body = "Run bounded WebSocket teardown before re-raising callback exceptions from with_socket. Preserve the original exception and returned-Result error precedence. Use one total receive_app_frame deadline across skipped ping/pong frames; Infinity remains unlimited."

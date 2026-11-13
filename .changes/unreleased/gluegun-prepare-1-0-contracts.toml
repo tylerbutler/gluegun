@@ -1,8 +1,0 @@
-package = "gluegun"
-kind = "Added"
-body = """
-Prepare the 1.0 HTTP and WebSocket contracts
-
-Use gleam/http.Method, remove duplicate request header options and unsafe collector flow settings, validate numeric options, and keep a complete HTTP facade. Use one Socket lifecycle with protocol-checked upgrades, handshake headers, and typed subprotocol negotiation. Default HTTP retries to zero and prevent WebSocket reconnects from hiding connection loss. Apply total HTTP/upgrade deadlines, validate inbound UTF-8 headers and outgoing subprotocol tokens, reject unsafe TLS SNI and fixed-length streamed uploads, and drain queued push messages.
-
-Test minimum and current production dependencies with public HTTP and WebSocket consumers. Correct the minimum to Gleam 1.11 and gleam_stdlib 0.53, as required by gleam_erlang 1.0. Include the declared MIT licence in the package. Document the accepted upstream HTTP/1.1 cancellation limitation and maintainer-only Hex setup."""

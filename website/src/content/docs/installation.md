@@ -27,6 +27,8 @@ dependency to `gleam.toml`:
   </ol>
 </nav>
 
+Add these dependencies to your `gleam.toml`:
+
 ```toml
 [dependencies]
 gleam_http = ">= 4.0.0 and < 5.0.0"

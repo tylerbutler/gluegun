@@ -1,5 +1,5 @@
 name = "gluegun"
-version = "0.2.0"
+version = "0.3.0"
 description = "A Gleam wrapper for the Erlang Gun HTTP client"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "gluegun" }
@@ -20,7 +20,10 @@ gun = ">= 2.1.0 and < 3.0.0"
 unitest = ">= 1.6.1 and < 2.0.0"
 
 [tools.trellis]
-members = ["."]
+members = [".", "examples/*"]
+
+[tools.trellis.exclude]
+docs = ["examples/*"]
 
 [tools.trellis.changelog]
 header_format = "# Changelog"
@@ -29,7 +32,8 @@ kind_format = "### {{ kind }}"
 change_format = "#### {{ body }}"
 kinds = [
   { label = "Major Release", bump = "major" },
-  { label = "Breaking", bump = "major" },
+  # Before 1.0, breaking changes need a minor release. Change to "major" at 1.0.
+  { label = "Breaking", bump = "minor" },
   { label = "Added", bump = "minor" },
   { label = "Changed", bump = "patch" },
   { label = "Deprecated", bump = "patch" },
@@ -47,3 +51,4 @@ package_tags = ["exact"]
 
 [tools.trellis.publish.lifecycle]
 default = "hex"
+packages = { "examples/*" = "workspace" }

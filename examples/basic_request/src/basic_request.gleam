@@ -20,16 +20,23 @@ pub fn main() -> Nil {
 
   case connection.options() |> connection.open(host: host, port: port) {
     Ok(connection) -> {
-      let assert Ok(protocol) = connection.await_up(connection, timeout)
-      io.println("protocol: " <> protocol_to_string(protocol))
-
-      case client.get(connection, path, [], timeout) {
-        Ok(response) -> print_response(response)
-        Error(error) -> io.println("request failed: " <> error_to_string(error))
+      case connection.await_up(connection, timeout) {
+        Ok(protocol) -> {
+          io.println("protocol: " <> protocol_to_string(protocol))
+          case client.get(connection, path, [], timeout) {
+            Ok(response) -> print_response(response)
+            Error(error) ->
+              io.println("request failed: " <> error_to_string(error))
+          }
+        }
+        Error(error) ->
+          io.println("connection failed: " <> error_to_string(error))
       }
 
-      let assert Ok(Nil) = connection.close(connection)
-      Nil
+      case connection.terminate(connection) {
+        Ok(Nil) -> Nil
+        Error(error) -> io.println("cleanup failed: " <> error_to_string(error))
+      }
     }
 
     Error(error) -> io.println("connection failed: " <> error_to_string(error))

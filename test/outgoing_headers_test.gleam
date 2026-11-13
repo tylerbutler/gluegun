@@ -6,83 +6,83 @@ import gluegun/websocket
 
 // Each payload/entry-point combination is a separately selectable Unitest test.
 // U+212A lowercases to ASCII "k": validating only after lowercase is unsafe.
-pub fn request_per_call_rejects_kelvin_test() {
+pub fn request_per_call_rejects_kelvin_test() -> Nil {
   reject_request("\u{212A}", False)
 }
 
-pub fn request_later_header_rejects_kelvin_test() {
+pub fn request_later_header_rejects_kelvin_test() -> Nil {
   reject_request("\u{212A}", True)
 }
 
-pub fn start_stream_per_call_rejects_kelvin_test() {
+pub fn start_stream_per_call_rejects_kelvin_test() -> Nil {
   reject_headers("\u{212A}", False)
 }
 
-pub fn start_stream_later_header_rejects_kelvin_test() {
+pub fn start_stream_later_header_rejects_kelvin_test() -> Nil {
   reject_headers("\u{212A}", True)
 }
 
-pub fn websocket_upgrade_rejects_kelvin_test() {
+pub fn websocket_upgrade_rejects_kelvin_test() -> Nil {
   reject_upgrade("\u{212A}")
 }
 
-pub fn request_per_call_rejects_embedded_kelvin_test() {
+pub fn request_per_call_rejects_embedded_kelvin_test() -> Nil {
   reject_request("X-\u{212A}ey", False)
 }
 
-pub fn request_later_header_rejects_embedded_kelvin_test() {
+pub fn request_later_header_rejects_embedded_kelvin_test() -> Nil {
   reject_request("X-\u{212A}ey", True)
 }
 
-pub fn start_stream_per_call_rejects_embedded_kelvin_test() {
+pub fn start_stream_per_call_rejects_embedded_kelvin_test() -> Nil {
   reject_headers("X-\u{212A}ey", False)
 }
 
-pub fn start_stream_later_header_rejects_embedded_kelvin_test() {
+pub fn start_stream_later_header_rejects_embedded_kelvin_test() -> Nil {
   reject_headers("X-\u{212A}ey", True)
 }
 
-pub fn websocket_upgrade_rejects_embedded_kelvin_test() {
+pub fn websocket_upgrade_rejects_embedded_kelvin_test() -> Nil {
   reject_upgrade("X-\u{212A}ey")
 }
 
-pub fn request_per_call_rejects_accented_name_test() {
+pub fn request_per_call_rejects_accented_name_test() -> Nil {
   reject_request("X-\u{00C9}", False)
 }
 
-pub fn request_later_header_rejects_accented_name_test() {
+pub fn request_later_header_rejects_accented_name_test() -> Nil {
   reject_request("X-\u{00C9}", True)
 }
 
-pub fn start_stream_per_call_rejects_accented_name_test() {
+pub fn start_stream_per_call_rejects_accented_name_test() -> Nil {
   reject_headers("X-\u{00C9}", False)
 }
 
-pub fn start_stream_later_header_rejects_accented_name_test() {
+pub fn start_stream_later_header_rejects_accented_name_test() -> Nil {
   reject_headers("X-\u{00C9}", True)
 }
 
-pub fn websocket_upgrade_rejects_accented_name_test() {
+pub fn websocket_upgrade_rejects_accented_name_test() -> Nil {
   reject_upgrade("X-\u{00C9}")
 }
 
-pub fn request_per_call_rejects_long_s_test() {
+pub fn request_per_call_rejects_long_s_test() -> Nil {
   reject_request("X-\u{017F}", False)
 }
 
-pub fn request_later_header_rejects_long_s_test() {
+pub fn request_later_header_rejects_long_s_test() -> Nil {
   reject_request("X-\u{017F}", True)
 }
 
-pub fn start_stream_per_call_rejects_long_s_test() {
+pub fn start_stream_per_call_rejects_long_s_test() -> Nil {
   reject_headers("X-\u{017F}", False)
 }
 
-pub fn start_stream_later_header_rejects_long_s_test() {
+pub fn start_stream_later_header_rejects_long_s_test() -> Nil {
   reject_headers("X-\u{017F}", True)
 }
 
-pub fn websocket_upgrade_rejects_long_s_test() {
+pub fn websocket_upgrade_rejects_long_s_test() -> Nil {
   reject_upgrade("X-\u{017F}")
 }
 

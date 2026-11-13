@@ -1,4 +1,0 @@
-package = "gluegun"
-kind = "Fixed"
-body = """
-Reject finite timeouts outside 0 through 4_294_967_295 milliseconds with InvalidOptions before Gun creates monitors or consumes messages. Keep Infinity explicit for unlimited waits."""

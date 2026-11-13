@@ -3,9 +3,11 @@ title: Streaming
 description: Send chunked request bodies and read asynchronous response messages.
 ---
 
-Use `gluegun/request` when you make the request body in chunks.
+Use `gluegun/request` to send request bodies in chunks and `gluegun/message`
+to read response chunks as they arrive.
 
-Start with `request.start_stream`. Send zero or more chunks with `fin.NoFin`. Complete the body with `fin.Fin`.
+For an upload, start with `request.start_stream`, send zero or more chunks
+with `fin.NoFin`, and complete the body with `fin.Fin`.
 
 ```gleam
 import gleam/http
@@ -15,7 +17,6 @@ import gluegun/fin
 import gluegun/message
 import gluegun/request
 import gleam/result
-import gleam/http
 
 pub fn upload_chunks(conn) {
   use timeout <- result.try(connection.milliseconds(5000))
@@ -54,7 +55,7 @@ fn await_final_response(conn, stream, timeout) {
 
 ## Message sequence
 
-Gun sends stream messages in a defined order. A usual HTTP request stream gives:
+Gun sends stream messages in a defined order. For an HTTP response, expect:
 
 1. Zero or more `message.Inform(status, headers)` — 1xx informational responses.
 2. Exactly one `message.Response(fin, status, headers)` — the final status line and headers. If `fin` is `Fin`, the body is empty and no more messages come (except possible trailers).
@@ -106,9 +107,14 @@ Flow credit cannot impose a strict allocation cap:
 - Gun can parse several HTTP/2 frames from a socket read before it stops stream-window updates. Data already inside the HTTP/2 window can still arrive.
 - OTP and the operating system hold socket buffers. Gun also holds parser state and buffered bytes. Gluegun does not set a maximum size for these allocations or for one `BitArray`.
 
-The local acceptance tests send a 1 MiB HTTP chunk and 4096 small chunks. They confirm that HTTP/1.1 stops delivery when the initial credit runs out and resumes after `update_flow`. A local HTTP/2 peer fills Gun's advertised stream byte window, checks that finite credit prevents stream `WINDOW_UPDATE`, then confirms that replenishing data-message credit resumes delivery. It also checks the final chunk's cumulative byte count and termination cleanup with a real queued server push. The byte-policy tests reject bodies from both chunked and close-delimited responses. The caller owns the byte limit and any archive processing.
+You must enforce the byte limit and handle any archive processing in your
+application. For the test evidence behind these limits, see the
+[streaming guide validation notes](https://github.com/tylerbutler/gluegun/blob/main/website/README.md#streaming-guide-validation).
 
-## Bounded connection setup
+## Connection setup time limits
+
+Response flow control does not limit connection setup time. Set separate
+timeouts for DNS lookup, socket connection, and the TLS handshake:
 
 ```gleam
 use stage_timeout <- result.try(connection.milliseconds(1000))
@@ -124,7 +130,11 @@ let connect_options =
   |> connection.with_tls_handshake_timeout(stage_timeout)
 ```
 
-Reuse the address family that your command selected. `Ipv4` uses only IPv4 addresses; `Ipv6` uses only IPv6 addresses. Gun uses this selection for DNS lookup and TCP connection, including the TCP socket below TLS. It does not switch families on failure. Keep the DNS hostname as `open`'s host to preserve hostname verification and SNI. These controls do not disable peer verification or system CA roots.
+The example selects IPv6. Choose `Ipv4` or `Ipv6` to match your application's
+network requirements. Gun uses that family for DNS lookup and TCP connection,
+including the TCP socket below TLS, and does not switch families on failure.
+Keep the DNS hostname as `open`'s host to preserve hostname verification and
+SNI. These controls do not disable peer verification or system CA roots.
 
 Gun 2.1 and 2.2 split setup into three stages on OTP 27:
 

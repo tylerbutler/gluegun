@@ -1,3 +1,0 @@
-package = "gluegun"
-kind = "Fixed"
-body = "Resolve Auto transport before applying TLS defaults. Auto connections without TLS options use TLS on port 443 and TCP on other ports, so plain HTTP does not require TLS trust roots. Configured TLS options still force TLS on custom ports, and TLS setup failures remain errors without a plaintext fallback."

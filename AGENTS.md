@@ -14,6 +14,7 @@ just examples-test # test standalone examples with test directories
 just format        # gleam format src test
 just format-check  # gleam format --check src test
 just docs          # gleam docs build
+just docs-examples # compile complete docs examples and check HTTP cleanup
 just site-deps     # install website dependencies
 just site-build    # build website
 just site-check    # validate website
@@ -51,7 +52,25 @@ The Erlang FFI boundary is centralized in `src/gluegun_ffi.erl` and the `@extern
 
 `Connection` and `Stream` are external foreign types declared in `gluegun/internal.gleam`: they name a Gun connection process identifier and a Gun stream reference, have no Gleam constructors, and can only come from Gun (or, in tests, from typed constructors in `test/gluegun_ffi_test.erl`).
 
-Examples under `examples/` are standalone Erlang-target Gleam packages; each can be built with `gleam build` and run with `gleam run` from its directory. Root `just` recipes `examples-deps`, `examples-format-check`, `examples-test`, and `examples-build` operate on examples. `just ci` checks example formatting and runs their tests; `just main` also builds examples.
+Examples under `examples/` are standalone Erlang-target Gleam packages and Trellis workspace members. Their `workspace` release lifecycle excludes them from changelogs, version bumps, tags, and publishing. Each can be built with `gleam build` and run with `gleam run` from its directory. Root `just` recipes use `trellis exec --serial` for package execution, without Trellis task definitions. Trellis 1.5 accepts exact package names, not path selectors, so each command checks its package path before it runs example work. These tasks exclude the root package; `examples-test` runs only packages with test directories, and `examples-build` also packages escripts when a package depends on `gleescript`. `just ci` checks example formatting and runs their tests; `just main` also builds examples.
+
+Keep `examples-deps` and `examples-build` serial: the pinned Gleam compiler can
+race when concurrent packages write to its shared Hex cache.
+
+Quick Start and the HTTP/2 guide display complete canonical modules from
+`examples/basic_request/src/basic_request/guide.gleam` and
+`examples/http2_preferred/src/http2_preferred/guide.gleam` through direct MDX
+`?raw` imports and Starlight `Code`. Keep their code in those modules, not in
+the pages. The existing example CLI entry points are separate and unchanged.
+
+`just docs-examples` runs Python wiring tests and checks both raw imports and
+direct `Code` bindings. It compiles the canonical example packages as path
+dependencies, without source changes. It also extracts remaining
+import-and-function Gleam blocks from the README and website guides into a
+temporary package and checks the landing-page Code component's function body
+with its imports. Partial expression snippets are excluded. Only remaining
+owned fences get test-only endpoint and cleanup rewrites. The lifecycle harness
+uses a loopback peer to check repeated-call cleanup and error precedence.
 
 ## Key conventions
 

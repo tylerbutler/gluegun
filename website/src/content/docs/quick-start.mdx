@@ -6,7 +6,11 @@ next:
   label: Add headers and bodies
 ---
 
-Open a Gun connection. Wait until it is ready. Send a GET request. Collect the full response in memory.
+import { Code } from '@astrojs/starlight/components';
+import guideSource from '../../../../examples/basic_request/src/basic_request/guide.gleam?raw';
+
+To send your first GET request, open a Gun connection and wait until it is ready.
+Then send the request and collect the full response in memory.
 
 Before you start, [install Gluegun](/installation/) and confirm that the package target is `erlang`.
 
@@ -19,64 +23,24 @@ Before you start, [install Gluegun](/installation/) and confirm that the package
   </ol>
 </nav>
 
-```gleam
-import gleam/http
-import gleam/int
-import gleam/io
-import gleam/http
-import gleam/result
-import gluegun/client
-import gluegun/connection
-import gluegun/response
+<Code code={guideSource} lang="gleam" />
 
-pub fn main() {
-  use timeout <- result.try(connection.milliseconds(5000))
-
-  use conn <- result.try(
-    connection.open(
-      connection.options(),
-      host: "example.com",
-      port: 80,
-    ),
-  )
-  use _protocol <- result.try(
-    connection.await_up(conn, timeout),
-  )
-
-  use res <- result.try(
-    client.new(http.Get, "/")
-    |> client.with_timeout(
-      timeout: timeout,
-    )
-    |> client.send(
-      connection: conn,
-    ),
-  )
-
-  io.println("status: " <> int.to_string(res.response.status))
-
-  case response.body_text(res) {
-    Ok(text) -> io.println(text)
-    Error(_) ->
-      io.println(
-        "response body was not UTF-8",
-      )
-  }
-
-  connection.close(conn)
-}
-```
-
-Run the example:
+Run the example from the repository root:
 
 ```sh
-gleam run
+cd examples/basic_request
+gleam run -m basic_request/guide
 ```
 
 You should see `status: 200`, followed by the HTML response from `example.com`.
 
 If the connection does not open or the request times out, use the
 [troubleshooting guide](/advanced/troubleshooting/).
+
+The example calls `connection.terminate` before returning a result, including
+after a failed exchange or stalled connection setup. If both the exchange and
+cleanup fail, it returns the exchange error. If only cleanup fails, it returns
+the cleanup error.
 
 ## Key idea
 

@@ -1,5 +1,76 @@
 # Changelog
 
+## 0.3.0 - 2026-11-13
+
+### Breaking
+
+#### Finalize the HTTP connection and request contracts
+
+- New connections use zero retries. The previous default was Gun's five retries. To enable reconnection, use `connection.with_retry` with `connection.retry_count`.
+- HTTP and WebSocket upgrade timeouts are total deadlines for the operation, not deadlines for each message.
+- Remove `request.add_headers`, `request.with_headers`, `request.method_to_string`, and `client.with_options`. Pass headers directly to `request.request` or `request.start_stream`, or use the `client` header builders. Rename `client.request_options` to `client.options`.
+- The root `gluegun` module keeps only the common HTTP path: `connection_options`, `milliseconds`, `infinity`, `open`, `await_up`, `new_request`, `send`, `body_text`, `close`, `shutdown`, and `terminate`. Import `gluegun/connection`, `gluegun/tls`, and `gluegun/websocket` for other operations, including the former `websocket_*` functions.
+- The `connection` inspectors `transport`, `protocols`, `retry`, `connect_timeout`, and `tls_options` are no longer public. `message` no longer has the `Method`, `Header`, and `GluegunError` aliases. Use `gleam/http.Method`, `request.Header`, and `error.GluegunError`.
+- `tls.with_depth` returns a `Result` and accepts 0 through 255.
+- These inputs now return `InvalidOptions`: ports outside 0 through 65535, disabled SNI with `VerifyPeer`, and a `content-length` header on `request.start_stream`. For fixed-length bodies, use `request.request`. For streamed uploads, use chunked encoding.
+- Response headers that are not valid UTF-8 return `DecodeError`.
+#### Use standard gleam/http methods and responses
+
+HTTP APIs and push messages use `gleam/http.Method`. Replace `request.Get` and the other `request.Method` constructors with the `gleam/http` constructors. Replace `request.Custom` with `http.Other`.
+
+Collected responses have the type `response.Response(BitArray)`. Add `BitArray` to your type annotations. The `response` field contains a standard `gleam/http/response.Response`. The `trailers` and `informational` fields are next to it. Informational responses are standard `Response(Nil)` values, not `response.Informational` records. You can use standard response helpers on the `response` field. Keep the outer value to keep trailers and informational responses. `status`, `headers`, `body`, and `body_text` are still available.
+#### Use one WebSocket socket lifecycle
+
+- `websocket.upgrade` takes the connection, the negotiated protocol, the path, the headers, and the options. It returns `UnsupportedFeature` for HTTP/2. Remove `upgrade_with_options`, `upgrade_with_protocol`, and `upgrade_with_protocol_and_options`.
+- `await_upgrade` returns a `Handshake`. Pass it to `from_upgrade` to get a `Socket`.
+- Remove `websocket.send` and `websocket.receive`. Use `send_frame`, `send_text`, `send_binary`, `send_many`, `receive_frame`, and `receive_app_frame` with a `Socket`.
+- Remove `with_protocol_module`, `with_default_protocol_module`, `HandlerOptions`, and the `gluegun/websocket/raw` builders. Use `with_subprotocols` and `with_reply_to`.
+- `with_flow` returns a `Result` and accepts only positive values.
+- `connect` and `with_socket` always use HTTP/1.1 and zero retries. When the connection is lost, you get an error. The connection does not reconnect silently.
+- Invalid subprotocol tokens return `InvalidOptions`.
+
+### Added
+
+#### WebSocket handshake data and subprotocol negotiation
+
+Use `websocket.with_subprotocols` to offer subprotocols, and `websocket.selected_subprotocol` to read the subprotocol that the server selected. Use `websocket.handshake`, `handshake_headers`, and `handshake_subprotocol` to read the upgrade response. Use `websocket.with_reply_to` to send frames to a different receiver process.
+
+### Fixed
+
+#### Reject unsupported finite timeouts
+
+`connection.milliseconds` and `gluegun.milliseconds` accept 0 through 4_294_967_295 milliseconds. Values outside this range return `InvalidOptions` before Gun creates monitors or consumes messages. Use `infinity()` for waits with no limit.
+#### Cancel rejected HTTP/2 push streams
+
+Client helpers now cancel and drain promised HTTP/2 streams when they reject a push or find a queued push during failed-stream cleanup. The original collection error and unrelated streams on the shared connection do not change.
+#### Correct the documentation examples
+
+Five website examples that did not compile now compile. The Quick Start and HTTP/2 examples close their connections after success and after errors.
+#### Decode empty WebSocket ping and pong frames
+
+Empty ping and pong frames now decode correctly. `receive_app_frame` no longer sends a second automatic pong reply.
+#### Document the HTTP/1.1 cancellation limitation
+
+After you cancel an HTTP/1.1 stream that used all of its finite flow credit, Gun can stop reading from the connection. Terminate the connection and open a new one. Do not use it again.
+#### Correct package requirements
+
+Gluegun requires Gleam 1.11 or later and `gleam_stdlib` 0.53 or later, because `gleam_erlang` 1.0 requires them. Gluegun now depends on `gleam_http` 4.x and no longer depends on `gleam_otp`. The published package includes the MIT licence file.
+#### Preserve Gun error categories
+
+`connection.open` returns `InvalidOptions` when Gun rejects options. `await_up`, `message.await`, and `message.await_body` return `ConnectionDown` when the connection process exits. Other failures keep `ConnectionError` or `StreamError`, and the reason text no longer repeats the category. `message.decode` returns `StreamError` or `ConnectionError` for `gun_error` messages and `ConnectionDown` for `gun_down` messages.
+#### Choose the Auto transport before TLS defaults
+
+When there are no TLS options, `Auto` uses TLS on port 443 and TCP on other ports. Plain HTTP connections no longer need TLS trust roots. TLS options still select TLS on other ports. TLS setup failures return errors and do not fall back to plain text.
+#### Correct the TLS builder in the documentation
+
+The `gluegun/tls` module documentation and the TLS guide now use `connection.with_tls_options`, not the removed `with_tls_opts`.
+#### Validate outgoing header names before lowercase conversion
+
+HTTP requests now check original header names as ASCII HTTP tokens before lowercase conversion, as WebSocket upgrades do. Names with characters that are not ASCII, such as the Kelvin sign, return `InvalidOptions` before Gun receives them. This applies to regular and streamed requests. Mixed-case ASCII names still become lowercase, and header values do not change.
+#### Bound WebSocket cleanup and receive waits
+
+When a `with_socket` callback raises an exception, the socket closes within a time limit and then the original exception is raised again. Errors that the callback returns still take precedence over cleanup errors. `receive_app_frame` uses one total deadline, so ping and pong frames do not make the wait longer. `Infinity` still waits with no limit.
+
 ## 0.2.0 - 2026-11-07
 
 ### Added

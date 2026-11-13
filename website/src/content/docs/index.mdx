@@ -20,23 +20,24 @@ hero:
 
 import { Code } from "@astrojs/starlight/components";
 
-export const gleamExample = `use conn <- result.try(
+export const gleamExample = `use timeout <- result.try(connection.milliseconds(5000))
+use conn <- result.try(
   connection.options()
   |> connection.open(host: "example.com", port: 443),
 )
 
-use _ <- result.try(
-  connection.await_up(conn, connection.Milliseconds(5000)),
-)
-
-use res <- result.try(
+let exchange = {
+  use _ <- result.try(connection.await_up(conn, timeout))
   client.new(http.Get, "/")
-  |> client.with_timeout(timeout: connection.Milliseconds(5000))
-  |> client.send(connection: conn),
-)
+  |> client.with_timeout(timeout: timeout)
+  |> client.send(connection: conn)
+}
+let cleanup = connection.terminate(conn)
+use res <- result.try(exchange)
+use _ <- result.try(cleanup)
 
 io.println("status: " <> int.to_string(res.response.status))
-connection.close(conn)`;
+Ok(Nil)`;
 
 <style lang="css">{`
   .gluegun-splash {
@@ -348,7 +349,7 @@ connection.close(conn)`;
       <div>
         <h2 id="gluegun-lab-title">HTTP without footguns.</h2>
         <p>
-          Gluegun keeps the BEAM-native Gun model visible. Open a connection. Wait for the negotiated protocol. Send the request. Then collect a typed response, or use streams when the body does not fit in memory.
+          Gluegun gives you typed access to Gun's connections and streams on the BEAM. Open a connection and wait for protocol negotiation before sending a request. Then collect a typed response in memory, or process the body as a stream when it is too large to collect.
         </p>
       </div>
     </div>
@@ -372,7 +373,7 @@ connection.close(conn)`;
           <span class="gluegun-paths__step">02</span>
           <span class="gluegun-paths__item">
             <a href="/quick-start/">Send a GET</a>
-            <span>Open a connection. Wait until it is ready. Collect a typed response.</span>
+            <span>Wait for your connection to become ready, then send a request and collect a typed response.</span>
           </span>
         </li>
         <li>
@@ -389,9 +390,9 @@ connection.close(conn)`;
 
 <section class="gluegun-map" aria-labelledby="gluegun-map-title">
   <div class="gluegun-map__heading">
-    <h2 id="gluegun-map-title">Select the layer that agrees with the task.</h2>
+    <h2 id="gluegun-map-title">Choose the API for your task.</h2>
     <p>
-      Use the high-level client when one collected response is sufficient. Use the request and message functions when streams, cancellation, HTTP/2 push, upgrades, trailers, or WebSocket frames must stay explicit.
+      Use the high-level client to collect a complete HTTP response. For control over response chunks, cancellation, HTTP/2 push, upgrades, trailers as they arrive, or WebSocket frames, use the lower-level request and message functions.
     </p>
   </div>
 
@@ -399,11 +400,11 @@ connection.close(conn)`;
     <h2>Lifecycle map</h2>
     <a href="/reference/gluegun-connection/">
       <strong>connection</strong>
-      <span>Open Gun. Wait for protocol negotiation. Close cleanly.</span>
+      <span>Open a Gun connection, wait for protocol negotiation, and close it when you finish.</span>
     </a>
     <a href="/reference/gluegun-client/">
       <strong>client</strong>
-      <span>One usual request, one collected response, visible errors.</span>
+      <span>Send an HTTP request and collect its response, with typed errors on failure.</span>
     </a>
     <a href="/reference/gluegun-request/">
       <strong>request</strong>

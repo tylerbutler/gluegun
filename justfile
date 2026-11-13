@@ -56,38 +56,43 @@ check:
 
 # === EXAMPLES ===
 
+# Trellis exec accepts package names, not path globs; each command checks its package path.
 # Download dependencies for every standalone example package
 examples-deps:
-    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && gleam deps download); fi; done
+    trellis exec --serial -- sh -ec 'case "$PWD" in "$1"/examples/*) gleam deps download ;; esac' sh {{quote(justfile_directory())}}
 
 # Format every standalone example package
 examples-format:
-    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && if [ -d test ]; then gleam format src test; else gleam format src; fi) || exit 1; fi; done
+    trellis exec --serial -- sh -ec 'case "$PWD" in "$1"/examples/*) if [ -d test ]; then gleam format src test; else gleam format src; fi ;; esac' sh {{quote(justfile_directory())}}
 
 # Check formatting for every standalone example package
 examples-format-check:
-    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && if [ -d test ]; then gleam format --check src test; else gleam format --check src; fi) || exit 1; fi; done
+    trellis exec --serial -- sh -ec 'case "$PWD" in "$1"/examples/*) if [ -d test ]; then gleam format --check src test; else gleam format --check src; fi ;; esac' sh {{quote(justfile_directory())}}
 
 # Run tests for standalone example packages with test directories
 examples-test:
-    for dir in examples/*; do if [ -f "$dir/gleam.toml" ] && [ -d "$dir/test" ]; then (cd "$dir" && gleam test) || exit 1; fi; done
+    trellis exec --serial -- sh -ec 'case "$PWD" in "$1"/examples/*) if [ -d test ]; then gleam test; fi ;; esac' sh {{quote(justfile_directory())}}
 
-# Build every standalone example package; package escripts for examples that depend on gleescript
+# Build examples serially to avoid concurrent Hex cache writes; also package escripts
 examples-build:
-    for dir in examples/*; do \
-        if [ -f "$dir/gleam.toml" ]; then \
-            (cd "$dir" && gleam build) || exit 1; \
-            if grep -q '^gleescript ' "$dir/gleam.toml" || grep -q '^gleescript ' "$dir/manifest.toml" 2>/dev/null; then \
-                (cd "$dir" && gleam run -m gleescript -- --out=dist) || exit 1; \
-            fi; \
-        fi; \
-    done
+    trellis exec --serial -- sh -ec '\
+        case "$PWD" in "$1"/examples/*) \
+            gleam build; \
+            if grep -q "^gleescript " gleam.toml || grep -q "^gleescript " manifest.toml 2>/dev/null; then \
+                gleam run -m gleescript -- --out=dist; \
+            fi ;; \
+        esac' sh {{quote(justfile_directory())}}
 
 # === DOCUMENTATION ===
 
 # Build documentation
 docs:
     gleam docs build
+
+# Compile complete README/website examples and check owned HTTP cleanup
+docs-examples:
+    python3 -B -m unittest discover -s test -p documentation_examples_test.py
+    python3 -B scripts/check_documentation_examples.py
 
 # Generate website reference docs from Gleam docs JSON
 site-reference:
@@ -148,7 +153,7 @@ clean:
 # === CI ===
 
 # Run all CI checks (format, check, test, build, workspace)
-ci: format-check check test examples-format-check examples-test build-strict trellis-doctor
+ci: format-check check test examples-format-check examples-test docs-examples build-strict trellis-doctor
 
 # Alias for PR checks
 alias pr := ci

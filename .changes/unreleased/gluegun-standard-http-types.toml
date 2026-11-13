@@ -1,9 +1,0 @@
-package = "gluegun"
-kind = "Breaking"
-body = """
-Use gleam/http.Method in HTTP APIs and push messages. Replace request.Get and other method constructors with gleam/http constructors; replace request.Custom with http.Other.
-
-Collected responses now use response.Response(body). The response field contains a standard gleam/http/response.Response(body), with trailers and ordered informational responses alongside it. Informational responses use standard Response(Nil) values instead of response.Informational constructors. Add BitArray to collected response type annotations. Standard response helpers work on the response field; retain the outer value to preserve metadata. Existing status, headers, body, and body_text accessors remain available.
-
-Requests remain connection-bound and use the existing path, body, and timeout builders. Standard request adapters remain deferred.
-"""

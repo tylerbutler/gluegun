@@ -1,6 +1,0 @@
-package = "gluegun"
-kind = "Fixed"
-body = """
-Validate original outgoing header names
-
-HTTP requests validate original header names as ASCII HTTP tokens before lowercase conversion, as WebSocket upgrades do. Non-ASCII names, including the Kelvin sign, return `InvalidOptions` before calling Gun. This applies to per-call and option-level headers for regular and streamed requests. Preserve valid mixed-case ASCII normalization and header values."""

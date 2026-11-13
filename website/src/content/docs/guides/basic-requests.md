@@ -6,7 +6,7 @@ next:
   label: Harden requests for production
 ---
 
-Use `gluegun/client` to send one usual HTTP request on an open connection. The client collects the full response in memory: status, headers, body, trailers, and all `1xx` informational responses.
+Use `gluegun/client` to send an HTTP request on an open connection and collect the full response in memory. The result includes status, headers, body, trailers, and all `1xx` informational responses.
 
 <nav class="gg-lifecycle" aria-label="Request lifecycle">
   <ol>
@@ -48,6 +48,20 @@ Gluegun retains this custom request type to avoid repeating the connection's
 destination. Standard `gleam/http/request.Request` values and converter
 functions are not part of this API.
 
+## Headers
+
+Add request headers with `client.with_header`:
+
+```gleam
+import gleam/http
+client.new(http.Get, "/api/items")
+|> client.with_header(name: "accept", value: "application/json")
+|> client.with_header(name: "user-agent", value: "my-app")
+|> client.send(connection: conn)
+```
+
+Gluegun normalizes header names before it sends them to Gun. Header values do not change.
+
 ## One-shot functions
 
 `gluegun/client` has one function for each HTTP method. Use these when you do
@@ -87,7 +101,7 @@ ordered `1xx` informational responses remain alongside it:
 import gleam/http/response as http_response
 import gluegun/response
 
-pub fn handle(res) {
+pub fn handle(res: response.Response(BitArray)) {
   let _status = res.response.status
   let _headers = res.response.headers
   let _content_type = http_response.get_header(res.response, "content-type")
@@ -125,24 +139,11 @@ informational responses. Each informational response is a standard
 `collected.response` excludes the supplemental metadata. Trailers never
 merge into final headers.
 
-## Migration to standard HTTP types
-
-Import `gleam/http` for `http.Get`, `http.Post`, and other methods. Replace
-`request.Method` with `http.Method` and `request.Custom` with `http.Other`.
-Add `gleam_http = ">= 4.0.0 and < 5.0.0"` to packages that import these modules.
-
-Update collected-response annotations from `response.Response` to
-`response.Response(BitArray)`. Replace `response.Informational(status, headers)`
-with standard `http_response.Response(status, headers, Nil)` values.
-The Gluegun status, headers, body, and text accessors remain available.
-Request paths and body builders keep their existing behavior. Timeouts use
-the total request budget established by the 1.0 API changes.
-
 ## When to use the client functions
 
 Use `gluegun/client` for:
 
-- GET, POST, PUT, PATCH, DELETE, HEAD, and OPTIONS requests with usual responses.
+- GET, POST, PUT, PATCH, DELETE, HEAD, and OPTIONS requests that return HTTP responses.
 - Responses that can be collected in memory.
 - Applications that already control the Gun connection lifecycle.
 
@@ -154,18 +155,20 @@ The client helpers attempt to cancel a failed stream and drain its queued messag
 
 Cancellation is asynchronous. The drain does not wait for Gun to process cancellation or for future messages. Messages in transit can arrive after the helper returns. The high-level API does not return the failed stream handle; use the low-level API in a separate receiving process if you need strict mailbox isolation.
 
-## Headers
+## Migration to standard HTTP types
 
-Add request headers with `client.with_header`:
+If you use an earlier API with Gluegun-specific HTTP methods or
+non-generic collected responses, update these types when you upgrade.
 
-```gleam
-import gleam/http
-client.new(http.Get, "/api/items")
-|> client.with_header(name: "accept", value: "application/json")
-|> client.with_header(name: "user-agent", value: "my-app")
-|> client.send(connection: conn)
-```
+Import `gleam/http` for `http.Get`, `http.Post`, and other methods. Replace
+`request.Method` with `http.Method` and `request.Custom` with `http.Other`.
+Add `gleam_http = ">= 4.0.0 and < 5.0.0"` to packages that import these modules.
 
-Gluegun normalizes header names before it sends them to Gun. Header values do not change.
+Update collected-response annotations from `response.Response` to
+`response.Response(BitArray)`. Replace `response.Informational(status, headers)`
+with standard `http_response.Response(status, headers, Nil)` values.
+The Gluegun status, headers, body, and text accessors remain available.
+Request paths and body builders keep their existing behavior. The current API
+uses one total timeout budget for dispatch and response collection.
 
 See the [client reference](/reference/gluegun-client/) for all high-level client functions.

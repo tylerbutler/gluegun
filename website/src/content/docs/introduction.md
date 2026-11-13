@@ -9,7 +9,7 @@ Gun is an asynchronous HTTP client. It supports HTTP/1.1, HTTP/2, and WebSocket 
 
 Gun is Erlang only. Thus Gluegun runs only on the Erlang target.
 
-If you only need usual HTTP/1.1 requests with complete responses, [`gleam_httpc`](https://hexdocs.pm/gleam_httpc/) has a smaller API. Choose Gluegun when you need HTTP/2, WebSockets, streaming, cancellation, flow control, or direct connection management. See [Choose an HTTP client](/choosing-a-client/) for a detailed comparison.
+If you only need HTTP/1.1 requests with complete responses, [`gleam_httpc`](https://hexdocs.pm/gleam_httpc/) has a smaller API. Choose Gluegun when you need HTTP/2, WebSockets, streaming, cancellation, flow control, or direct connection management. See [Choose an HTTP client](/choosing-a-client/) for a detailed comparison.
 
 ## What Gluegun gives you
 
@@ -26,7 +26,7 @@ Gluegun does not parse URLs. Open a connection with `connection.options() |> con
 
 If your application starts from full URLs, first parse them with the Gleam standard module `gleam/uri`. Use the parsed `host` and `port` for `connection.open`. Select the transport from the scheme. Give the parsed path and query string to the HTTP or WebSocket functions.
 
-Gluegun does not hide the stream model of Gun. The high-level client functions are sufficient for usual responses. For streamed bodies, HTTP/2 push, upgrades, WebSocket messages, cancellation, and flow-control updates, use `gluegun/request` and `gluegun/message`.
+Gluegun keeps Gun's stream model available alongside the high-level client functions. Use the client functions when you can collect the full HTTP response in memory. For streamed bodies, HTTP/2 push, upgrades, WebSocket messages, cancellation, and flow-control updates, use `gluegun/request` and `gluegun/message`.
 
 ## Module map
 

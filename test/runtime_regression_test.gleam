@@ -10,31 +10,39 @@ import gluegun/tls
 pub fn tls_http2_alpn_cancel_sends_rst_cancel_and_reuses_the_connection_test() -> Nil {
   let assert Ok(Nil) =
     with_tls_cancel_server(fn(port, cas) {
-      let assert Ok(conn) =
+      let assert Ok(connection) =
         connection.options()
         |> connection.with_address_family(connection.Ipv4)
         |> connection.with_protocols([connection.Http2, connection.Http1])
         |> connection.with_tls_options(tls.options() |> tls.with_cacerts(cas))
         |> connection.open(host: "localhost", port: port)
-      with_connection(conn, fn() {
-        let assert Ok(connection.Http2) = connection.await_up(conn, timeout())
+      with_connection(connection, fn() {
+        let assert Ok(connection.Http2) =
+          connection.await_up(connection, timeout())
         let assert Ok(flow) = request.options() |> request.with_initial_flow(1)
         let assert Ok(stream) =
-          request.request(conn, http.Get, "/cancel", [], <<>>, flow)
+          request.request(connection, http.Get, "/cancel", [], <<>>, flow)
         let assert Ok(message.Response(fin.NoFin, 200, _)) =
-          message.await(conn, stream, timeout())
+          message.await(connection, stream, timeout())
         let assert Ok(message.Data(fin.NoFin, <<"paused":utf8>>)) =
-          message.await(conn, stream, timeout())
-        let assert Ok(Nil) = request.cancel(conn, stream)
+          message.await(connection, stream, timeout())
+        let assert Ok(Nil) = request.cancel(connection, stream)
         // The peer will not answer this request until it observes the exact
         // RST_STREAM CANCEL (0x8) for the first stream on this TLS socket.
         let assert Ok(next) =
-          request.request(conn, http.Get, "/reuse", [], <<>>, request.options())
+          request.request(
+            connection,
+            http.Get,
+            "/reuse",
+            [],
+            <<>>,
+            request.options(),
+          )
         let assert Ok(message.Response(fin.NoFin, 200, _)) =
-          message.await(conn, next, timeout())
+          message.await(connection, next, timeout())
         let assert Ok(message.Data(fin.Fin, <<"reused":utf8>>)) =
-          message.await(conn, next, timeout())
-        connection.terminate(conn)
+          message.await(connection, next, timeout())
+        connection.terminate(connection)
       })
     })
   Nil
@@ -131,38 +139,38 @@ fn malformed_headers(fault: String) -> Nil {
 }
 
 fn malformed(kind: String, fault: String) -> Nil {
-  let #(conn, stream, raw) = incoming(kind, fault)
+  let #(connection, stream, raw) = incoming(kind, fault)
   let assert Error(error.DecodeError(_)) = message.decode(raw)
   let assert Error(error.DecodeError(_)) =
-    message.await(conn, stream, timeout())
+    message.await(connection, stream, timeout())
   Nil
 }
 
 pub fn preserves_valid_utf8_header_values_without_transcoding_test() -> Nil {
-  let #(conn, stream, raw) = incoming("response", "valid")
+  let #(connection, stream, raw) = incoming("response", "valid")
   let assert Ok(envelope) = message.decode(raw)
   let assert message.Response(fin.Fin, 200, [#("x-test", "café")]) =
     envelope.message
   let assert Ok(message.Response(fin.Fin, 200, [#("x-test", "café")])) =
-    message.await(conn, stream, timeout())
+    message.await(connection, stream, timeout())
   Nil
 }
 
 pub fn public_flush_drains_seven_field_pushes_and_preserves_other_mail_test() -> Nil {
-  let #(conn, other) = flush_fixture()
-  let assert Ok(Nil) = request.flush(conn)
-  let assert Ok(Nil) = assert_flush(conn, other)
+  let #(connection, other) = flush_fixture()
+  let assert Ok(Nil) = request.flush(connection)
+  let assert Ok(Nil) = assert_flush(connection, other)
   Nil
 }
 
 pub fn rejects_streaming_content_length_before_any_cast_test() -> Nil {
-  let #(conn, _, _) = incoming("response", "valid")
+  let #(connection, _, _) = incoming("response", "valid")
   // Drain this fixture message; only outgoing casts are inspected below.
-  let assert Ok(Nil) = request.flush(conn)
+  let assert Ok(Nil) = request.flush(connection)
   list.each(["0", "1", "100"], fn(length) {
     let assert Error(error.InvalidOptions(_)) =
       request.start_stream(
-        conn,
+        connection,
         http.Post,
         "/",
         [#("Content-Length", length)],
@@ -174,15 +182,15 @@ pub fn rejects_streaming_content_length_before_any_cast_test() -> Nil {
 
 pub fn rejected_fixed_length_stream_keeps_wire_clean_and_connection_reusable_test() -> Nil {
   with_payload_server(False, fn(server, port) {
-    let assert Ok(conn) =
+    let assert Ok(connection) =
       connection.options()
       |> connection.with_protocols([connection.Http1])
       |> connection.open(host: "127.0.0.1", port: port)
-    with_payload_connection(conn, fn() {
+    with_payload_connection(connection, fn() {
       list.each(["0", "10"], fn(length) {
         let assert Error(error.InvalidOptions(_)) =
           request.start_stream(
-            conn,
+            connection,
             http.Post,
             "/must-not-reach-peer",
             [#("Content-Length", length)],
@@ -190,19 +198,27 @@ pub fn rejected_fixed_length_stream_keeps_wire_clean_and_connection_reusable_tes
           )
       })
       let assert Ok(stream) =
-        request.start_stream(conn, http.Post, "/chunked", [], request.options())
-      let assert Ok(Nil) = request.data(conn, stream, fin.NoFin, <<"hel":utf8>>)
-      let assert Ok(Nil) = request.data(conn, stream, fin.Fin, <<"lo":utf8>>)
+        request.start_stream(
+          connection,
+          http.Post,
+          "/chunked",
+          [],
+          request.options(),
+        )
+      let assert Ok(Nil) =
+        request.data(connection, stream, fin.NoFin, <<"hel":utf8>>)
+      let assert Ok(Nil) =
+        request.data(connection, stream, fin.Fin, <<"lo":utf8>>)
       let assert Ok(#("/chunked", <<"hello":utf8>>)) = await_http(server)
       let assert Ok(message.Response(_, 200, _)) =
-        message.await(conn, stream, timeout())
+        message.await(connection, stream, timeout())
       let assert Ok(<<"hello":utf8>>) =
-        message.await_body(conn, stream, timeout())
+        message.await_body(connection, stream, timeout())
       list.each([#("0", <<>>), #("2", <<"ok":utf8>>)], fn(entry) {
         let #(length, body) = entry
         let assert Ok(whole) =
           request.request(
-            conn,
+            connection,
             http.Post,
             "/whole",
             [#("Content-Length", length)],
@@ -212,11 +228,12 @@ pub fn rejected_fixed_length_stream_keeps_wire_clean_and_connection_reusable_tes
         let assert Ok(#("/whole", received)) = await_http(server)
         let assert True = received == body
         let assert Ok(message.Response(_, 200, _)) =
-          message.await(conn, whole, timeout())
+          message.await(connection, whole, timeout())
         case body {
           <<>> -> Nil
           _ -> {
-            let assert Ok(received) = message.await_body(conn, whole, timeout())
+            let assert Ok(received) =
+              message.await_body(connection, whole, timeout())
             let assert True = received == body
             Nil
           }
@@ -272,23 +289,24 @@ pub fn rejects_invalid_utf8_trailers_from_the_wire_test() -> Nil {
 fn wire_decode_error(response: BitArray, trailer: Bool) -> Nil {
   let assert Ok(Nil) =
     with_response(response, fn(port) {
-      let assert Ok(conn) =
+      let assert Ok(connection) =
         connection.options()
         |> connection.with_protocols([connection.Http1])
         |> connection.open(host: "127.0.0.1", port: port)
-      let assert Ok(connection.Http1) = connection.await_up(conn, timeout())
+      let assert Ok(connection.Http1) =
+        connection.await_up(connection, timeout())
       let assert Ok(stream) =
-        request.request(conn, http.Get, "/", [], <<>>, request.options())
+        request.request(connection, http.Get, "/", [], <<>>, request.options())
       case trailer {
         True -> {
           let assert Ok(message.Response(_, 200, _)) =
-            message.await(conn, stream, timeout())
+            message.await(connection, stream, timeout())
           Nil
         }
         False -> Nil
       }
-      let result = message.await(conn, stream, timeout())
-      let cleanup = connection.terminate(conn)
+      let result = message.await(connection, stream, timeout())
+      let cleanup = connection.terminate(connection)
       let assert Error(error.DecodeError(_)) = result
       cleanup
     })
@@ -311,7 +329,7 @@ fn flush_fixture() -> #(connection.Connection, connection.Connection)
 
 @external(erlang, "gluegun_runtime_regression_test", "assert_flush")
 fn assert_flush(
-  conn: connection.Connection,
+  connection: connection.Connection,
   other: connection.Connection,
 ) -> Result(Nil, error.GluegunError)
 
@@ -337,7 +355,7 @@ fn with_payload_server(
 
 @external(erlang, "gluegun_payload_server_test", "with_connection")
 fn with_payload_connection(
-  conn: connection.Connection,
+  connection: connection.Connection,
   callback: fn() -> Nil,
 ) -> Nil
 
@@ -351,7 +369,7 @@ fn with_tls_cancel_server(
 
 @external(erlang, "gluegun_runtime_regression_test", "with_connection")
 fn with_connection(
-  conn: connection.Connection,
+  connection: connection.Connection,
   callback: fn() -> Result(Nil, error.GluegunError),
 ) -> Result(Nil, error.GluegunError)
 
@@ -367,5 +385,5 @@ fn release_remainder(peer: ReplacementPeer) -> Result(Nil, error.GluegunError)
 
 @external(erlang, "gluegun_ws_close_test", "assert_released")
 fn assert_released(
-  conn: connection.Connection,
+  connection: connection.Connection,
 ) -> Result(Nil, error.GluegunError)
