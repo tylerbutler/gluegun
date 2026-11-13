@@ -1,3 +1,6 @@
 package = "gluegun"
 kind = "Fixed"
-body = "Preserve Gun error categories across open and receive APIs. Returned option errors now produce InvalidOptions; connection process exits produce ConnectionDown. Await failures and mailbox gun_error messages retain ConnectionError or StreamError without duplicate category tags. message.decode also accepts gun_down as ConnectionDown and keeps the original diagnostic reason."
+body = """
+Preserve Gun error categories
+
+`connection.open` returns `InvalidOptions` when Gun rejects options. `await_up`, `message.await`, and `message.await_body` return `ConnectionDown` when the connection process exits. Other failures keep `ConnectionError` or `StreamError`, and the reason text no longer repeats the category. `message.decode` returns `StreamError` or `ConnectionError` for `gun_error` messages and `ConnectionDown` for `gun_down` messages."""

@@ -1,4 +1,6 @@
 package = "gluegun"
 kind = "Fixed"
 body = """
-Reject finite timeouts outside 0 through 4_294_967_295 milliseconds with InvalidOptions before Gun creates monitors or consumes messages. Keep Infinity explicit for unlimited waits."""
+Reject unsupported finite timeouts
+
+`connection.milliseconds` and `gluegun.milliseconds` accept 0 through 4_294_967_295 milliseconds. Values outside this range return `InvalidOptions` before Gun creates monitors or consumes messages. Use `infinity()` for waits with no limit."""

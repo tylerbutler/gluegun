@@ -1,3 +1,6 @@
 package = "gluegun"
 kind = "Fixed"
-body = "Use the current TLS options builder in the source documentation and TLS guide examples."
+body = """
+Correct the TLS builder in the documentation
+
+The `gluegun/tls` module documentation and the TLS guide now use `connection.with_tls_options`, not the removed `with_tls_opts`."""

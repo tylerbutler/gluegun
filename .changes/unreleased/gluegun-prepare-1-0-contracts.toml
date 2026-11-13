@@ -1,8 +1,13 @@
 package = "gluegun"
-kind = "Added"
+kind = "Breaking"
 body = """
-Prepare the 1.0 HTTP and WebSocket contracts
+Finalize the HTTP connection and request contracts
 
-Use gleam/http.Method, remove duplicate request header options and unsafe collector flow settings, validate numeric options, and keep a complete HTTP facade. Use one Socket lifecycle with protocol-checked upgrades, handshake headers, and typed subprotocol negotiation. Default HTTP retries to zero and prevent WebSocket reconnects from hiding connection loss. Apply total HTTP/upgrade deadlines, validate inbound UTF-8 headers and outgoing subprotocol tokens, reject unsafe TLS SNI and fixed-length streamed uploads, and drain queued push messages.
-
-Test minimum and current production dependencies with public HTTP and WebSocket consumers. Correct the minimum to Gleam 1.11 and gleam_stdlib 0.53, as required by gleam_erlang 1.0. Include the declared MIT licence in the package. Document the accepted upstream HTTP/1.1 cancellation limitation and maintainer-only Hex setup."""
+- New connections use zero retries. The previous default was Gun's five retries. To enable reconnection, use `connection.with_retry` with `connection.retry_count`.
+- HTTP and WebSocket upgrade timeouts are total deadlines for the operation, not deadlines for each message.
+- Remove `request.add_headers`, `request.with_headers`, `request.method_to_string`, and `client.with_options`. Pass headers directly to `request.request` or `request.start_stream`, or use the `client` header builders. Rename `client.request_options` to `client.options`.
+- The root `gluegun` module keeps only the common HTTP path: `connection_options`, `milliseconds`, `infinity`, `open`, `await_up`, `new_request`, `send`, `body_text`, `close`, `shutdown`, and `terminate`. Import `gluegun/connection`, `gluegun/tls`, and `gluegun/websocket` for other operations, including the former `websocket_*` functions.
+- The `connection` inspectors `transport`, `protocols`, `retry`, `connect_timeout`, and `tls_options` are no longer public. `message` no longer has the `Method`, `Header`, and `GluegunError` aliases. Use `gleam/http.Method`, `request.Header`, and `error.GluegunError`.
+- `tls.with_depth` returns a `Result` and accepts 0 through 255.
+- These inputs now return `InvalidOptions`: ports outside 0 through 65535, disabled SNI with `VerifyPeer`, and a `content-length` header on `request.start_stream`. For fixed-length bodies, use `request.request`. For streamed uploads, use chunked encoding.
+- Response headers that are not valid UTF-8 return `DecodeError`."""
