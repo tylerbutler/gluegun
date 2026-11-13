@@ -167,6 +167,7 @@ class ReleasePolicyTests(unittest.TestCase):
         config = tomllib.loads((ROOT / "gleam.toml").read_text())
         self.assertEqual(config["tools"]["trellis"]["publish"]["lifecycle"], {
             "default": "git_only",
+            "packages": {"examples/*": "workspace"},
         })
         for workflow in (ROOT / ".github" / "workflows").glob("*.yml"):
             with self.subTest(workflow=workflow.name):
@@ -217,6 +218,23 @@ class ReleasePolicyTests(unittest.TestCase):
             scripts.mkdir(parents=True)
             for file in ("generate-reference.mjs", "reference-state.mjs"):
                 shutil.copyfile(ROOT / "website" / "scripts" / file, scripts / file)
+            example_versions = {}
+            for manifest in sorted((ROOT / "examples").glob("*/gleam.toml")):
+                relative = manifest.relative_to(ROOT)
+                destination = fixture / relative
+                destination.parent.mkdir(parents=True)
+                destination.write_text(manifest.read_text())
+                example_versions[relative] = tomllib.loads(manifest.read_text())["version"]
+
+            releasable = subprocess.run(
+                ["trellis", "--no-update-check", "-C", directory,
+                 "list", "--releasable", "--json"],
+                check=True, capture_output=True, text=True,
+            )
+            self.assertEqual(
+                [package["name"] for package in json.loads(releasable.stdout)["packages"]],
+                ["gluegun"],
+            )
 
             def git(*args):
                 return subprocess.run(
@@ -280,6 +298,11 @@ class ReleasePolicyTests(unittest.TestCase):
                     self.assertEqual(git("rev-parse", "HEAD^"), source)
                     version = tomllib.loads((fixture / "gleam.toml").read_text())["version"]
                     self.assertEqual(version, expected)
+                    for relative, original in example_versions.items():
+                        self.assertEqual(
+                            tomllib.loads((fixture / relative).read_text())["version"],
+                            original,
+                        )
                     self.assertFalse(fragment.exists())
                     archive = fixture / ".changes" / "gluegun" / "v1.0.0-rc.0.toml"
                     self.assertIn("Add candidate support", archive.read_text())

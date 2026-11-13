@@ -87,7 +87,7 @@ ordered `1xx` informational responses remain alongside it:
 import gleam/http/response as http_response
 import gluegun/response
 
-pub fn handle(res) {
+pub fn handle(res: response.Response(BitArray)) {
   let _status = res.response.status
   let _headers = res.response.headers
   let _content_type = http_response.get_header(res.response, "content-type")

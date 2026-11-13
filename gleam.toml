@@ -20,7 +20,10 @@ gun = ">= 2.1.0 and < 3.0.0"
 unitest = ">= 1.6.1 and < 2.0.0"
 
 [tools.trellis]
-members = ["."]
+members = [".", "examples/*"]
+
+[tools.trellis.exclude]
+docs = ["examples/*"]
 
 [tools.trellis.changelog]
 header_format = "# Changelog"
@@ -47,3 +50,4 @@ package_tags = ["exact"]
 
 [tools.trellis.publish.lifecycle]
 default = "git_only"
+packages = { "examples/*" = "workspace" }

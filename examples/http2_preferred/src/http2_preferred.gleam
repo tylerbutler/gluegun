@@ -38,9 +38,9 @@ pub fn main() -> Nil {
           io.println("connection failed: " <> error_to_string(error))
       }
 
-      case connection.close(connection) {
+      case connection.terminate(connection) {
         Ok(Nil) -> Nil
-        Error(error) -> io.println("close failed: " <> error_to_string(error))
+        Error(error) -> io.println("cleanup failed: " <> error_to_string(error))
       }
     }
 

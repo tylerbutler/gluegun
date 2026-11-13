@@ -62,7 +62,7 @@ check:
 
 # Download dependencies for every standalone example package
 examples-deps:
-    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && gleam deps download); fi; done
+    for dir in examples/*; do if [ -f "$dir/gleam.toml" ]; then (cd "$dir" && gleam deps download) || exit 1; fi; done
 
 # Format every standalone example package
 examples-format:
@@ -76,7 +76,7 @@ examples-format-check:
 examples-test:
     for dir in examples/*; do if [ -f "$dir/gleam.toml" ] && [ -d "$dir/test" ]; then (cd "$dir" && gleam test) || exit 1; fi; done
 
-# Build every standalone example package; package escripts for examples that depend on gleescript
+# Build examples serially to avoid concurrent Hex cache writes; also package escripts
 examples-build:
     for dir in examples/*; do \
         if [ -f "$dir/gleam.toml" ]; then \
@@ -92,6 +92,11 @@ examples-build:
 # Build documentation
 docs:
     gleam docs build
+
+# Compile complete README/website examples and check owned HTTP cleanup
+docs-examples:
+    python3 -B -m unittest discover -s test -p documentation_examples_test.py
+    python3 -B scripts/check_documentation_examples.py
 
 # Generate website reference docs from Gleam docs JSON
 site-reference:
@@ -152,7 +157,7 @@ clean:
 # === CI ===
 
 # Run all CI checks (format, check, test, build, workspace)
-ci: format-check check test test-release examples-format-check examples-test build-strict trellis-doctor
+ci: format-check check test test-release examples-format-check examples-test docs-examples build-strict trellis-doctor
 
 # Alias for PR checks
 alias pr := ci
