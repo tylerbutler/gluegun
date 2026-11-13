@@ -21,7 +21,7 @@ Finite initial flow credit counts data messages. Gun and OTP can allocate socket
 
 ## High-level client functions collect bodies in memory
 
-Use the low-level `request` and `message` APIs for streams or advanced Gun flows. The `client` functions are for usual HTTP responses that can be collected in memory.
+Use the low-level `request` and `message` APIs for streams or advanced Gun flows. Use the `client` functions when you can collect the full HTTP response in memory.
 
 ## Standard HTTP interoperability
 

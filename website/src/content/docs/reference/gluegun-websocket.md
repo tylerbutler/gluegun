@@ -456,8 +456,9 @@ Open a WebSocket, run a callback, then send the close frame and close
  self-contained. The callback receives a reusable `Socket`. Errors from
  the callback take precedence over cleanup errors; cleanup is attempted
  even when the callback fails. If the callback panics, fails an assertion,
- or raises an Erlang exception, bounded teardown runs before re-raising
- the original exception class, reason, and stack. Cleanup cannot replace it.
+ or raises an Erlang exception, teardown uses a finite close deadline before
+ re-raising the original exception class, reason, and stack. Cleanup cannot
+ replace it.
 
 ```gleam
 pub fn with_socket(

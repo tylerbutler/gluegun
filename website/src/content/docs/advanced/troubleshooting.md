@@ -17,7 +17,7 @@ Gluegun does not parse full URLs. Open the connection with the host and port. Th
 
 ## High-level client gets an unexpected message
 
-Use `gluegun/client` only for usual HTTP responses that can be collected in memory. The client functions reject HTTP/2 server push, protocol upgrades, and WebSocket frames with `InvalidMessage`. Use `gluegun/request`, `gluegun/message`, or `gluegun/websocket` for streamed bodies, trailers as they arrive, HTTP/2 push, upgrades, and WebSocket frames.
+Use `gluegun/client` only for HTTP responses that you can collect in memory. The client functions reject HTTP/2 server push, protocol upgrades, and WebSocket frames with `InvalidMessage`. Use `gluegun/request`, `gluegun/message`, or `gluegun/websocket` for streamed bodies, trailers as they arrive, HTTP/2 push, upgrades, and WebSocket frames.
 
 ## WebSocket receive fails immediately after upgrade
 
@@ -41,7 +41,7 @@ Both paths wait for the peer within the socket timeout, or five seconds for `Inf
 
 ## Streamed response does not complete
 
-Continue to wait for messages on the same stream until you get a final response, data, or trailers state. For usual responses, use the `client` functions unless you must control each chunk.
+Continue to wait for messages on the same stream until you get a final response, data, or trailers state. If the full response fits in memory and you do not need to control each chunk, use the `client` functions.
 
 ## Unexpected Erlang error
 

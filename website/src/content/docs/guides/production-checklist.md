@@ -32,7 +32,7 @@ Use this checklist before you ship Gluegun in a production BEAM service. It does
 
 | Decision | Ready for production when | Read next |
 |---|---|---|
-| Timeout policy | Each connection, request, and message receive uses a timeout that agrees with the latency budget of the caller. `connection.infinity()` is used only for flows that can wait without a limit by design. | [Quick Start: timeout value](/quick-start/#key-idea) |
+| Timeout policy | Each connection, request, and message receive uses a timeout that fits the caller's latency budget. `connection.infinity()` is used only for flows that can wait without a limit by design. | [Quick Start: timeout value](/quick-start/#key-idea) |
 | Collector budget | The client timeout covers dispatch and all response messages together; a slow trickle cannot reset the deadline. | [Basic Requests](/guides/basic-requests/) |
 | Retry policy | HTTP retries default to zero and require explicit opt-in. WebSocket connect always disables retries; connection loss is terminal. | [WebSockets](/guides/websockets/) |
 | Error handling | Effectful calls pattern match on `Result(_, error.GluegunError)`. Expected failures such as `Timeout` and `ConnectionDown` have explicit handling. | [Error Handling](/advanced/error-handling/) |
@@ -41,11 +41,11 @@ Use this checklist before you ship Gluegun in a production BEAM service. It does
 
 ## Collected bodies and streams
 
-Select the highest-level API that agrees with the shape of the response.
+Choose the highest-level API that supports the response handling you need.
 
 | Use | Applicable when | Not applicable when |
 |---|---|---|
-| `gluegun/client` | One usual response can be collected fully in memory. You get status, headers, body, trailers, and `1xx` informational responses in one typed value. | The body can be large or without limit. Or you must get chunks, trailers as they arrive, flow control, HTTP/2 push, upgrades, or WebSocket frames. |
+| `gluegun/client` | You can collect a complete HTTP response in memory. You get status, headers, body, trailers, and `1xx` informational responses in one typed value. | The body can exceed available memory or have no size limit. Or you must get chunks, trailers as they arrive, flow control, HTTP/2 push, upgrades, or WebSocket frames. |
 | `gluegun/request` + `gluegun/message` | The application must get streamed response chunks, chunked request bodies, cancellation, flow-control updates, or raw Gun stream events. | A collected response is sufficient. |
 | `gluegun/websocket` | The connection is HTTP/1.1 and the application uses WebSocket frames. | The negotiated protocol is HTTP/2. Gun does not support WebSocket over HTTP/2. |
 
