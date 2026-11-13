@@ -3,6 +3,9 @@ title: HTTP/2
 description: Select HTTP/2 first and keep the HTTP/1.1 fallback explicit.
 ---
 
+import { Code } from '@astrojs/starlight/components';
+import guideSource from '../../../../../examples/http2_preferred/src/http2_preferred/guide.gleam?raw';
+
 Use TLS and put `Http2` before `Http1`. Gun then selects HTTP/2 when possible and falls back to HTTP/1.1 when necessary.
 
 ## How fallback works
@@ -11,32 +14,7 @@ TLS ALPN (Application-Layer Protocol Negotiation) selects the protocol. When you
 
 Plain TCP (`connection.Tcp`) does not negotiate. Gun uses the first protocol in the list.
 
-```gleam
-import gleam/result
-import gluegun/client
-import gluegun/connection
-
-pub fn get_over_http2() {
-  use timeout <- result.try(connection.milliseconds(5000))
-  let options =
-    connection.options()
-    |> connection.with_transport(transport: connection.Tls)
-    |> connection.with_protocols(protocols: [connection.Http2, connection.Http1])
-
-  use conn <- result.try(
-    options
-    |> connection.open(host: "example.com", port: 443),
-  )
-  let exchange = {
-    use _protocol <- result.try(connection.await_up(conn, timeout))
-    client.get(conn, "/", [], timeout)
-  }
-  let cleanup = connection.terminate(conn)
-  use res <- result.try(exchange)
-  use _ <- result.try(cleanup)
-  Ok(res)
-}
-```
+<Code code={guideSource} lang="gleam" />
 
 This function owns the connection, so it terminates it after success or a
 returned error, including a readiness timeout. The exchange error takes

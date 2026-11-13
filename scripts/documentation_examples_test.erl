@@ -14,6 +14,7 @@ main() ->
     {ok, _} = application:ensure_all_started(ssl),
     undefined = get(documentation_context),
     put(documentation_history, []),
+    put(documentation_calls, 0),
     Baseline = children(),
     try
         lists:foreach(fun({Module, Function}) ->
@@ -24,40 +25,72 @@ main() ->
                     assert_precedence(Mode, Original, Injected)
                 end, lists:seq(1, 3))
             end, [success, request_error, readiness])
-        end, [{doc_basic, main}, {doc_quick_start, main},
-            {doc_http2, get_over_http2}, {doc_http2_guide, get_over_http2},
-            {doc_facade, fetch},
-            {doc_landing, main}]),
+        end, [{doc_basic, main}, {doc_http2, get_over_http2},
+            {doc_facade, fetch}, {doc_landing, main}]),
+        Canonical = ['basic_request@guide', 'http2_preferred@guide'],
+        lists:foreach(fun(Module) ->
+            lists:foreach(fun(Mode) ->
+                lists:foreach(fun(_) ->
+                    iteration(Module, run, Mode, false, Baseline)
+                end, lists:seq(1, 3))
+            end, [success, request_error, readiness])
+        end, Canonical),
+        90 = get(documentation_calls),
+        lists:foreach(fun assert_finish/1, Canonical),
+        98 = get(documentation_calls),
         assert_released(get(documentation_history), Baseline),
-        io:format("Documentation lifecycle: 108 calls passed in one owner.~n"),
+        io:format("Documentation lifecycle: 90 calls and 8 finish checks "
+            "(98 total) passed in one owner.~n"),
         nil
     after
         erase(documentation_context),
-        erase(documentation_history)
+        erase(documentation_history),
+        erase(documentation_calls)
     end.
 
 %% Host/port from the snippet are deliberately ignored: no public network.
 open(Options, _Host, _Port) ->
     #{mode := Mode, port := Port} = get(documentation_context),
+    case gluegun@connection:open(loopback_options(Options, Mode), <<"127.0.0.1">>, Port) of
+        {ok, Pid} = Opened ->
+            record_connection(Pid),
+            Opened;
+        {error, _} = Error -> Error
+    end.
+
+loopback_options(Options, Mode) ->
     {ok, ConnectTimeout} = gluegun@connection:milliseconds(1000),
     {ok, HandshakeTimeout} = gluegun@connection:milliseconds(10000),
     Options1 = gluegun@connection:with_protocols(Options, [http1]),
     Options2 = gluegun@connection:with_connect_timeout(Options1, ConnectTimeout),
-    Options3 = case Mode of
+    case Mode of
         readiness ->
             Tls = gluegun@connection:with_transport(Options2, tls),
             Insecure = gluegun@connection:with_tls_options(Tls, gluegun@tls:insecure()),
             gluegun@connection:with_tls_handshake_timeout(Insecure, HandshakeTimeout);
         _ ->
             gluegun@connection:with_transport(Options2, tcp)
-    end,
-    case gluegun@connection:open(Options3, <<"127.0.0.1">>, Port) of
-        {ok, Pid} = Opened ->
-            put(documentation_opened, [Pid | get(documentation_opened)]),
-            put(documentation_history, [Pid | get(documentation_history)]),
-            Opened;
-        {error, _} = Error -> Error
     end.
+
+record_connection(Pid) ->
+    put(documentation_opened, [Pid | get(documentation_opened)]),
+    put(documentation_history, [Pid | get(documentation_history)]).
+
+call(Module, Function, Args) ->
+    put(documentation_calls, get(documentation_calls) + 1),
+    apply(Module, Function, Args).
+
+%% Call the displayed helper itself, not an Erlang copy of its logic. Distinct
+%% string payloads ensure precedence preserves the WHOLE original error.
+assert_finish(Module) ->
+    Success = {ok, <<"exchange value">>},
+    ExchangeError = {error, {decode_error, <<"original exchange detail">>}},
+    CleanupError = cleanup_error(),
+    Success = call(Module, finish, [Success, {ok, nil}]),
+    CleanupError = call(Module, finish, [Success, CleanupError]),
+    ExchangeError = call(Module, finish, [ExchangeError, {ok, nil}]),
+    ExchangeError = call(Module, finish, [ExchangeError, CleanupError]),
+    ok.
 
 %% Never fake teardown: even injected failure happens AFTER real termination.
 %% Preserve a real cleanup error instead of hiding it with the injected one.
@@ -80,18 +113,21 @@ iteration(Module, Function, Mode, Inject, Baseline) ->
         Owner = self(),
         Ref = make_ref(),
         {Peer, Monitor} = spawn_monitor(fun() ->
-            peer(Listener, Owner, Ref, Mode)
+            peer(Listener, Owner, Ref, Mode, Function, Baseline)
         end),
         put(documentation_context, #{mode => Mode, port => Port, inject => Inject}),
         put(documentation_opened, []),
         put(documentation_terminated, []),
         self() ! {documentation_sentinel, Ref},
         try
-            Result = apply(Module, Function, []),
+            Result = invoke(Module, Function, Mode, Port, Ref),
             %% Check BEFORE fallback cleanup, including when a snippet forgot
             %% terminate but Gun happened to exit on its own.
             [Connection] = get(documentation_opened),
-            [Connection] = get(documentation_terminated),
+            case Function of
+                run -> ok; %% Unmodified canonical source uses real terminate.
+                _ -> [Connection] = get(documentation_terminated)
+            end,
             assert_released(get(documentation_history), Baseline),
             await_peer(Peer, Monitor),
             receive {documentation_peer, Ref, Mode} -> ok
@@ -99,6 +135,8 @@ iteration(Module, Function, Mode, Inject, Baseline) ->
             receive {documentation_sentinel, Ref} -> ok
             after 0 -> error(application_message_consumed) end,
             assert_result(Mode, Inject, Result),
+            assert_canonical_result(Module, Function, Mode, Result),
+            assert_released(get(documentation_history), Baseline),
             Result
         catch
             Class:Reason:Stack ->
@@ -108,8 +146,9 @@ iteration(Module, Function, Mode, Inject, Baseline) ->
             %% Failure-only safety net. Assertions above must never depend on it.
             lists:foreach(fun(Pid) ->
                 {ok, nil} = gluegun@connection:terminate(Pid)
-            end, get(documentation_opened)),
+            end, lists:usort(get(documentation_opened) ++ new_connections(Baseline))),
             stop_peer(Peer, Monitor),
+            receive {canonical_connection, Ref, _} -> ok after 0 -> ok end,
             receive {documentation_peer, Ref, _} -> ok after 0 -> ok end,
             receive {documentation_sentinel, Ref} -> ok after 0 -> ok end,
             erase(documentation_context),
@@ -119,6 +158,31 @@ iteration(Module, Function, Mode, Inject, Baseline) ->
     after
         ok = gen_tcp:close(Listener)
     end.
+
+invoke(Module, run, Mode, Port, Ref) ->
+    Options = loopback_options(gluegun@connection:options(), Mode),
+    {ok, Timeout} = gluegun@connection:milliseconds(200),
+    Result = call(Module, run, [<<"127.0.0.1">>, Port, Options, Timeout]),
+    %% The peer observes the child while headers/ClientHello are present,
+    %% BEFORE responding. The pid remains available even after termination.
+    receive
+        {canonical_connection, Ref, Pid} -> record_connection(Pid)
+    after 2000 -> error(canonical_connection_not_observed)
+    end,
+    Result;
+invoke(Module, Function, _Mode, _Port, _Ref) ->
+    call(Module, Function, []).
+
+assert_canonical_result('basic_request@guide', run, success, {ok, nil}) -> ok;
+assert_canonical_result('http2_preferred@guide', run, success, {ok, Response}) ->
+    200 = gluegun@response:status(Response),
+    <<"ok">> = gluegun@response:body(Response),
+    [{<<"content-length">>, <<"2">>}] = gluegun@response:headers(Response),
+    {response, _, [], []} = Response,
+    ok;
+assert_canonical_result(Module, run, success, Result) ->
+    error({unexpected_canonical_success, Module, Result});
+assert_canonical_result(_, _, _, _) -> ok.
 
 assert_result(success, false, {ok, _}) -> ok;
 assert_result(success, true, Result) ->
@@ -162,6 +226,9 @@ children() ->
     end,
     lists:sort(supervisor:which_children(Supervisor)).
 
+new_connections(Baseline) ->
+    [Pid || {_, Pid, _, _} <- children() -- Baseline, is_pid(Pid)].
+
 await_children(Baseline, Deadline) ->
     case children() of
         Baseline -> ok;
@@ -174,16 +241,18 @@ await_children(Baseline, Deadline) ->
             end
     end.
 
-peer(Listener, Owner, Ref, Mode) ->
+peer(Listener, Owner, Ref, Mode, Function, Baseline) ->
     {ok, Socket} = gen_tcp:accept(Listener, 10000),
     try
         Deadline = erlang:monotonic_time(millisecond) + 10000,
         case Mode of
             readiness ->
                 %% Accept TCP but never answer the actual TLS ClientHello.
-                {ok, <<22, _/binary>>} = recv(Socket, Deadline);
+                {ok, <<22, _/binary>>} = recv(Socket, Deadline),
+                observe_connection(Owner, Ref, Function, Baseline);
             _ ->
                 read_headers(Socket, <<>>, Deadline),
+                observe_connection(Owner, Ref, Function, Baseline),
                 Response = case Mode of
                     success ->
                         <<"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok">>;
@@ -202,6 +271,14 @@ peer(Listener, Owner, Ref, Mode) ->
     after
         ok = gen_tcp:close(Socket)
     end.
+
+observe_connection(Owner, Ref, run, Baseline) ->
+    %% This standalone VM runs one example at a time; all other children
+    %% belong to Baseline. Holding the response prevents a teardown race.
+    [Pid] = new_connections(Baseline),
+    Owner ! {canonical_connection, Ref, Pid},
+    ok;
+observe_connection(_, _, _, _) -> ok.
 
 read_headers(Socket, Acc, Deadline) when byte_size(Acc) =< 16384 ->
     case binary:match(Acc, <<"\r\n\r\n">>) of

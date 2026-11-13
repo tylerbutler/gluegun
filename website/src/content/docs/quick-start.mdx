@@ -6,6 +6,9 @@ next:
   label: Add headers and bodies
 ---
 
+import { Code } from '@astrojs/starlight/components';
+import guideSource from '../../../../examples/basic_request/src/basic_request/guide.gleam?raw';
+
 Open a Gun connection. Wait until it is ready. Send a GET request. Collect the full response in memory.
 
 Before you start, [install Gluegun](/installation/) and confirm that the package target is `erlang`.
@@ -19,57 +22,17 @@ Before you start, [install Gluegun](/installation/) and confirm that the package
   </ol>
 </nav>
 
-```gleam
-import gleam/http
-import gleam/int
-import gleam/io
-import gleam/result
-import gluegun/client
-import gluegun/connection
-import gluegun/response
-
-pub fn main() {
-  use timeout <- result.try(connection.milliseconds(5000))
-
-  use conn <- result.try(
-    connection.open(
-      connection.options(),
-      host: "example.com",
-      port: 80,
-    ),
-  )
-  let exchange = {
-    use _protocol <- result.try(connection.await_up(conn, timeout))
-    client.new(http.Get, "/")
-    |> client.with_timeout(timeout: timeout)
-    |> client.send(connection: conn)
-  }
-  let cleanup = connection.terminate(conn)
-  use res <- result.try(exchange)
-  use _ <- result.try(cleanup)
-
-  io.println("status: " <> int.to_string(res.response.status))
-
-  case response.body_text(res) {
-    Ok(text) -> io.println(text)
-    Error(_) ->
-      io.println(
-        "response body was not UTF-8",
-      )
-  }
-
-  Ok(Nil)
-}
-```
+<Code code={guideSource} lang="gleam" />
 
 Cleanup runs before either result is returned. An exchange error takes
 precedence over a cleanup error. If the exchange succeeds, a cleanup error is
 returned. `terminate` also stops failed or stalled connection setup.
 
-Run the example:
+Run the example from the repository root:
 
 ```sh
-gleam run
+cd examples/basic_request
+gleam run -m basic_request/guide
 ```
 
 You should see `status: 200`, followed by the HTML response from `example.com`.

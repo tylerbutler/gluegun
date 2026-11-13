@@ -88,6 +88,7 @@ docs:
 
 # Compile complete README/website examples and check owned HTTP cleanup
 docs-examples:
+    python3 -B -m unittest discover -s test -p documentation_examples_test.py
     python3 -B scripts/check_documentation_examples.py
 
 # Generate website reference docs from Gleam docs JSON

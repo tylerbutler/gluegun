@@ -58,12 +58,20 @@ Examples under `examples/` are standalone Erlang-target Gleam packages and Trell
 Run `examples-deps` and `examples-build` with Trellis `--serial`: the pinned
 Gleam compiler can race when concurrent packages write to its shared Hex cache.
 
-`just docs-examples` extracts import-and-function Gleam blocks from the README
-and website guides into a temporary package. It also checks the landing-page
-Code component's function body with its imports. Partial expression snippets
-are excluded. Complete examples are not copied into separate source files.
-After compilation, test-only variants redirect owned HTTP exchanges to a
-loopback peer and check repeated-call cleanup and error precedence.
+Quick Start and the HTTP/2 guide display complete canonical modules from
+`examples/basic_request/src/basic_request/guide.gleam` and
+`examples/http2_preferred/src/http2_preferred/guide.gleam` through direct MDX
+`?raw` imports and Starlight `Code`. Keep their code in those modules, not in
+the pages. The existing example CLI entry points are separate and unchanged.
+
+`just docs-examples` runs Python wiring tests and checks both raw imports and
+direct `Code` bindings. It compiles the canonical example packages as path
+dependencies, without source changes. It also extracts remaining
+import-and-function Gleam blocks from the README and website guides into a
+temporary package and checks the landing-page Code component's function body
+with its imports. Partial expression snippets are excluded. Only remaining
+owned fences get test-only endpoint and cleanup rewrites. The lifecycle harness
+uses a loopback peer to check repeated-call cleanup and error precedence.
 
 ## Key conventions
 

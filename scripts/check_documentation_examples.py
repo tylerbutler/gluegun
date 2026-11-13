@@ -16,9 +16,34 @@ OWNED = {
     ("README.md", 0): "doc_basic",
     ("README.md", 3): "doc_facade",
     ("README.md", 5): "doc_http2",
-    ("website/src/content/docs/quick-start.md", 0): "doc_quick_start",
-    ("website/src/content/docs/guides/http2.md", 0): "doc_http2_guide",
 }
+GUIDES = {
+    "quick-start.mdx": "../../../../examples/basic_request/src/basic_request/guide.gleam?raw",
+    "guides/http2.mdx": "../../../../../examples/http2_preferred/src/http2_preferred/guide.gleam?raw",
+}
+
+
+def validate_guide_wiring(page, raw_import):
+    imports = (
+        r"""^import\s+\{\s*Code\s*\}\s+from\s+['"]@astrojs/starlight/components['"];?\s*$""",
+        rf"""^import\s+guideSource\s+from\s+['"]{re.escape(raw_import)}['"];?\s*$""",
+    )
+    if not all(re.search(pattern, page, re.MULTILINE) for pattern in imports):
+        raise ValueError(f"Guide must import Code and guideSource from {raw_import}")
+    if not re.search(
+        r"""^<Code\s+code=\{guideSource\}\s+lang=['"]gleam['"]\s*/>\s*$""",
+        page, re.MULTILINE,
+    ):
+        raise ValueError("Guide must pass guideSource directly to Code as Gleam")
+
+
+def check_guide_wiring():
+    for relative, raw_import in GUIDES.items():
+        page = DOCS / relative
+        validate_guide_wiring(page.read_text(), raw_import)
+        source = page.parent / raw_import.removesuffix("?raw")
+        if not source.is_file():
+            raise ValueError(f"Canonical guide source is missing: {source}")
 
 
 def examples():
@@ -50,6 +75,7 @@ def examples():
 
 
 def check():
+    check_guide_wiring()
     snippets = list(examples())
     names = {name for name, _, _ in snippets}
     if len(names) != len(snippets):
@@ -67,6 +93,8 @@ def check():
             'name = "documentation_examples"\nversion = "0.0.0"\ntarget = "erlang"\n'
             "[dependencies]\n"
             f"gluegun = {{ path = {json.dumps(str(ROOT))} }}\n"
+            f"basic_request = {{ path = {json.dumps(str(ROOT / 'examples/basic_request'))} }}\n"
+            f"http2_preferred = {{ path = {json.dumps(str(ROOT / 'examples/http2_preferred'))} }}\n"
             'gleam_stdlib = ">= 0.53.0 and < 2.0.0"\n'
             'gleam_erlang = ">= 1.0.0 and < 2.0.0"\n'
             'gleam_http = ">= 4.0.0 and < 5.0.0"\n'
@@ -77,8 +105,8 @@ def check():
         subprocess.run(["gleam", "build"], cwd=package, check=True)
         print(f"Compiled {len(snippets)} documentation examples.", flush=True)
 
-        # Only the test variants redirect endpoints and inject cleanup errors.
-        # The unmodified public-API examples above must compile first.
+        # Only remaining owned fences get test-only endpoint/cleanup rewrites.
+        # Canonical guide dependencies and all public-API examples compile first.
         for name, _, source in snippets:
             if name not in {*OWNED.values(), "doc_landing"}:
                 continue

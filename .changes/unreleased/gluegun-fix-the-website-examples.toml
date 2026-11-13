@@ -1,3 +1,0 @@
-package = "gluegun"
-kind = "Fixed"
-body = "Fix the website examples so they compile against the public API. The basic GET and HTTP/2 examples release owned connections after success and returned errors, including failed readiness, while preserving the original exchange error."
