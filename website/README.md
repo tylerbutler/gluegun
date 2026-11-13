@@ -57,3 +57,19 @@ Use the local Wrangler URL to check page routes, redirects, and the 404 page.
 The dry run validates the deployment configuration without uploading assets.
 For a manual deployment, run `pnpm run deploy` after a build and authenticate
 with `pnpm exec wrangler login` or Cloudflare API credentials.
+
+## Streaming guide validation
+
+The [streaming acceptance tests](../test/bounded_streaming_test.gleam) check
+the flow-control and cleanup behavior described in the streaming guide.
+Local HTTP/1.1 peers send a 1 MiB HTTP chunk and 4096 small chunks. The tests
+confirm that delivery stops when initial credit runs out and resumes after
+`update_flow`.
+
+A local HTTP/2 peer fills Gun's advertised stream byte window. The tests
+check that finite credit prevents stream `WINDOW_UPDATE` and that replenishing
+data-message credit resumes delivery. They also check the final chunk's
+cumulative byte count and termination cleanup with a real queued server push.
+The byte-policy tests reject bodies from both chunked and close-delimited
+responses. The application remains responsible for byte limits and archive
+processing.

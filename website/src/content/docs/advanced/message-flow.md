@@ -13,7 +13,7 @@ The main flow is:
 4. Wait for typed `gluegun/message.Message` values for that stream.
 5. Decide if you continue the stream, add flow-control allowance, cancel, or close the connection.
 
-The high-level `gluegun/client` functions use this flow internally for usual request and response work. They collect the full response in memory by design. They reject protocol messages such as push, upgrades, and WebSocket frames.
+The high-level `gluegun/client` functions use this flow to send an HTTP request and collect the full response in memory. To handle protocol messages such as push, upgrades, and WebSocket frames, use the lower-level modules; the client functions reject those messages.
 
 ## `message.await` and `message.await_body`
 

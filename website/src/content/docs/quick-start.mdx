@@ -9,7 +9,8 @@ next:
 import { Code } from '@astrojs/starlight/components';
 import guideSource from '../../../../examples/basic_request/src/basic_request/guide.gleam?raw';
 
-Open a Gun connection. Wait until it is ready. Send a GET request. Collect the full response in memory.
+To send your first GET request, open a Gun connection and wait until it is ready.
+Then send the request and collect the full response in memory.
 
 Before you start, [install Gluegun](/installation/) and confirm that the package target is `erlang`.
 
@@ -24,10 +25,6 @@ Before you start, [install Gluegun](/installation/) and confirm that the package
 
 <Code code={guideSource} lang="gleam" />
 
-Cleanup runs before either result is returned. An exchange error takes
-precedence over a cleanup error. If the exchange succeeds, a cleanup error is
-returned. `terminate` also stops failed or stalled connection setup.
-
 Run the example from the repository root:
 
 ```sh
@@ -39,6 +36,11 @@ You should see `status: 200`, followed by the HTML response from `example.com`.
 
 If the connection does not open or the request times out, use the
 [troubleshooting guide](/advanced/troubleshooting/).
+
+The example calls `connection.terminate` before returning a result, including
+after a failed exchange or stalled connection setup. If both the exchange and
+cleanup fail, it returns the exchange error. If only cleanup fails, it returns
+the cleanup error.
 
 ## Key idea
 
