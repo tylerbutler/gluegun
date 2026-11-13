@@ -463,11 +463,14 @@ just examples-format-check
 just examples-build
 ```
 
-Just runs these tasks directly across the example packages. Builds and
-dependency downloads run serially to avoid concurrent writes to the pinned
-compiler's shared Hex cache. The examples remain Trellis workspace members
-with the `workspace` release lifecycle, so release commands do not version,
-tag, or publish them.
+Just uses `trellis exec --serial` to run these tasks across the workspace.
+Trellis 1.5 accepts package names, not path selectors, so each command checks
+its package path and skips work outside `examples/`. Tasks stop after a
+failure. Serial execution avoids concurrent writes to the pinned compiler's
+shared Hex cache. `examples-test` runs only in packages with a `test/`
+directory; `examples-build` also packages escripts when `gleescript` appears
+in the package manifest or lockfile. The examples keep the `workspace`
+release lifecycle, so release commands do not version, tag, or publish them.
 
 Networked examples and WebSocket examples are intended for manual `gleam run` because they depend on public endpoints or local servers.
 
