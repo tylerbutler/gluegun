@@ -500,7 +500,8 @@ just change --kind Added --body "Describe the change"
 ```
 
 Preview the next release with `just changelog-preview`. Trellis creates release
-pull requests from pending fragments on `main`. Merge `release/pending` to create
+pull requests from pending fragments on `main`. Before 1.0, `Breaking`
+fragments request a minor release in `gleam.toml`; change them to `major` at 1.0. Merge `release/pending` to create
 an exact `v{version}` tag and a GitHub release. Tag pushes run CI. Both candidate
 and stable releases are Git-only: Hex publication is disabled in the Trellis
 configuration and there is no Hex publish job.

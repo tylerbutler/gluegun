@@ -1,0 +1,12 @@
+package = "gluegun"
+kind = "Breaking"
+body = """
+Use one WebSocket socket lifecycle
+
+- `websocket.upgrade` takes the connection, the negotiated protocol, the path, the headers, and the options. It returns `UnsupportedFeature` for HTTP/2. Remove `upgrade_with_options`, `upgrade_with_protocol`, and `upgrade_with_protocol_and_options`.
+- `await_upgrade` returns a `Handshake`. Pass it to `from_upgrade` to get a `Socket`.
+- Remove `websocket.send` and `websocket.receive`. Use `send_frame`, `send_text`, `send_binary`, `send_many`, `receive_frame`, and `receive_app_frame` with a `Socket`.
+- Remove `with_protocol_module`, `with_default_protocol_module`, `HandlerOptions`, and the `gluegun/websocket/raw` builders. Use `with_subprotocols` and `with_reply_to`.
+- `with_flow` returns a `Result` and accepts only positive values.
+- `connect` and `with_socket` always use HTTP/1.1 and zero retries. When the connection is lost, you get an error. The connection does not reconnect silently.
+- Invalid subprotocol tokens return `InvalidOptions`."""

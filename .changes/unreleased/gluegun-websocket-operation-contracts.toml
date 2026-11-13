@@ -1,3 +1,6 @@
 package = "gluegun"
 kind = "Fixed"
-body = "Run bounded WebSocket teardown before re-raising callback exceptions from with_socket. Preserve the original exception and returned-Result error precedence. Use one total receive_app_frame deadline across skipped ping/pong frames; Infinity remains unlimited."
+body = """
+Bound WebSocket cleanup and receive waits
+
+When a `with_socket` callback raises an exception, the socket closes within a time limit and then the original exception is raised again. Errors that the callback returns still take precedence over cleanup errors. `receive_app_frame` uses one total deadline, so ping and pong frames do not make the wait longer. `Infinity` still waits with no limit."""

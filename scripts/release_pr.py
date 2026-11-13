@@ -12,10 +12,24 @@ def release_mode(version):
     return base, prerelease.rsplit(".", 1)[0]
 
 
-def git_stdout(*args):
+def version_key(version):
+    return tuple(int(part) for part in release_mode(version)[0].split("."))
+
+
+def planned_version():
+    plan = json.loads(stdout("trellis", "version", "plan", "--json"))
+    bumped = plan.get("bumped", []) if isinstance(plan, dict) else []
+    return next((p["next"] for p in bumped if p["name"] == "gluegun"), "")
+
+
+def stdout(*command):
     return subprocess.run(
-        ["git", *args], check=True, capture_output=True, text=True,
+        command, check=True, capture_output=True, text=True,
     ).stdout.strip()
+
+
+def git_stdout(*args):
+    return stdout("git", *args)
 
 
 def new_candidate_changes():
@@ -53,7 +67,9 @@ def prepare(event, pre="", version=""):
             elif current_pre:
                 pre, version = "none", ""
             else:
-                pre, version = "", target
+                # New fragments can need a larger bump than the pending target.
+                planned = planned_version() or target
+                pre, version = "", max(target, planned, key=version_key)
         elif current_pre:
             if not new_candidate_changes():
                 print("No new fragments since the current candidate; nothing to prepare.")

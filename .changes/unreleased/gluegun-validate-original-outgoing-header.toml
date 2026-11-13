@@ -1,6 +1,6 @@
 package = "gluegun"
 kind = "Fixed"
 body = """
-Validate original outgoing header names
+Validate outgoing header names before lowercase conversion
 
-HTTP requests validate original header names as ASCII HTTP tokens before lowercase conversion, as WebSocket upgrades do. Non-ASCII names, including the Kelvin sign, return `InvalidOptions` before calling Gun. This applies to per-call and option-level headers for regular and streamed requests. Preserve valid mixed-case ASCII normalization and header values."""
+HTTP requests now check original header names as ASCII HTTP tokens before lowercase conversion, as WebSocket upgrades do. Names with characters that are not ASCII, such as the Kelvin sign, return `InvalidOptions` before Gun receives them. This applies to regular and streamed requests. Mixed-case ASCII names still become lowercase, and header values do not change."""
