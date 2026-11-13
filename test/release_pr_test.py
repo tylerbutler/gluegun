@@ -42,10 +42,15 @@ class ReleasePreparationTests(unittest.TestCase):
     def result(self, stdout="", returncode=0):
         return subprocess.CompletedProcess([], returncode, stdout=stdout)
 
-    def pending(self, version):
+    def plan(self, version=None):
+        bumped = [{"name": "gluegun", "next": version}] if version else []
+        return self.result(json.dumps({"bumped": bumped}))
+
+    def pending(self, version, planned=None):
         self.run.side_effect = [
             self.result(json.dumps([{"headRefOid": "candidate", "isCrossRepository": False}])),
             self.result(f'name = "gluegun"\nversion = "{version}"\n'),
+            *([self.plan(planned)] if planned else []),
             self.result(),
         ]
 
@@ -81,7 +86,12 @@ class ReleasePreparationTests(unittest.TestCase):
         self.assert_release("--pre", "none")
 
     def test_pending_stable_target_survives_push(self):
-        self.pending("0.3.0")
+        self.pending("0.3.0", "0.2.1")
+        release_pr.prepare("push")
+        self.assert_release("--set", "gluegun=0.3.0")
+
+    def test_new_fragments_raise_pending_stable_target(self):
+        self.pending("0.2.1", "0.3.0")
         release_pr.prepare("push")
         self.assert_release("--set", "gluegun=0.3.0")
 

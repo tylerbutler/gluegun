@@ -32,7 +32,8 @@ kind_format = "### {{ kind }}"
 change_format = "#### {{ body }}"
 kinds = [
   { label = "Major Release", bump = "major" },
-  { label = "Breaking", bump = "major" },
+  # Before 1.0, breaking changes need a minor release. Change to "major" at 1.0.
+  { label = "Breaking", bump = "minor" },
   { label = "Added", bump = "minor" },
   { label = "Changed", bump = "patch" },
   { label = "Deprecated", bump = "patch" },
