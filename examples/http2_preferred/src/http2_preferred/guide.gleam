@@ -23,12 +23,12 @@ pub fn run(
   options: connection.ConnectOptions,
   timeout: connection.Timeout,
 ) -> Result(response.Response(BitArray), error.GluegunError) {
-  use conn <- result.try(connection.open(options, host: host, port: port))
+  use connection <- result.try(connection.open(options, host: host, port: port))
   let exchange = {
-    use _protocol <- result.try(connection.await_up(conn, timeout))
-    client.get(conn, "/", [], timeout)
+    use _protocol <- result.try(connection.await_up(connection, timeout))
+    client.get(connection, "/", [], timeout)
   }
-  let cleanup = connection.terminate(conn)
+  let cleanup = connection.terminate(connection)
   finish(exchange, cleanup)
 }
 

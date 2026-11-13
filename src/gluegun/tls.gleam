@@ -18,7 +18,7 @@
 //// ```gleam
 //// import gluegun/connection
 ////
-//// pub fn https_options() {
+//// pub fn https_options() -> connection.ConnectOptions {
 ////   connection.options()
 ////   |> connection.with_transport(transport: connection.Tls)
 //// }
@@ -34,7 +34,7 @@
 //// import gluegun/connection
 //// import gluegun/tls
 ////
-//// pub fn https_options() {
+//// pub fn https_options() -> connection.ConnectOptions {
 ////   let assert Ok(tls_options) =
 ////     tls.options()
 ////     |> tls.with_versions(versions: [tls.TlsV13])

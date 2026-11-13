@@ -28,7 +28,12 @@
 ////     use _ <- result.try(websocket.send_frame(socket, message.Text("hello")))
 ////     case websocket.receive_app_frame(socket) {
 ////       Ok(message.Text(reply)) -> Ok(reply)
-////       Ok(_) -> Error(error.InvalidMessage("expected a text frame"))
+////       Ok(message.Binary(_))
+////       | Ok(message.Ping(_))
+////       | Ok(message.Pong(_))
+////       | Ok(message.Close)
+////       | Ok(message.CloseWithReason(_, _)) ->
+////         Error(error.InvalidMessage("expected a text frame"))
 ////       Error(error) -> Error(error)
 ////     }
 ////   },
@@ -302,10 +307,9 @@ pub fn connect(
 /// Effective options: WebSockets cannot negotiate HTTP/2 or resume on retry.
 @internal
 pub fn connect_options(options: Options) -> connection.ConnectOptions {
-  let assert Ok(zero) = connection.retry_count(0)
   options.connect_options
   |> connection.with_protocols([connection.Http1])
-  |> connection.with_retry(zero)
+  |> connection.with_retry(connection.default_retry_count())
 }
 
 fn close_on_error(
@@ -543,7 +547,12 @@ fn await_upgrade_next(
   ))
   case received {
     message.Inform(_, _) -> await_upgrade_until(connection, stream, deadline)
-    other -> await_upgrade_from(Ok(other))
+    message.Response(_, _, _)
+    | message.Data(_, _)
+    | message.Trailers(_)
+    | message.Push(_, _, _, _)
+    | message.Upgrade(_, _)
+    | message.WebSocket(_) -> await_upgrade_from(Ok(received))
   }
 }
 

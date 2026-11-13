@@ -158,19 +158,7 @@ pub fn reports_peer_failure_and_still_releases_the_process_test() -> Nil {
     with_server("failure", fn(port) {
       let assert Ok(socket) = connect(port, options(500))
       let assert Ok(connection) = owned_connection()
-      case websocket.close(socket) {
-        Error(error.ConnectionDown(_)) -> Nil
-        other -> {
-          let actual_15 = other
-          let expected_15 = Error(error.ConnectionDown("closed"))
-          let assert #(True, _, _) = #(
-            actual_15 == expected_15,
-            actual_15,
-            expected_15,
-          )
-          Nil
-        }
-      }
+      let assert Error(error.ConnectionDown(_)) = websocket.close(socket)
       assert_released(connection)
     })
   let expected_14 = Ok(Nil)

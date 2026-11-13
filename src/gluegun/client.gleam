@@ -393,7 +393,12 @@ fn collect_stream_with(
       let _ = cleanup_stream(connection, promised)
       Nil
     }
-    _ -> Nil
+    message.Inform(_, _)
+    | message.Response(_, _, _)
+    | message.Data(_, _)
+    | message.Trailers(_)
+    | message.Upgrade(_, _)
+    | message.WebSocket(_) -> Nil
   }
   use next <- result.try(step(collection, awaited))
   case next {

@@ -18,19 +18,19 @@ pub fn run(
   options: connection.ConnectOptions,
   timeout: connection.Timeout,
 ) -> Result(Nil, error.GluegunError) {
-  use conn <- result.try(connection.open(options, host: host, port: port))
+  use connection <- result.try(connection.open(options, host: host, port: port))
   let exchange = {
-    use _protocol <- result.try(connection.await_up(conn, timeout))
+    use _protocol <- result.try(connection.await_up(connection, timeout))
     client.new(http.Get, "/")
     |> client.with_timeout(timeout: timeout)
-    |> client.send(connection: conn)
+    |> client.send(connection: connection)
   }
-  let cleanup = connection.terminate(conn)
-  use res <- result.try(finish(exchange, cleanup))
+  let cleanup = connection.terminate(connection)
+  use response <- result.try(finish(exchange, cleanup))
 
-  io.println("status: " <> int.to_string(res.response.status))
+  io.println("status: " <> int.to_string(response.response.status))
 
-  case response.body_text(res) {
+  case response.body_text(response) {
     Ok(text) -> io.println(text)
     Error(_) -> io.println("response body was not UTF-8")
   }
