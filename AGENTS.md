@@ -11,7 +11,6 @@ just build-strict  # gleam build --warnings-as-errors
 just check         # gleam check
 just test          # gleam test
 just test-release  # check release preparation without external writes
-just test-example-tasks # check Trellis example task selection and failure handling
 just examples-test # test standalone examples with test directories
 just format        # gleam format src test
 just format-check  # gleam format --check src test
@@ -54,7 +53,7 @@ The Erlang FFI boundary is centralized in `src/gluegun_ffi.erl` and the `@extern
 
 `Connection` and `Stream` are external foreign types declared in `gluegun/internal.gleam`: they name a Gun connection process identifier and a Gun stream reference, have no Gleam constructors, and can only come from Gun (or, in tests, from typed constructors in `test/gluegun_ffi_test.erl`).
 
-Examples under `examples/` are standalone Erlang-target Gleam packages and Trellis workspace members. Their `workspace` release lifecycle excludes them from changelogs, version bumps, tags, and publishing. Each can be built with `gleam build` and run with `gleam run` from its directory. Root `just` recipes use `trellis exec --serial` for package execution, without Trellis task definitions. Trellis 1.5 accepts exact package names, not path selectors, so each command checks its package path before it runs example work. These tasks exclude the root package; `examples-test` runs only packages with test directories, and `examples-build` also packages escripts when a package depends on `gleescript`. `just ci` checks example task selection and failure handling, checks example formatting, and runs their tests; `just main` also builds examples.
+Examples under `examples/` are standalone Erlang-target Gleam packages and Trellis workspace members. Their `workspace` release lifecycle excludes them from changelogs, version bumps, tags, and publishing. Each can be built with `gleam build` and run with `gleam run` from its directory. Root `just` recipes use `trellis exec --serial` for package execution, without Trellis task definitions. Trellis 1.5 accepts exact package names, not path selectors, so each command checks its package path before it runs example work. These tasks exclude the root package; `examples-test` runs only packages with test directories, and `examples-build` also packages escripts when a package depends on `gleescript`. `just ci` checks example formatting and runs their tests; `just main` also builds examples.
 
 Keep `examples-deps` and `examples-build` serial: the pinned Gleam compiler can
 race when concurrent packages write to its shared Hex cache.

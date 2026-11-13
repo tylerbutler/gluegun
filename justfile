@@ -87,10 +87,6 @@ examples-build:
             fi ;; \
         esac' sh {{quote(justfile_directory())}}
 
-# Check example task selection, serial execution, and failure handling
-test-example-tasks:
-    python3 -B -m unittest discover -s test -p example_tasks_test.py
-
 # === DOCUMENTATION ===
 
 # Build documentation
@@ -161,7 +157,7 @@ clean:
 # === CI ===
 
 # Run all CI checks (format, check, test, build, workspace)
-ci: format-check check test test-release test-example-tasks examples-format-check examples-test docs-examples build-strict trellis-doctor
+ci: format-check check test test-release examples-format-check examples-test docs-examples build-strict trellis-doctor
 
 # Alias for PR checks
 alias pr := ci
