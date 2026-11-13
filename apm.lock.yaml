@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-11-13T06:05:24.755437+00:00'
+generated_at: '2026-11-13T16:53:30.023553+00:00'
 apm_version: 0.35.0
 dependencies:
 - repo_url: tylerbutler/agent-marketplace
@@ -49,7 +49,7 @@ dependencies:
 - repo_url: tylerbutler/apm-base
   name: apm-base
   host: github.com
-  resolved_commit: ff005994216e0b1e3cbe878e2e0c9292fa0406ff
+  resolved_commit: 07bbc4ff2048a1a09da85b42d251c8f88230acb7
   version: 0.2.4
   package_type: apm_package
   deployed_files:
@@ -58,6 +58,8 @@ dependencies:
   - .agents/skills/humanizer/SKILL.md
   - .agents/skills/prose-banlist
   - .agents/skills/prose-banlist/SKILL.md
+  - .agents/skills/storytelling
+  - .agents/skills/storytelling/SKILL.md
   - .claude/commands/create-pr.md
   - .claude/commands/merge-upstream.md
   - .claude/rules/use-ste.md
@@ -66,6 +68,8 @@ dependencies:
   - .claude/skills/humanizer/SKILL.md
   - .claude/skills/prose-banlist
   - .claude/skills/prose-banlist/SKILL.md
+  - .claude/skills/storytelling
+  - .claude/skills/storytelling/SKILL.md
   - .github/instructions/use-ste.instructions.md
   - .github/prompts/create-pr.prompt.md
   - .github/prompts/merge-upstream.prompt.md
@@ -73,20 +77,22 @@ dependencies:
     .agents/skills/humanizer/LICENSE: sha256:4ac4810254ab36d45419141aeb8e69bf50652cfafe5b2dab947d06d44e5cbf96
     .agents/skills/humanizer/SKILL.md: sha256:14fc8a965b6e0a8dc100ba4dffeab55cb94bbac112abbde7e014d5c15a35c202
     .agents/skills/prose-banlist/SKILL.md: sha256:77d434e3b207f74a0b5e1e9d62e210d484714ff331351de0b272df1fe242886e
+    .agents/skills/storytelling/SKILL.md: sha256:68a7dfe08ba69c59af66b28d2d9f3344eb97dc7f4eb096cae41f98abcc4ea23e
     .claude/commands/create-pr.md: sha256:f60319bef36ed8d7159543f774f196f2ab90df55d3538c1723da6b81295d02ff
     .claude/commands/merge-upstream.md: sha256:f8c97a3085cc2b603cd34428aa28d17c55b5411ba526871ae599cede372d3f89
     .claude/rules/use-ste.md: sha256:6bfec65cbeaf6e78cf7885d6119fb868ad789db4a34a7dd28c2e71abfe69f803
     .claude/skills/humanizer/LICENSE: sha256:4ac4810254ab36d45419141aeb8e69bf50652cfafe5b2dab947d06d44e5cbf96
     .claude/skills/humanizer/SKILL.md: sha256:14fc8a965b6e0a8dc100ba4dffeab55cb94bbac112abbde7e014d5c15a35c202
     .claude/skills/prose-banlist/SKILL.md: sha256:77d434e3b207f74a0b5e1e9d62e210d484714ff331351de0b272df1fe242886e
+    .claude/skills/storytelling/SKILL.md: sha256:68a7dfe08ba69c59af66b28d2d9f3344eb97dc7f4eb096cae41f98abcc4ea23e
     .github/instructions/use-ste.instructions.md: sha256:c4512aac8ae85c13578effb80b704cc72a14a6a13a3c5f3db036ca2e899513de
     .github/prompts/create-pr.prompt.md: sha256:5fcb1b64247130aec3a0ebd114ae6d127de44f7e824087033c468d8debb593a2
     .github/prompts/merge-upstream.prompt.md: sha256:bf990755d11f1e73610d9cde3b656aa175c7f63cdd8d069158302c6496a5b77e
-  content_hash: sha256:0ef82d7b6fe3598183de73ebfbae7240c15ed471737dffcd49066df26988949e
+  content_hash: sha256:98f0d365fc4a51959ba5288a6c78adb71fedd32bc5cd7853f83b8751ddd8eb8d
 - repo_url: cursor/plugins
   name: unslop
   host: github.com
-  resolved_commit: 6e359ce0aba9e927914d8a940510aa2ef66a8f23
+  resolved_commit: 24621dbcc59e205a7faadb0e06d540f91712b5cc
   version: unknown
   virtual_path: pstack/skills/unslop
   is_virtual: true
@@ -197,7 +203,7 @@ dependencies:
   materialization_repo_url: JuliusBrussee/caveman
   name: caveman-commit
   host: github.com
-  resolved_commit: ad473752bdc86ca96d7289443228d4c53ec119a8
+  resolved_commit: 67968b7a8ac666415a8301e1f2c86ad28567c7ec
   version: unknown
   virtual_path: skills/caveman-commit
   is_virtual: true
@@ -679,6 +685,24 @@ deployments:
   content_hash: sha256:ffbf1316c7fb5aaf552de005609a64a9639b546ecd76bfb0e482864d5bbe6f58
 - kind: project-relative
   target: claude
+  value: .claude/skills/storytelling
+  runtime: null
+  scope: project
+  owners:
+  - tylerbutler/apm-base
+  active_owner: tylerbutler/apm-base
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/storytelling/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - tylerbutler/apm-base
+  active_owner: tylerbutler/apm-base
+  content_hash: sha256:68a7dfe08ba69c59af66b28d2d9f3344eb97dc7f4eb096cae41f98abcc4ea23e
+- kind: project-relative
+  target: claude
   value: .claude/skills/unslop
   runtime: null
   scope: project
@@ -911,6 +935,24 @@ deployments:
   - tylerbutler/apm-base
   active_owner: tylerbutler/apm-base
   content_hash: sha256:77d434e3b207f74a0b5e1e9d62e210d484714ff331351de0b272df1fe242886e
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/storytelling
+  runtime: null
+  scope: project
+  owners:
+  - tylerbutler/apm-base
+  active_owner: tylerbutler/apm-base
+  content_hash: null
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/storytelling/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - tylerbutler/apm-base
+  active_owner: tylerbutler/apm-base
+  content_hash: sha256:68a7dfe08ba69c59af66b28d2d9f3344eb97dc7f4eb096cae41f98abcc4ea23e
 - kind: project-relative
   target: copilot
   value: .agents/skills/unslop
