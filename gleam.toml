@@ -19,6 +19,94 @@ gun = ">= 2.1.0 and < 3.0.0"
 [dev-dependencies]
 unitest = ">= 1.6.1 and < 2.0.0"
 
+[tools.licence_audit]
+# Temporary risk acceptance for these locked versions, not a remediation.
+# CVE selectors also match direct OSV aliases without duplicate exceptions.
+
+[[tools.licence_audit.exceptions]]
+purl = "pkg:hex/cowlib@2.16.0"
+finding = "advisory"
+advisory = "CVE-2026-113431"
+reason = "Risk accepted for the locked Cowlib version while remediation is deferred."
+expires = "2026-12-31"
+
+[[tools.licence_audit.exceptions]]
+purl = "pkg:hex/cowlib@2.16.0"
+finding = "advisory"
+advisory = "CVE-2026-43966"
+reason = "Risk accepted for the locked Cowlib version while remediation is deferred."
+expires = "2026-12-31"
+
+[[tools.licence_audit.exceptions]]
+purl = "pkg:hex/cowlib@2.16.0"
+finding = "advisory"
+advisory = "CVE-2026-43968"
+reason = "Risk accepted for the locked Cowlib version while remediation is deferred."
+expires = "2026-12-31"
+
+[[tools.licence_audit.exceptions]]
+purl = "pkg:hex/cowlib@2.16.0"
+finding = "advisory"
+advisory = "CVE-2026-43969"
+reason = "Risk accepted for the locked Cowlib version while remediation is deferred."
+expires = "2026-12-31"
+
+[[tools.licence_audit.exceptions]]
+purl = "pkg:hex/cowlib@2.16.0"
+finding = "advisory"
+advisory = "CVE-2026-43970"
+reason = "Risk accepted for the locked Cowlib version while remediation is deferred."
+expires = "2026-12-31"
+
+[[tools.licence_audit.exceptions]]
+purl = "pkg:hex/cowlib@2.16.0"
+finding = "advisory"
+advisory = "CVE-2026-43971"
+reason = "Risk accepted for the locked Cowlib version while remediation is deferred."
+expires = "2026-12-31"
+
+[[tools.licence_audit.exceptions]]
+purl = "pkg:hex/cowlib@2.16.0"
+finding = "advisory"
+advisory = "CVE-2026-59248"
+reason = "Risk accepted for the locked Cowlib version while remediation is deferred."
+expires = "2026-12-31"
+
+[[tools.licence_audit.exceptions]]
+purl = "pkg:hex/cowlib@2.16.0"
+finding = "advisory"
+advisory = "CVE-2026-7790"
+reason = "Risk accepted for the locked Cowlib version while remediation is deferred."
+expires = "2026-12-31"
+
+[[tools.licence_audit.exceptions]]
+purl = "pkg:hex/gun@2.2.0"
+finding = "advisory"
+advisory = "CVE-2026-43966"
+reason = "Risk accepted for the locked Gun version while remediation is deferred."
+expires = "2026-12-31"
+
+[[tools.licence_audit.exceptions]]
+purl = "pkg:hex/gun@2.2.0"
+finding = "advisory"
+advisory = "CVE-2026-43972"
+reason = "Risk accepted for the locked Gun version while remediation is deferred."
+expires = "2026-12-31"
+
+[[tools.licence_audit.exceptions]]
+purl = "pkg:hex/gun@2.2.0"
+finding = "advisory"
+advisory = "CVE-2026-43973"
+reason = "Risk accepted for the locked Gun version while remediation is deferred."
+expires = "2026-12-31"
+
+[[tools.licence_audit.exceptions]]
+purl = "pkg:hex/gun@2.2.0"
+finding = "advisory"
+advisory = "CVE-2026-43974"
+reason = "Risk accepted for the locked Gun version while remediation is deferred."
+expires = "2026-12-31"
+
 [tools.trellis]
 members = [".", "examples/*"]
 
