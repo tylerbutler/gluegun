@@ -6,6 +6,15 @@ inputs:
     description: "Whether to cache and download Gleam dependencies"
     required: false
     default: "true"
+  examples:
+    description: "Whether to include standalone example dependencies in the cache"
+    required: false
+    default: "false"
+
+outputs:
+  platform:
+    description: "Runner image identity for toolchain caches"
+    value: ${{ steps.platform.outputs.id }}
 
 runs:
   using: "composite"
@@ -20,16 +29,26 @@ runs:
       shell: bash
       run: corepack enable
 
+    - name: Identify runner image
+      id: platform
+      shell: bash
+      run: echo "id=${ImageOS:-$(uname -s)}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
+    - name: Select dependency cache inputs
+      if: inputs.dependencies == 'true'
+      id: cache
+      shell: bash
+      env:
+        CACHE_EXAMPLES: ${{ inputs.examples }}
+      run: python3 -B scripts/ci_dependency_cache.py
+
     - name: Cache Gleam dependencies
       if: inputs.dependencies == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # ratchet:actions/cache@v6
       with:
-        path: |
-          build/packages
-          ~/.cache/gleam
-        key: gleam-${{ runner.os }}-${{ hashFiles('gleam.toml', 'manifest.toml') }}
-        restore-keys: |
-          gleam-${{ runner.os }}-
+        path: ${{ steps.cache.outputs.paths }}
+        # Docs can finish first without producing the Erlang output that Library needs.
+        key: gleam-compiled-v1-${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.platform.outputs.id }}-${{ steps.cache.outputs.identity }}-${{ inputs.examples }}-${{ hashFiles('.github/actions/setup/action.yml', '.github/workflows/*.yml', 'scripts/ci_dependency_cache.py', 'justfile', '.mise.toml', 'mise.lock', 'gleam.toml', 'manifest.toml', 'examples/*/gleam.toml', 'examples/*/manifest.toml') }}
 
     - name: Download dependencies
       if: inputs.dependencies == 'true'

@@ -153,7 +153,13 @@ clean:
 # === CI ===
 
 # Run all CI checks (format, check, test, build, workspace)
-ci: format-check check test examples-format-check examples-test docs-examples build-strict trellis-doctor
+ci: ci-library examples-format-check examples-test
+
+# Validate the library and documentation examples without standalone package work
+ci-library: format-check check test docs-examples build-strict trellis-doctor
+
+# Validate standalone packages on one runner, retaining test build output for packaging
+ci-examples: examples-format-check examples-test examples-build
 
 # Alias for PR checks
 alias pr := ci
