@@ -91,6 +91,13 @@ Discard buffered Gun messages currently queued for the calling process.
  It does not prevent late arrivals. Use `connection.terminate` to stop the
  sender, wait for exit, and flush this caller's connection messages.
 
+ This calls `gun:flush` with the connection handle, so it flushes all
+ streams on that connection in this caller's mailbox. It also removes
+ queued Erlang `DOWN` messages for every caller monitor reference to the
+ connection, including monitors created by application code. Other
+ processes' mailboxes are unchanged. The monitors remain active, but
+ removed notifications cannot be received later.
+
 ```gleam
 pub fn flush(internal.Connection) -> Result(Nil, error.GluegunError)
 ```
