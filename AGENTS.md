@@ -64,7 +64,8 @@ includes standalone example formatting and tests for local use. Cache only
 compiled Hex dependency directories selected from manifests, never workspace
 source/test outputs or generated artifacts. Keep the compiler fingerprint
 with those directories and use exact runner/toolchain/dependency cache keys.
-Scope caches by job so Docs cannot save an incomplete cache before Test.
+Scope caches by job so Docs cannot save an incomplete cache before Library.
+The required Test check must fail if Library, Examples, or check selection fails.
 Compatibility commands must use explicit `mise exec` versions; `mise install`
 alone does not replace the setup action's exported PATH.
 

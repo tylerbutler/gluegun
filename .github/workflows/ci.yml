@@ -42,11 +42,11 @@ jobs:
           fi
           echo "full=$full" >> "$GITHUB_OUTPUT"
 
-  test:
+  library:
     needs: changes
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    name: Test
+    name: Library
     steps:
       - name: Require successful check selection
         if: needs.changes.result != 'success'
@@ -89,6 +89,22 @@ jobs:
       - name: Validate standalone examples
         if: needs.changes.outputs.full == 'true'
         run: just ci-examples
+
+  test:
+    needs: [changes, library, examples]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    name: Test
+    steps:
+      - name: Require library and example checks
+        env:
+          SELECTION_RESULT: ${{ needs.changes.result }}
+          LIBRARY_RESULT: ${{ needs.library.result }}
+          EXAMPLES_RESULT: ${{ needs.examples.result }}
+        run: |
+          test "$SELECTION_RESULT" = success
+          test "$LIBRARY_RESULT" = success
+          test "$EXAMPLES_RESULT" = success
 
   compatibility:
     needs: changes

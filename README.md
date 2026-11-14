@@ -506,8 +506,9 @@ just td           # Validate the Trellis workspace
 
 CI runs library and standalone example checks on separate runners. Each
 runner keeps package operations serial. Example tests run before packaging
-so Webprobe can reuse its test build. Dependency caches contain downloaded
-packages and compiled Hex dependencies, but no workspace source, tests,
+so Webprobe can reuse its test build. The existing required Test check
+requires both the Library and Examples jobs to succeed. Dependency caches
+contain downloaded packages and compiled Hex dependencies, but no workspace source, tests,
 generated documentation, or escripts. Cache keys include the job, runner image,
 active compiler/runtime, rebar3, and root/example dependency manifests.
 

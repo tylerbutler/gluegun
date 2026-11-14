@@ -78,7 +78,7 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # ratchet:actions/cache@v6
       with:
         path: ${{ steps.cache.outputs.paths }}
-        # Docs can finish first without producing the Erlang output that Test needs.
+        # Docs can finish first without producing the Erlang output that Library needs.
         key: gleam-compiled-v1-${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.platform.outputs.id }}-${{ steps.cache.outputs.identity }}-${{ inputs.examples }}-${{ hashFiles('.github/actions/setup/action.yml', '.github/workflows/*.yml', 'justfile', '.mise.toml', 'mise.lock', 'gleam.toml', 'manifest.toml', 'examples/*/gleam.toml', 'examples/*/manifest.toml') }}
 
     - name: Download dependencies
