@@ -19,6 +19,9 @@ gun = ">= 2.1.0 and < 3.0.0"
 [dev-dependencies]
 unitest = ">= 1.6.1 and < 2.0.0"
 
+[tools.licence_audit]
+allow = ["Apache-2.0", "MIT", "ISC", "BSD-3-Clause"]
+
 [tools.trellis]
 members = [".", "examples/*"]
 

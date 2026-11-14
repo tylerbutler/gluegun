@@ -527,11 +527,17 @@ or the separate example lockfiles. Licence reports cover Hex packages;
 vulnerability reports cover Hex and GitHub dependencies and report skipped
 sources. OSV checks require network access.
 
-No licence allow list is configured, and reports do not enforce a gate. Run
-`licence_audit update` in an interactive terminal to review licences and
-save an approved policy in `gleam.toml`. After that, use
-`licence_audit check --vulns` to enforce the licence policy and the default
-high-severity vulnerability threshold. CI enforcement is not enabled.
+The policy in `gleam.toml` allows Apache-2.0, MIT, ISC, and BSD-3-Clause.
+Run `just audit-check` to enforce it and check vulnerabilities with
+`licence_audit check --vulns`. Other licences and high or critical severity
+advisories fail the check. Unknown severity does not fail the check by
+default. Input, configuration, or network errors also fail the check.
+The report tasks do not enforce these rules.
+
+`just ci-library` runs `audit-check`, so an audit failure fails the Library
+job and the required Test check. To change the licence policy, run
+`licence_audit update` in an interactive terminal and review the changes
+to `gleam.toml`.
 
 ### CI checks
 
