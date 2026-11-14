@@ -4,6 +4,7 @@
 //// messages. This module decodes those messages into Gleam types for callers
 //// using lower-level streaming or advanced flows.
 
+import gleam/erlang/process.{type Selector}
 import gleam/http.{type Method}
 import gluegun/connection.{type Connection, type Timeout}
 import gluegun/error
@@ -64,9 +65,9 @@ pub type Message {
 /// A raw Gun stream message, exactly as Gun delivers it to the process that
 /// owns the stream.
 ///
-/// This external type has no Gleam constructors: values come from Gun itself
-/// (or from an Erlang FFI function of your own that receives them). Use
-/// `decode` to turn one into a typed `Message`.
+/// This external type has no Gleam constructors. Use `select` to receive typed
+/// events without caller FFI, or `decode` / `decode_event` when an Erlang
+/// integration already supplies raw Gun messages.
 pub type GunMessage
 
 /// A decoded `Message` paired with the connection and stream Gun says it
@@ -87,6 +88,66 @@ pub type GunMessage
 pub type Envelope {
   Envelope(connection: Connection, stream: Stream, message: Message)
 }
+
+/// Protocol names Gun reports in connection and tunnel lifecycle messages.
+///
+/// Separate from `connection.Protocol`: Gun can report `ws`, `raw`, or `socks`
+/// after switching away from HTTP.
+pub type EventProtocol {
+  Http1
+  Http2
+  WebSocketProtocol
+  Raw
+  Socks
+}
+
+/// A Gun mailbox event with its source identity.
+///
+/// `ConnectionDown` describes a disconnect, not necessarily a final exit:
+/// Gun can reconnect when retry is enabled. Stream failures include malformed
+/// payloads with valid source handles, so callers can route decode errors too.
+pub type Event {
+  StreamMessage(Envelope)
+  ConnectionUp(connection: Connection, protocol: EventProtocol)
+  ConnectionDown(
+    connection: Connection,
+    protocol: EventProtocol,
+    error: error.GluegunError,
+    killed_streams: List(Stream),
+  )
+  TunnelUp(connection: Connection, stream: Stream, protocol: EventProtocol)
+  StreamFailure(
+    connection: Connection,
+    stream: Stream,
+    error: error.GluegunError,
+  )
+  ConnectionFailure(connection: Connection, error: error.GluegunError)
+}
+
+/// Decode stream, lifecycle, and error mailbox tuples without losing source
+/// identity. Reuses `decode` for stream payloads and the existing Gun error
+/// conversion. Invalid source handles or lifecycle fields return `DecodeError`.
+/// This does not change `decode` or add variants to `Message`.
+@external(erlang, "gluegun_ffi", "decode_event")
+pub fn decode_event(message: GunMessage) -> Result(Event, error.GluegunError)
+
+/// Add supported Gun mailbox tuples to an application selector.
+///
+/// Selects stream tuples plus `gun_up`, `gun_down`, `gun_tunnel_up`, and both
+/// `gun_error` shapes by tag and arity, across this receiver's whole mailbox.
+/// Route events by connection and stream; this cannot filter one connection.
+/// Malformed supported tuples reach the mapping as typed errors. Other tags,
+/// unsupported arities, application subjects, and external `DOWN` messages
+/// remain for their own handlers. Register the Gun handlers once per selector.
+///
+/// The actor must open its connection in its own init function. For WebSocket
+/// envelopes, call `websocket.record_frame` before handling the frame so close
+/// can track peer-close and finite flow credit.
+@external(erlang, "gluegun_ffi", "select_messages")
+pub fn select(
+  selector: Selector(a),
+  mapping: fn(Result(Event, error.GluegunError)) -> a,
+) -> Selector(a)
 
 /// Decode a raw Erlang Gun mailbox message into a typed `Message`, paired
 /// with the connection and stream it belongs to.

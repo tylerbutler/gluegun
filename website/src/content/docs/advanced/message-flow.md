@@ -25,6 +25,21 @@ For chunked bodies, see the [streaming guide](/guides/streaming/). For WebSocket
 
 For mailbox errors, `message.decode` returns `StreamError` for a stream-level `gun_error`, `ConnectionError` for a connection-level `gun_error`, and `ConnectionDown` for `gun_down`. Each error includes Gun's reason string without an envelope. `await` and `await_body` use the same categories and return `ConnectionDown` if the connection process exits. A receive timeout returns `Timeout`.
 
+## Actor and selector reception
+
+Use `message.select(selector, mapping)` to compose Gun reception with your
+application subjects. It selects supported Gun mailbox tuples by tag and arity
+across all connections in this receiver. Route by the event's connection and
+stream handles. It does not select external `DOWN` messages or arbitrary
+application messages.
+
+`message.Event` adds source-identified lifecycle and error events alongside
+`StreamMessage(Envelope)`. `message.decode_event` exposes the same decoder to
+existing Erlang integrations. `Message` and `message.decode` stay unchanged.
+For WebSocket envelopes, call `websocket.record_frame` once before handling
+the frame, to retain peer-close and finite-credit teardown state.
+See [OTP Actors](/guides/actors/) for the complete Gleam-only loop.
+
 ## `await_up` and the negotiated protocol
 
 Gun `open/2` returns immediately after it starts the connection process. The socket connect and the protocol negotiation occur asynchronously. `connection.await_up` waits for the Gun `up` message and returns the negotiated `Protocol`.

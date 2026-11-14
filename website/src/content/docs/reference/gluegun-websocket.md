@@ -156,8 +156,9 @@ pub fn connect(
 
 Adopt a completed upgrade. Call immediately after `await_upgrade`, in the
  process receiving this stream's Gun messages. This process owns receives
- and close; do not consume frames through another API or receiver, since
- close tracks delivered frames to restore finite flow credit during teardown.
+ and close. Use socket receive helpers, or pass each actor-delivered envelope
+ to `record_frame`, since close tracks delivered frames to restore finite
+ flow credit during teardown.
 
 ```gleam
 pub fn from_upgrade(
@@ -252,6 +253,23 @@ Receive the next WebSocket frame using a reusable socket.
 
 ```gleam
 pub fn receive_frame(socket: Socket) -> Result(message.Frame, error.GluegunError)
+```
+
+### `record_frame`
+
+Record a WebSocket envelope received through `message.select`.
+
+ Checks the socket's connection and stream before recording peer-close and
+ delivered flow credit, then returns the frame. A different source or a
+ non-WebSocket envelope returns `InvalidMessage` without changing state.
+ Call exactly once per delivered envelope in the socket's receiver, before
+ handling the frame or closing. Do not also receive it through a socket helper.
+
+```gleam
+pub fn record_frame(
+  socket: Socket,
+  envelope: message.Envelope
+) -> Result(message.Frame, error.GluegunError)
 ```
 
 ### `selected_subprotocol`
