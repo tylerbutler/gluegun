@@ -110,7 +110,10 @@ pub fn shutdown(internal.Connection) -> Result(Nil, error.GluegunError)
 
 ### `terminate`
 
-Force connection exit and flush its queued messages from this receiver.
+Stop the connection and flush its queued messages from this receiver.
+
+ Tries supervisor shutdown for up to 100 milliseconds, then kills on
+ failure or expiry. Waits for process exit before flushing.
 
 ```gleam
 pub fn terminate(internal.Connection) -> Result(Nil, error.GluegunError)

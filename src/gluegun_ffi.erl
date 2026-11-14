@@ -81,17 +81,95 @@ shutdown(ConnPid) -> with_normalize(connection_error, fun() -> gun:shutdown(Conn
 terminate(ConnPid) when is_pid(ConnPid), ConnPid =/= self(), node(ConnPid) =:= node() ->
     with_normalize(connection_error, fun() ->
         Monitor = erlang:monitor(process, ConnPid),
-        exit(ConnPid, kill),
-        receive
-            {'DOWN', Monitor, process, ConnPid, _} ->
-                gun:flush(ConnPid),
-                flush_connection_pushes(ConnPid)
+        try
+            case is_process_alive(ConnPid) of
+                false -> await_terminated(ConnPid, Monitor);
+                true ->
+                    case supervisor_stop(ConnPid, Monitor) of
+                        dead -> ok;
+                        Stop ->
+                            case {Stop, is_process_alive(ConnPid)} of
+                                {{stopped, ok}, false} -> ok;
+                                {{stopped, {error, not_found}}, false} -> ok;
+                                {timeout, _} -> exit(ConnPid, kill);
+                                {Failure, _} ->
+                                    logger:warning(
+                                        "Gluegun connection supervisor-stop cleanup failed: ~p",
+                                        [Failure]),
+                                    exit(ConnPid, kill)
+                            end,
+                            await_terminated(ConnPid, Monitor)
+                    end
+            end,
+            gun:flush(ConnPid),
+            flush_connection_pushes(ConnPid)
+        after
+            erlang:demonitor(Monitor, [flush])
         end
     end);
 terminate(_) ->
     {error, gleam_error({invalid_options, terminate_requires_local_connection})}.
 
-%% Gun 2.1/2.2 flush matches an eight-field push, but emits seven fields.
+await_terminated(ConnPid, Monitor) ->
+    receive {'DOWN', Monitor, process, ConnPid, _} -> ok end.
+
+%% gun:close/1 calls supervisor:terminate_child/2 with an infinite call timeout.
+%% This budget is independent of the preceding WebSocket handshake deadline.
+%% Results travel only in the private monitor's DOWN, never as late replies.
+supervisor_stop(ConnPid, TargetMonitor) ->
+    Caller = self(),
+    Deadline = monotonic_milliseconds() + 100,
+    try spawn_monitor(fun() -> stop_guardian(Caller, ConnPid) end) of
+        {Guardian, Monitor} ->
+            await_supervisor_stop(ConnPid, TargetMonitor, Guardian, Monitor, Caller, Deadline)
+    catch error:system_limit -> {stop_failed, system_limit}
+    end.
+
+await_supervisor_stop(ConnPid, TargetMonitor, Guardian, Monitor, Caller, Deadline) ->
+    try
+        receive
+            {'DOWN', TargetMonitor, process, ConnPid, _} -> dead;
+            {'DOWN', Monitor, process, Guardian, {stop_result, Result}} ->
+                {stopped, Result};
+            {'DOWN', Monitor, process, Guardian, Reason} ->
+                {stop_failed, Reason}
+        after max(0, Deadline - monotonic_milliseconds()) ->
+            timeout
+        end
+    after
+        %% A fresh monitor also works when the result DOWN was already consumed.
+        %% Wait for the guardian to reap its worker before returning on any path.
+        DisposeMonitor = erlang:monitor(process, Guardian),
+        Guardian ! {dispose, Caller},
+        receive {'DOWN', DisposeMonitor, process, Guardian, _} -> ok end,
+        erlang:demonitor(DisposeMonitor, [flush]),
+        erlang:demonitor(Monitor, [flush])
+    end.
+
+%% A monitor alone cannot interrupt a worker blocked inside gun:close. The
+%% guardian stays responsive and explicitly kills/reaps its linked, non-trapping
+%% worker on caller death (including normal exits) or timeout. No caller flags
+%% or links are changed. If the guardian itself crashes, its link kills the worker.
+stop_guardian(Caller, ConnPid) ->
+    process_flag(trap_exit, true),
+    CallerMonitor = erlang:monitor(process, Caller),
+    Worker = spawn_link(fun() ->
+        Result = try gun:close(ConnPid)
+        catch Class:Reason:Stack -> {exception, Class, Reason, Stack}
+        end,
+        exit({stop_result, Result})
+    end),
+    receive
+        {'EXIT', Worker, Result} -> exit(Result);
+        {'DOWN', CallerMonitor, process, Caller, _} -> dispose_stop_worker(Worker);
+        {dispose, Caller} -> dispose_stop_worker(Worker)
+    end.
+
+dispose_stop_worker(Worker) ->
+    exit(Worker, kill),
+    receive {'EXIT', Worker, _} -> ok end.
+
+%% Gun 2.1 through 2.8 flush matches an eight-field push, but emits seven fields.
 flush_connection_pushes(ConnPid) ->
     receive
         {gun_push, ConnPid, _, _, _, _, _} -> flush_connection_pushes(ConnPid)
