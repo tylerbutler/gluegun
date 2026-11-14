@@ -15,8 +15,6 @@ concurrency:
 jobs:
   package:
     runs-on: ubuntu-latest
-    outputs:
-      hex: ${{ steps.inspect.outputs.hex }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
         with:
@@ -38,22 +36,15 @@ jobs:
         run: gleam export hex-tarball
 
       - name: Check release tag and preview publication
-        id: inspect
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          trellis publish --dry-run --tag "$RELEASE_TAG"
-          case "$RELEASE_TAG" in
-            v0.*) echo "hex=false" ;;
-            *) echo "hex=true" ;;
-          esac >> "$GITHUB_OUTPUT"
+        run: trellis publish --dry-run --tag "$RELEASE_TAG"
 
   test:
     uses: ./.github/workflows/ci.yml
 
   publish:
     needs: [package, test]
-    if: github.event_name == 'workflow_dispatch' && needs.package.outputs.hex == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6

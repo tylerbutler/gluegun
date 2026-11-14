@@ -6,7 +6,7 @@ next:
   label: Send your first request
 ---
 
-For the 1.0 Hex release, install Gluegun with:
+For a published Hex release, install Gluegun with:
 
 ```sh
 gleam add gluegun
@@ -14,8 +14,8 @@ gleam add gleam_http
 ```
 
 Add `gleam_http` when you import standard HTTP modules, as the examples do.
-Maintainers have configured Hex publication but have not yet published 1.0.
-Until that release is available, or to use an unreleased revision, add a Git
+The release workflow publishes all release versions to Hex.
+Until a Hex release is available, or to use an unreleased revision, add a Git
 dependency to `gleam.toml`:
 
 <nav class="gg-lifecycle" aria-label="Request lifecycle">
