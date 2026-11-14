@@ -1,0 +1,10 @@
+[[fragments]]
+package = "gluegun"
+kind = "Added"
+body = "Release rc0"
+
+[fragments.source]
+commit = "84dd0fe8a643d9c02634b5e8f5d298feed89e69f"
+
+[[fragments.source.issues]]
+number = 115
