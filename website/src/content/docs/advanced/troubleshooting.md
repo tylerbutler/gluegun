@@ -45,7 +45,13 @@ application frame.
 - Use `websocket.with_socket(...)` for scoped cleanup.
 - When you hold a reusable `Socket`, call `websocket.close(socket)`, including after a failed exchange.
 
-Both paths wait for the peer within the socket timeout, or five seconds for `Infinity`, then terminate the Gun process and flush this receiver's queued messages. A missing close reply returns `Timeout` after cleanup. Other handshake failures return typed errors after cleanup. Repeated close succeeds after the process exits.
+Both paths wait for the peer within the socket timeout, or five seconds for
+`Infinity`. Process cleanup then attempts supervisor shutdown for up to 100
+milliseconds before killing on failure or expiry. This allowance is separate
+from the handshake deadline; waiting for process exit and flushing this
+receiver's queued messages can add time. A missing close reply returns `Timeout`
+after cleanup. Other handshake failures return typed errors after cleanup.
+Repeated close succeeds after the process exits.
 
 ## WebSocket close fails after the peer handshake succeeds
 

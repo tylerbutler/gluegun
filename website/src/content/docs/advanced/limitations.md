@@ -36,7 +36,14 @@ See [flush and monitor notifications](/advanced/message-flow/#flush-and-monitor-
 
 ## `close` and `shutdown`
 
-Use `connection.close` to stop a connection through Gun's supervisor. It waits for process exit, but does not drain HTTP streams or flush your mailbox. `connection.shutdown` requests graceful shutdown without waiting; it cannot interrupt blocked setup. Use `connection.terminate` for deadline cleanup: it forces exit, waits, then flushes the caller's Gun messages. See [Message Flow](/advanced/message-flow/#close-and-shutdown).
+Use `connection.close` to stop a connection through Gun's supervisor. It waits
+for process exit, but does not drain HTTP streams or flush your mailbox.
+`connection.shutdown` requests graceful shutdown without waiting; it cannot
+interrupt blocked setup. Use `connection.terminate` for deadline cleanup: it
+attempts supervisor shutdown for up to 100 milliseconds, then kills on failure
+or expiry. It waits for exit before flushing the caller's Gun messages. The stop
+allowance is separate from the operation's deadline; waiting for exit and
+mailbox cleanup can add time. See [Message Flow](/advanced/message-flow/#close-and-shutdown).
 
 ## Flow credit is not a byte limit
 
