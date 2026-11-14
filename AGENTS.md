@@ -10,7 +10,6 @@ just build         # gleam build
 just build-strict  # gleam build --warnings-as-errors
 just check         # gleam check
 just test          # gleam test
-just test-release  # check release preparation without external writes
 just examples-test # test standalone examples with test directories
 just format        # gleam format src test
 just format-check  # gleam format --check src test
@@ -22,7 +21,7 @@ just site-check    # validate website
 just site-dev      # start local website dev server
 just site-preview  # preview built website
 just site-clean    # remove website build artifacts
-just ci            # format-check, check, test, test-release, examples-format-check, examples-test, build-strict, trellis-doctor
+just ci            # format-check, check, test, examples-format-check, examples-test, build-strict, trellis-doctor
 just main          # ci, examples-build, docs, site-check, site-build
 ```
 
