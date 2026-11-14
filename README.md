@@ -407,6 +407,12 @@ the same Socket frame and close operations after adoption.
 
 See `examples/websocket_echo` for a fuller WebSocket example.
 
+For an OTP actor, use `message.select` to receive source-identified Gun events
+and application commands in one selector. Open the connection inside actor
+init, and pass each WebSocket envelope to `websocket.record_frame` before
+handling it. See the [actor guide](https://gluegun.tylerbutler.com/guides/actors/)
+and `examples/websocket_actor`. No caller Erlang FFI is needed.
+
 ## Error handling
 
 Effectful operations return `Result(_, error.GluegunError)`. Pattern match on variants that matter to your application and keep a fallback for unexpected Erlang or decode errors. Pure builders and accessors return plain values.
@@ -473,6 +479,7 @@ Available examples:
 - `chunked_upload`: stream request body with `request.headers`, `request.data`, `fin.NoFin`, `fin.Fin`.
 - `streaming_download`: process response chunks and trailers as low-level message values arrive.
 - `websocket_echo`: connect to local WebSocket echo server and exchange one text frame.
+- `websocket_actor`: own a WebSocket in an OTP actor and receive frames plus application commands.
 - `websocket_chat`: use scoped WebSocket lifecycle helpers for text and binary frame conversation.
 - `webprobe`: standalone CLI demo using `clip` and `argv` for argument parsing, `gleescript` for escript packaging, and Gluegun for HTTP diagnostics.
 

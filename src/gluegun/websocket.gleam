@@ -166,8 +166,9 @@ pub fn socket(
 
 /// Adopt a completed upgrade. Call immediately after `await_upgrade`, in the
 /// process receiving this stream's Gun messages. This process owns receives
-/// and close; do not consume frames through another API or receiver, since
-/// close tracks delivered frames to restore finite flow credit during teardown.
+/// and close. Use socket receive helpers, or pass each actor-delivered envelope
+/// to `record_frame`, since close tracks delivered frames to restore finite
+/// flow credit during teardown.
 ///
 /// Adopting a stream does not transfer the Gun connection's ownership.
 /// If this receiver did not open the connection, see `close` for the
@@ -688,6 +689,25 @@ pub fn receive_frame(
   |> ffi_record_peer_close(socket.peer_close)
 }
 
+/// Record a WebSocket envelope received through `message.select`.
+///
+/// Checks the socket's connection and stream before recording peer-close and
+/// delivered flow credit, then returns the frame. A different source or a
+/// non-WebSocket envelope returns `InvalidMessage` without changing state.
+/// Call exactly once per delivered envelope in the socket's receiver, before
+/// handling the frame or closing. Do not also receive it through a socket helper.
+pub fn record_frame(
+  socket socket: Socket,
+  envelope envelope: message.Envelope,
+) -> Result(Frame, error.GluegunError) {
+  ffi_record_envelope(
+    envelope,
+    socket.connection,
+    socket.stream,
+    socket.peer_close,
+  )
+}
+
 /// Receive the next application frame, handling ping/pong control frames.
 ///
 /// Gun automatically answers incoming pings with a matching pong. This helper
@@ -852,6 +872,14 @@ fn ffi_ws_close(
   timeout: Timeout,
   peer_close: PeerClose,
 ) -> Result(Nil, error.GluegunError)
+
+@external(erlang, "gluegun_ffi", "ws_record_envelope")
+fn ffi_record_envelope(
+  envelope: message.Envelope,
+  connection: Connection,
+  stream: Stream,
+  peer_close: PeerClose,
+) -> Result(Frame, error.GluegunError)
 
 @external(erlang, "gluegun_ffi", "ws_with_cleanup")
 fn ffi_ws_with_cleanup(

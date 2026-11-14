@@ -20,6 +20,7 @@ OWNED = {
 GUIDES = {
     "quick-start.mdx": "../../../../examples/basic_request/src/basic_request/guide.gleam?raw",
     "guides/http2.mdx": "../../../../../examples/http2_preferred/src/http2_preferred/guide.gleam?raw",
+    "guides/actors.mdx": "../../../../../examples/websocket_actor/src/websocket_actor.gleam?raw",
 }
 
 
@@ -95,6 +96,7 @@ def check():
             f"gluegun = {{ path = {json.dumps(str(ROOT))} }}\n"
             f"basic_request = {{ path = {json.dumps(str(ROOT / 'examples/basic_request'))} }}\n"
             f"http2_preferred = {{ path = {json.dumps(str(ROOT / 'examples/http2_preferred'))} }}\n"
+            f"websocket_actor = {{ path = {json.dumps(str(ROOT / 'examples/websocket_actor'))} }}\n"
             'gleam_stdlib = ">= 0.53.0 and < 2.0.0"\n'
             'gleam_erlang = ">= 1.0.0 and < 2.0.0"\n'
             'gleam_http = ">= 4.0.0 and < 5.0.0"\n'

@@ -3,6 +3,7 @@
 -export([
     open/3,
     await_up/2,
+    monitor_connection/1,
     close/1,
     shutdown/1,
     terminate/1,
@@ -22,10 +23,13 @@
     monotonic_milliseconds/0,
     ws_peer_close/0,
     ws_record_peer_close/2,
+    ws_record_envelope/4,
     ws_close/4,
     ws_with_cleanup/2,
     decode_message/1,
     safe_decode_message/1,
+    decode_event/1,
+    select_messages/2,
     protocol_result/1,
     identity/1,
     connect_options_to_gun/1,
@@ -67,6 +71,12 @@ await_up(ConnPid, Timeout) ->
         {ok, Protocol} -> protocol_result(Protocol);
         {error, _} = Error -> Error
     end.
+
+%% Connection is a distinct Gleam foreign type from process.Pid. Bridge only
+%% that typed handle to the same reference returned by process.monitor.
+%% The caller owns the monitor and its DOWN; selectors do not consume it.
+monitor_connection(ConnPid) ->
+    erlang:monitor(process, ConnPid).
 
 close(ConnPid) ->
     with_normalize(connection_error, fun() ->
@@ -357,6 +367,14 @@ ws_record_peer_close({ok, _} = Result, PeerClose) ->
     atomics:add(PeerClose, 2, 1),
     Result;
 ws_record_peer_close(Result, _) -> Result.
+
+%% Only a frame belonging to this receiver contributes delivered-frame credit
+%% or peer-close state. The Envelope is already a typed, decoded Gleam value.
+ws_record_envelope({envelope, ConnPid, StreamRef, {web_socket, Frame}},
+        ConnPid, StreamRef, PeerClose) ->
+    ws_record_peer_close({ok, Frame}, PeerClose);
+ws_record_envelope(_, _, _, _) ->
+    {error, gleam_error({invalid_message, websocket_envelope_source_or_message})}.
 
 %% Both callbacks are receiver-owned, zero-argument Gleam functions. Keep the
 %% normal cleanup outside the protected expression: only callback exceptions
@@ -898,6 +916,91 @@ normalize_stream_error({connection_error, Reason}) -> {connection_error, Reason}
 normalize_stream_error(Reason) -> {stream_error, Reason}.
 
 %% --- Gun message decoding ---------------------------------------------------
+
+%% Register only Gun mailbox records, preserving application subjects and
+%% monitor handlers on the supplied selector. gleam_erlang's public Erlang
+%% registration API has supported {tag, total tuple arity} since 1.0.0.
+%% Its typed select_record API describes a fixed tuple, not the opaque
+%% heterogeneous GunMessage boundary decoded here. Mapping receives only a
+%% Result(Event, GluegunError); mapping exceptions remain process failures.
+select_messages(Selector, Mapping) ->
+    Handler = fun(Raw) -> Mapping(decode_event(Raw)) end,
+    lists:foldl(fun(Key, Acc) ->
+        gleam_erlang_ffi:insert_selector_handler(Acc, Key, Handler)
+    end, Selector, [
+        {gun_inform, 5}, {gun_response, 6}, {gun_data, 5},
+        {gun_trailers, 4}, {gun_push, 7}, {gun_upgrade, 5},
+        {gun_ws, 4}, {gun_error, 3}, {gun_error, 4},
+        {gun_up, 3}, {gun_down, 5}, {gun_tunnel_up, 4}
+    ]).
+
+%% Unlike decode_message/1, lifecycle and error messages are successful
+%% Events with their source intact. No monitor messages are decoded or
+%% registered: receiving, timeouts and mailbox ownership stay with Selector.
+decode_event({gun_up, ConnPid, Protocol}) when is_pid(ConnPid) ->
+    case event_protocol(Protocol) of
+        {ok, Decoded} -> {ok, {connection_up, ConnPid, Decoded}};
+        {error, _} = Error -> Error
+    end;
+decode_event({gun_down, ConnPid, Protocol, Reason, KilledStreams})
+        when is_pid(ConnPid), is_list(KilledStreams) ->
+    case {event_protocol(Protocol), lists:all(fun valid_stream_ref/1, KilledStreams)} of
+        {{ok, Decoded}, true} ->
+            {ok, {connection_down, ConnPid, Decoded,
+                gleam_error({connection_down, Reason}), KilledStreams}};
+        _ -> invalid_event()
+    end;
+decode_event({gun_tunnel_up, ConnPid, StreamRef, Protocol}) when is_pid(ConnPid) ->
+    case {valid_stream_ref(StreamRef), event_protocol(Protocol)} of
+        {true, {ok, Decoded}} -> {ok, {tunnel_up, ConnPid, StreamRef, Decoded}};
+        _ -> invalid_event()
+    end;
+decode_event({gun_error, ConnPid, StreamRef, Reason}) when is_pid(ConnPid) ->
+    case valid_stream_ref(StreamRef) of
+        true -> {ok, {stream_failure, ConnPid, StreamRef, gleam_error({stream_error, Reason})}};
+        false -> invalid_event()
+    end;
+decode_event({gun_error, ConnPid, Reason}) when is_pid(ConnPid) ->
+    {ok, {connection_failure, ConnPid, gleam_error({connection_error, Reason})}};
+decode_event({gun_inform, ConnPid, StreamRef, _, _} = Raw) ->
+    decode_stream_event(ConnPid, StreamRef, Raw);
+decode_event({gun_response, ConnPid, StreamRef, _, _, _} = Raw) ->
+    decode_stream_event(ConnPid, StreamRef, Raw);
+decode_event({gun_data, ConnPid, StreamRef, _, _} = Raw) ->
+    decode_stream_event(ConnPid, StreamRef, Raw);
+decode_event({gun_trailers, ConnPid, StreamRef, _} = Raw) ->
+    decode_stream_event(ConnPid, StreamRef, Raw);
+decode_event({gun_push, ConnPid, StreamRef, _, _, _, _} = Raw) ->
+    decode_stream_event(ConnPid, StreamRef, Raw);
+decode_event({gun_upgrade, ConnPid, StreamRef, _, _} = Raw) ->
+    decode_stream_event(ConnPid, StreamRef, Raw);
+decode_event({gun_ws, ConnPid, StreamRef, _} = Raw) ->
+    decode_stream_event(ConnPid, StreamRef, Raw);
+decode_event(_) ->
+    invalid_event().
+
+decode_stream_event(ConnPid, StreamRef, Raw) when is_pid(ConnPid) ->
+    case valid_stream_ref(StreamRef) of
+        true ->
+            case decode_message(Raw) of
+                {ok, Envelope} -> {ok, {stream_message, Envelope}};
+                {error, Error} -> {ok, {stream_failure, ConnPid, StreamRef, Error}}
+            end;
+        false -> invalid_event()
+    end;
+decode_stream_event(_, _, _) ->
+    invalid_event().
+
+event_protocol(http) -> {ok, http1};
+event_protocol(http2) -> {ok, http2};
+event_protocol(ws) -> {ok, web_socket_protocol};
+event_protocol(raw) -> {ok, raw};
+event_protocol(socks) -> {ok, socks};
+event_protocol(_) -> invalid_event().
+
+invalid_event() ->
+    {error, gleam_error({decode_error, invalid_gun_event})}.
+
 %%
 %% Builds Gleam `gluegun/message.Message` values directly, so the Gleam side
 %% never has to inspect an untyped Gun term. Two shapes exist: the raw

@@ -1,0 +1,72 @@
+---
+title: OTP Actors
+description: Receive WebSocket frames and application commands in one typed actor loop.
+---
+
+import { Code } from '@astrojs/starlight/components';
+import guideSource from '../../../../../examples/websocket_actor/src/websocket_actor.gleam?raw';
+
+Use `message.select` when your process must receive Gun events and application
+commands. Add your command subject to the same selector. You do not need caller
+Erlang FFI or a process that forwards Gun messages.
+
+## Open the connection in actor init
+
+Gun sends connection messages to the process that opens it. Call
+`connection.open` inside `actor.new_with_initialiser`, then return your
+command subject with `actor.returning`. The init function waits for connection
+setup and upgrade. After init, the actor receives frames and commands in its
+Gleam loop. Monitor the connection with `connection.monitor` and add only that
+monitor through `process.select_specific_monitor`: an unexpected Gun process
+exit can occur without a `gun_down` event.
+
+The complete example below connects to a local echo server at
+`ws://localhost:8080/echo`. It sends a text command, receives the echo, then
+closes. The example package adds `gleam_otp`; Gluegun does not require it.
+
+<Code code={guideSource} lang="gleam" />
+
+Run it from `examples/websocket_actor` with `gleam run`. Its tests use a local
+wire peer and need no external server.
+
+## Route by source identity
+
+`message.select` registers supported Gun tuple tags and arities across the
+receiver's mailbox. It cannot select only one connection. For multiple
+connections or streams, match the source handles in the event before handling
+it. `StreamMessage` contains the existing `Envelope`; `StreamFailure` and
+`ConnectionFailure` keep their source handles with the typed error.
+
+`ConnectionUp`, `ConnectionDown`, and `TunnelUp` describe lifecycle changes.
+`ConnectionDown` includes the protocol, error, and killed streams. With HTTP
+retry enabled, a down event can precede a later up event. After a WebSocket
+upgrade, Gun reports `WebSocketProtocol`. Reconnecting as HTTP does not restore
+the upgrade.
+
+Malformed supported tuples reach your mapping as `DecodeError`. Malformed
+stream payloads with valid handles arrive as `StreamFailure`. The selector
+does not register arbitrary application messages, unsupported tuple arities,
+or external `DOWN` messages. Add your own subject and monitor handlers as
+needed. The OTP actor itself logs and discards messages outside its selector.
+
+## Record frames before handling them
+
+Pass each selected WebSocket `Envelope` to `websocket.record_frame(socket,
+envelope)` exactly once. It checks both source handles and records peer-close
+and delivered-frame credit for `websocket.close`. A different source or an
+HTTP envelope returns `InvalidMessage` without changing socket state.
+
+Use this bridge for text, binary, visible ping/pong, and close frames. Gun
+answers incoming pings itself. For finite credit, replenish during normal
+processing through `request.update_flow(connection, stream, increment)` using
+the envelope's handles. Recording a frame does not replenish normal receive
+credit; close reimburses delivered credit for teardown.
+
+Keep receiving and closing in the actor that owns the socket. The example
+reports close errors to the caller. A close command waits for the peer under
+the socket timeout and then stops the actor; it does not process other commands
+during that close handshake.
+
+See the [message reference](/reference/gluegun-message/) and
+[WebSocket reference](/reference/gluegun-websocket/) for the event and recording
+APIs. Existing `Message` variants and `message.decode` retain their behavior.

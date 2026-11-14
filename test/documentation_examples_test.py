@@ -1,4 +1,4 @@
-"""Check the direct source imports used by the two source-backed guides."""
+"""Check the direct source imports used by the source-backed guides."""
 
 import importlib.util
 from pathlib import Path
