@@ -17,6 +17,12 @@
 //// They keep other streams and the connection open. Cancellation is asynchronous:
 //// messages in transit can arrive after the drain. For strict mailbox
 //// isolation, use the low-level API in a separate receiving process.
+////
+//// Blocking helpers consume queued `gun_up` and `gun_down` events for this
+//// connection before dispatch and after completion, including failures.
+//// They preserve stream messages and unrelated mail. Use an actor receive
+//// loop instead when you need to observe connection lifecycle events.
+//// These helpers do not drain the owner's mailbox while it is idle.
 
 import gleam/bit_array
 import gleam/http
@@ -334,30 +340,38 @@ pub fn request_with(
     Result(Message, error.GluegunError),
 ) -> Result(Response(BitArray), error.GluegunError) {
   let deadline = connection.deadline(timeout)
-  use stream <- result.try(request_fn(
-    connection,
-    method,
-    path,
-    headers,
-    body,
-    options,
-  ))
-  case
-    collect_stream_with(
+  drain_lifecycle(connection)
+  let outcome = {
+    use stream <- result.try(request_fn(
       connection,
-      stream,
-      AwaitingResponse([]),
-      deadline,
-      await_fn,
-    )
-  {
-    Ok(response) -> Ok(response)
-    Error(reason) -> {
-      let _ = cleanup_stream(connection, stream)
-      Error(reason)
+      method,
+      path,
+      headers,
+      body,
+      options,
+    ))
+    case
+      collect_stream_with(
+        connection,
+        stream,
+        AwaitingResponse([]),
+        deadline,
+        await_fn,
+      )
+    {
+      Ok(response) -> Ok(response)
+      Error(reason) -> {
+        let _ = cleanup_stream(connection, stream)
+        Error(reason)
+      }
     }
   }
+  drain_lifecycle(connection)
+  outcome
 }
+
+@external(erlang, "gluegun_ffi", "drain_lifecycle")
+fn drain_lifecycle(connection: Connection) -> Nil
 
 @external(erlang, "gluegun_ffi", "cleanup_stream")
 fn cleanup_stream(

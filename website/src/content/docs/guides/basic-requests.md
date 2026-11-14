@@ -152,4 +152,24 @@ The client helpers attempt to cancel a failed stream and drain its queued messag
 
 Cancellation is asynchronous. The drain does not wait for Gun to process cancellation or for future messages. Messages in transit can arrive after the helper returns. The high-level API does not return the failed stream handle; use the low-level API in a separate receiving process if you need strict mailbox isolation.
 
+## Blocking receives and retries
+
+Call `connection.await_up` from the receiving process before sending requests.
+It consumes queued `gun_up` and `gun_down` events for this connection and uses
+the latest event. An up followed by a down does not report ready; a latest up
+can succeed with a zero timeout. Down events during the wait do not restart
+the timeout budget. Readiness does not guarantee that the socket stays open.
+
+The client helpers drain these lifecycle events before dispatch and after
+completion, including failures. They preserve stream messages, events for
+other connections, and application mail. Use an actor receive loop instead
+when you need to observe lifecycle events; do not mix both receive models for
+the same events.
+
+Connection options default to zero retries. With `connection.with_retry`,
+Gun resets the retry count after each established disconnect. This count does
+not limit the number of reconnect cycles. Reconnection does not replay failed
+requests or restore WebSockets. Gluegun does not drain an idle owner's mailbox,
+so lifecycle events can collect until the next blocking call.
+
 See the [client reference](/reference/gluegun-client/) for all high-level client functions.

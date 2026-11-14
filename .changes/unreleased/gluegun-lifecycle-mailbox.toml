@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Consume queued connection lifecycle events in blocking HTTP helpers and use the latest queued up/down state when waiting for readiness, without restarting the timeout."

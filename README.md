@@ -55,6 +55,20 @@ you need HTTP reconnection. After an `await_up` error, call
 `connection.terminate` to release any process that remains alive, including
 when you selected retries or setup has not finished.
 
+Blocking `connection.await_up` consumes this connection's queued `gun_up` and
+`gun_down` events and uses the latest event. An up followed by a down does not
+report ready; a latest up can succeed with a zero timeout. Down events do not
+restart the wait budget. Readiness does not guarantee that the socket stays open.
+
+`client` helpers drain these lifecycle events before dispatch and after
+completion, including failures. They preserve stream messages and unrelated
+mail. Call blocking helpers from the receiving process; use an actor receive
+loop instead if you need to observe lifecycle events. Gluegun does not drain
+idle owners. With retry enabled, events can collect until the next blocking
+call. Gun resets its retry count after each established disconnect, so this
+count does not limit the number of reconnect cycles. Reconnection does not
+replay failed requests or restore WebSockets.
+
 Numeric options reject invalid input with `InvalidOptions`; they do not clamp.
 Finite timeouts accept 0 through 4_294_967_295 milliseconds, inclusive, as
 supported by OTP 27. Use `connection.infinity()` for no limit. Retry counts

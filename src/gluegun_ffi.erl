@@ -3,6 +3,7 @@
 -export([
     open/3,
     await_up/2,
+    drain_lifecycle/1,
     close/1,
     shutdown/1,
     terminate/1,
@@ -61,11 +62,65 @@ open(Host, Port, Options) ->
 await_up(ConnPid, Timeout) ->
     case
         with_normalize(connection, fun() ->
-            gun:await_up(ConnPid, timeout_to_gun(Timeout))
+            await_connection_up(ConnPid, timeout_to_gun(Timeout))
         end)
     of
         {ok, Protocol} -> protocol_result(Protocol);
         {error, _} = Error -> Error
+    end.
+
+%% These blocking operations own only this connection's lifecycle messages.
+%% A drain is a zero-time mailbox observation, not a barrier against messages
+%% still in transit. In particular, do not flush streams or external monitors.
+drain_lifecycle(ConnPid) ->
+    receive
+        {gun_up, ConnPid, _} -> drain_lifecycle(ConnPid);
+        {gun_down, ConnPid, _, _, _} -> drain_lifecycle(ConnPid)
+    after 0 -> nil
+    end.
+
+await_connection_up(ConnPid, Timeout) ->
+    Deadline = case Timeout of
+        infinity -> infinity;
+        _ -> monotonic_milliseconds() + Timeout
+    end,
+    Monitor = erlang:monitor(process, ConnPid),
+    try await_connection_up(ConnPid, Monitor, Deadline, waiting)
+    after erlang:demonitor(Monitor, [flush])
+    end.
+
+%% Keep the newest queued event, rather than discarding the sole initial up
+%% or letting an old up win over a later down. Gun's await_up only matches up
+%% and process DOWN; Gun may stay alive through any number of retry cycles.
+await_connection_up(ConnPid, Monitor, Deadline, State) ->
+    case queued_lifecycle(ConnPid, Monitor, State) of
+        {up, Protocol} -> {ok, Protocol};
+        {error, _} = Error -> Error;
+        waiting ->
+            Remaining = case Deadline of
+                infinity -> infinity;
+                _ -> max(0, Deadline - monotonic_milliseconds())
+            end,
+            receive
+                {gun_up, ConnPid, Protocol} ->
+                    await_connection_up(ConnPid, Monitor, Deadline, {up, Protocol});
+                {gun_down, ConnPid, _, _, _} ->
+                    await_connection_up(ConnPid, Monitor, Deadline, waiting);
+                {'DOWN', Monitor, process, ConnPid, Reason} ->
+                    {error, {down, Reason}}
+            after Remaining -> {error, timeout}
+            end
+    end.
+
+queued_lifecycle(ConnPid, Monitor, State) ->
+    receive
+        {gun_up, ConnPid, Protocol} ->
+            queued_lifecycle(ConnPid, Monitor, {up, Protocol});
+        {gun_down, ConnPid, _, _, _} ->
+            queued_lifecycle(ConnPid, Monitor, waiting);
+        {'DOWN', Monitor, process, ConnPid, Reason} ->
+            {error, {down, Reason}}
+    after 0 -> State
     end.
 
 close(ConnPid) ->

@@ -130,6 +130,14 @@ Wait until a Gun connection is up and return the negotiated protocol.
 
  Call after `open` and before any request, WebSocket upgrade, or close.
  Blocks the caller process until Gun reports readiness or `timeout` elapses.
+ Consumes this connection's queued `gun_up` and `gun_down` lifecycle events.
+ The latest queued event determines readiness: an up followed by a down
+ does not report ready. A latest up can succeed with a zero timeout.
+ Down events during the wait do not restart the timeout budget.
+
+ Readiness reflects received events, not a guarantee that the socket will
+ remain open. Call from the receiving process. Do not combine this blocking
+ helper with an actor receive loop that needs the same lifecycle events.
 
  Errors:
  - `Timeout` — Gun did not report ready within `timeout`.
@@ -295,6 +303,9 @@ Set Gun's retry count, including zero to disable retries.
 
  Gun waits five seconds between subsequent retries by default. This count
  does not set that delay or any setup timeout.
+ Gun resets the count after an established connection disconnects, so a
+ long-lived connection can reconnect for more than this number of cycles.
+ Reconnection does not replay failed HTTP requests or restore WebSockets.
 
 ```gleam
 pub fn with_retry(
