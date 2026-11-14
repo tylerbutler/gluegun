@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.0-rc.0 - 2026-11-14
+
+### Added
+
+#### Release rc0
+
 ## 0.3.0 - 2026-11-13
 
 ### Breaking
