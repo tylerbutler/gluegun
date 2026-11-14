@@ -366,6 +366,10 @@ serve_application_frames(Socket, Name) ->
             <<"peer_close">> -> ok = send_frame(Socket, 8, <<>>);
             <<"peer_reason">> -> ok = send_frame(Socket, 8, <<1000:16, "bye">>);
             <<"flow_consumed">> -> ok = send_frame(Socket, 1, <<"one">>);
+            <<"flow_controls">> ->
+                %% Keep the credit-consuming batch separate from the upgrade.
+                timer:sleep(20),
+                ok = gen_tcp:send(Socket, <<137, 0, 138, 0>>);
             <<"flow_coalesced">> ->
                 ok = gen_tcp:send(Socket, [
                     <<129, 3, "one">>, <<129, 3, "two">>, <<129, 5, "three">>]);
@@ -373,6 +377,9 @@ serve_application_frames(Socket, Name) ->
         end,
     case Name of
         <<"drop">> -> ok;
+        <<"flow_controls">> ->
+            {ok, 10, <<>>} = read_frame(Socket),
+            exchange(Socket, <<"normal">>);
         _ -> exchange(Socket, Name)
     end.
 

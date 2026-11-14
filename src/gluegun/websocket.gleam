@@ -222,7 +222,10 @@ pub fn with_upgrade_options(
   Options(..options, upgrade_options: upgrade)
 }
 
-/// Set the timeout used when awaiting connection readiness, upgrade, and frames.
+/// Set the timeout for connection readiness, upgrade, default receives, and close.
+///
+/// Use `receive_frame_within` or `receive_app_frame_within` to override one
+/// receive without changing the setup or close timeout.
 pub fn with_timeout(options: Options, timeout timeout: Timeout) -> Options {
   Options(..options, timeout: timeout)
 }
@@ -389,6 +392,11 @@ pub fn with_compress(
 }
 
 /// Set a positive initial WebSocket flow-control allowance.
+///
+/// Use `update_flow(socket, increment)` to add credit after receiving frames.
+/// With Gun's default handler, each delivered frame consumes one credit,
+/// including visible ping and pong frames. Credit does not limit frame bytes
+/// or frames already buffered.
 pub fn with_flow(
   options: UpgradeOptions,
   initial_flow initial_flow: Int,
@@ -672,6 +680,21 @@ pub fn send_many(
   ffi_ws_send(socket.connection, socket.stream, frames)
 }
 
+/// Add a positive increment to the socket's WebSocket flow-control allowance.
+///
+/// With Gun's default handler, each delivered frame consumes one credit,
+/// including visible ping and pong frames skipped by `receive_app_frame`.
+/// Finite credit pauses socket reads; it does not limit frame bytes or frames
+/// already buffered. Zero or negative increments return `InvalidOptions`
+/// without calling Gun. Success confirms dispatch, not receipt by the peer.
+/// This does not change the socket's receive or close bookkeeping.
+pub fn update_flow(
+  socket socket: Socket,
+  increment increment: Int,
+) -> Result(Nil, error.GluegunError) {
+  request.update_flow(socket.connection, socket.stream, increment)
+}
+
 /// Receive the next WebSocket frame using a reusable socket.
 ///
 /// Returns `Ok(frame)` when a WebSocket frame arrives.
@@ -680,10 +703,24 @@ pub fn send_many(
 /// Returns `DecodeError` for malformed incoming values, `Timeout` when no
 /// frame arrives, and `ConnectionDown` on disconnect (even with Gun retries).
 /// Only this socket's stream and connection messages are consumed.
+/// A receive `Timeout` does not close the socket.
 pub fn receive_frame(
   socket socket: Socket,
 ) -> Result(Frame, error.GluegunError) {
-  ffi_ws_await(socket.connection, socket.stream, socket.timeout)
+  receive_frame_within(socket, socket.timeout)
+}
+
+/// Receive the next WebSocket frame with a timeout for this call only.
+///
+/// Uses the same message handling as `receive_frame`. A zero timeout polls
+/// queued frames; `Infinity` permits an unlimited wait. A receive `Timeout`
+/// does not close the socket. This call does not change the socket's default
+/// receive timeout or its setup and close limits.
+pub fn receive_frame_within(
+  socket socket: Socket,
+  timeout timeout: Timeout,
+) -> Result(Frame, error.GluegunError) {
+  ffi_ws_await(socket.connection, socket.stream, timeout)
   |> receive_from
   |> ffi_record_peer_close(socket.peer_close)
 }
@@ -698,10 +735,25 @@ pub fn receive_frame(
 /// Each call uses one total deadline from the socket's timeout. Skipped
 /// control frames do not restart it. `Infinity` permits an unlimited wait;
 /// a zero timeout returns `Timeout` without consuming queued frames.
+/// A receive `Timeout` does not close the socket.
 pub fn receive_app_frame(
   socket socket: Socket,
 ) -> Result(Frame, error.GluegunError) {
-  receive_app_frame_until(socket, connection.deadline(socket.timeout))
+  receive_app_frame_within(socket, socket.timeout)
+}
+
+/// Receive the next application frame with a timeout for this call only.
+///
+/// Uses one total deadline while skipping visible ping and pong frames.
+/// A zero timeout returns `Timeout` without consuming queued frames;
+/// `Infinity` permits an unlimited wait. A receive `Timeout` does not close
+/// the socket. This call does not change the socket's default receive timeout
+/// or its setup and close limits.
+pub fn receive_app_frame_within(
+  socket socket: Socket,
+  timeout timeout: Timeout,
+) -> Result(Frame, error.GluegunError) {
+  receive_app_frame_until(socket, connection.deadline(timeout))
 }
 
 fn receive_app_frame_until(
@@ -712,8 +764,9 @@ fn receive_app_frame_until(
     True -> Error(error.Timeout)
     False -> Ok(Nil)
   })
-  use frame <- result.try(receive_frame(
-    Socket(..socket, timeout: connection.remaining(deadline)),
+  use frame <- result.try(receive_frame_within(
+    socket,
+    connection.remaining(deadline),
   ))
   case frame {
     message.Ping(_) | message.Pong(_) ->

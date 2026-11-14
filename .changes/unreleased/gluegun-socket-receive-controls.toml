@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Added"
+body = "Add websocket.receive_frame_within and websocket.receive_app_frame_within for per-call receive timeouts without changing setup or close limits. Add websocket.update_flow to replenish finite Socket flow credit."

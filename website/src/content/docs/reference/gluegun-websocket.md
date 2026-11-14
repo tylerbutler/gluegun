@@ -247,9 +247,27 @@ Receive the next application frame, handling ping/pong control frames.
  Each call uses one total deadline from the socket's timeout. Skipped
  control frames do not restart it. `Infinity` permits an unlimited wait;
  a zero timeout returns `Timeout` without consuming queued frames.
+ A receive `Timeout` does not close the socket.
 
 ```gleam
 pub fn receive_app_frame(socket: Socket) -> Result(message.Frame, error.GluegunError)
+```
+
+### `receive_app_frame_within`
+
+Receive the next application frame with a timeout for this call only.
+
+ Uses one total deadline while skipping visible ping and pong frames.
+ A zero timeout returns `Timeout` without consuming queued frames;
+ `Infinity` permits an unlimited wait. A receive `Timeout` does not close
+ the socket. This call does not change the socket's default receive timeout
+ or its setup and close limits.
+
+```gleam
+pub fn receive_app_frame_within(
+  socket: Socket,
+  timeout: connection.Timeout
+) -> Result(message.Frame, error.GluegunError)
 ```
 
 ### `receive_frame`
@@ -262,9 +280,26 @@ Receive the next WebSocket frame using a reusable socket.
  Returns `DecodeError` for malformed incoming values, `Timeout` when no
  frame arrives, and `ConnectionDown` on disconnect (even with Gun retries).
  Only this socket's stream and connection messages are consumed.
+ A receive `Timeout` does not close the socket.
 
 ```gleam
 pub fn receive_frame(socket: Socket) -> Result(message.Frame, error.GluegunError)
+```
+
+### `receive_frame_within`
+
+Receive the next WebSocket frame with a timeout for this call only.
+
+ Uses the same message handling as `receive_frame`. A zero timeout polls
+ queued frames; `Infinity` permits an unlimited wait. A receive `Timeout`
+ does not close the socket. This call does not change the socket's default
+ receive timeout or its setup and close limits.
+
+```gleam
+pub fn receive_frame_within(
+  socket: Socket,
+  timeout: connection.Timeout
+) -> Result(message.Frame, error.GluegunError)
 ```
 
 ### `selected_subprotocol`
@@ -345,6 +380,24 @@ pub fn send_text(
 ) -> Result(Nil, error.GluegunError)
 ```
 
+### `update_flow`
+
+Add a positive increment to the socket's WebSocket flow-control allowance.
+
+ With Gun's default handler, each delivered frame consumes one credit,
+ including visible ping and pong frames skipped by `receive_app_frame`.
+ Finite credit pauses socket reads; it does not limit frame bytes or frames
+ already buffered. Zero or negative increments return `InvalidOptions`
+ without calling Gun. Success confirms dispatch, not receipt by the peer.
+ This does not change the socket's receive or close bookkeeping.
+
+```gleam
+pub fn update_flow(
+  socket: Socket,
+  increment: Int
+) -> Result(Nil, error.GluegunError)
+```
+
 ### `upgrade`
 
 Initiate a WebSocket upgrade with options when the negotiated protocol is known.
@@ -407,6 +460,11 @@ pub fn with_connect_options(
 ### `with_flow`
 
 Set a positive initial WebSocket flow-control allowance.
+
+ Use `update_flow(socket, increment)` to add credit after receiving frames.
+ With Gun's default handler, each delivered frame consumes one credit,
+ including visible ping and pong frames. Credit does not limit frame bytes
+ or frames already buffered.
 
 ```gleam
 pub fn with_flow(
@@ -502,7 +560,10 @@ pub fn with_subprotocols(
 
 ### `with_timeout`
 
-Set the timeout used when awaiting connection readiness, upgrade, and frames.
+Set the timeout for connection readiness, upgrade, default receives, and close.
+
+ Use `receive_frame_within` or `receive_app_frame_within` to override one
+ receive without changing the setup or close timeout.
 
 ```gleam
 pub fn with_timeout(
