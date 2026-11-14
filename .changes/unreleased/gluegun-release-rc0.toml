@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Major Release"
+body = "Release rc0"
