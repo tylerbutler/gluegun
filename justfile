@@ -40,6 +40,10 @@ build-strict:
 test:
     gleam test
 
+# Run local compiled BEAM measurements without changing production code
+measure-beam: build
+    escript scripts/measure_beam.escript
+
 # === CODE QUALITY ===
 
 # Format source code
