@@ -115,6 +115,18 @@ Call `websocket.close` from the socket's receiver. If upgrade options redirect
 frames to another process or an external forwarder, drain that receiver
 separately. Do not reuse the socket after close.
 
+The connection owner is the process that opened it. Gun monitors that process
+and stops the connection when it exits. Passing a `Socket` or using
+`with_reply_to` does not transfer ownership. Only the owner receives `gun_up`
+and `gun_down`; `with_reply_to` redirects upgrade and frame messages.
+
+If the socket's receiver is not the owner, close can return `Timeout` or
+`ConnectionDown` even after a successful peer close handshake, because the
+normal `gun_down` confirmation goes to the owner. Prefer opening and receiving
+in the same process. Teardown also removes queued Erlang `DOWN` notifications
+for all the caller's monitors of that connection. See
+[Message Flow](/advanced/message-flow/#flush-and-monitor-notifications).
+
 `websocket.send_close_frame(socket)` only sends a close frame. It does not
 release the Gun process. Use `websocket.close` for reusable sockets or
 `websocket.with_socket` for scoped cleanup.
@@ -146,6 +158,9 @@ send, you can continue to use the connection.
 ## Low-level upgrade flow
 
 Use the low-level functions when you already control the connection lifecycle, or when you must check the negotiated protocol before the upgrade.
+
+The process that calls this example must also have opened `conn`, so it can
+receive readiness through `connection.await_up`.
 
 ```gleam
 import gleam/result

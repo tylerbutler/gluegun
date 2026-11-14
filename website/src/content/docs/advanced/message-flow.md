@@ -44,6 +44,11 @@ See [OTP Actors](/guides/actors/) for the complete Gleam-only loop.
 
 Gun `open/2` returns immediately after it starts the connection process. The socket connect and the protocol negotiation occur asynchronously. `connection.await_up` waits for the Gun `up` message and returns the negotiated `Protocol`.
 
+Call `await_up` in the process that opened the connection. Only that owner
+receives `gun_up`. A different process can time out while the connection
+stays alive, or get `ConnectionDown` if the connection process exits during
+the wait. Holding the handle does not give a process readiness messages.
+
 The returned `Protocol` is the protocol that Gun selected. For TLS connections, this includes the ALPN result. If you do not call `await_up`, later stream messages still queue correctly and the connection can still work. But your code cannot know if Gun negotiated HTTP/1.1 or HTTP/2. This is important for decisions such as `websocket.upgrade`, which rejects `Http2` before it calls Gun.
 
 ## `close` and `shutdown`
@@ -68,6 +73,23 @@ On the response side, `message.Response(fin, status, headers)` tells you if the 
 
 `request.flush(conn)` removes only messages queued at that instant. For terminal cleanup, cancel the stream if needed, then call `connection.terminate(conn)` from the receiver. Termination discards all streams on the connection.
 
+### Flush and monitor notifications
+
+`request.flush` and `connection.terminate` call `gun:flush` with the connection
+handle. The flush removes queued messages for all streams on that connection
+in the caller's mailbox. It also removes queued Erlang
+`{'DOWN', monitor_ref, process, connection_pid, reason}` messages for every
+monitor reference to that connection, including monitors created by your
+application. It does not change other processes' mailboxes.
+
+Flushing a live connection does not demonitor it. When the connection exits,
+Erlang removes its monitors and sends their `DOWN` notifications. A later
+flush can discard those queued notifications. Do not wait for a discarded
+`DOWN` after either call.
+In particular, `connection.terminate` has already waited for process exit;
+its flush can consume the notification your own lifecycle code expected.
+`websocket.close` uses the same termination cleanup.
+
 ## Flow control
 
 Set finite credit with `request.with_initial_flow(options, credit)` before `request.request` or `request.start_stream`. Without it, Gun starts with unlimited credit; a later `update_flow` cannot change unlimited credit to finite credit.
@@ -84,9 +106,29 @@ Gun processes ping and pong automatically by default. `websocket.with_silence_pi
 
 ## Process ownership and `reply_to`
 
-Gun sends asynchronous connection and stream messages to the Erlang process that called `gun:open`. To send WebSocket upgrade and frame messages to a different process, use `websocket.with_reply_to`. It sets the Gun `reply_to` option to that process identifier.
+The process that calls `connection.open` is the connection owner. Gun
+monitors this process and stops the connection when it exits. Passing a
+`Connection` or `Socket` handle to another process does not transfer
+ownership. A short-lived task cannot open a connection, return its handle,
+and exit while another process continues to use it. Open long-lived
+connections in a process that stays alive for their full lifetime.
+Gluegun has no owner transfer API.
+
+Gun sends connection lifecycle messages, including `gun_up` and `gun_down`,
+only to the connection owner. HTTP stream replies go to the process that
+calls `request.request` or `request.start_stream`, which can differ from the
+owner. Calling `message.await` in another process does not redirect those
+replies.
+
+WebSocket upgrade and frame messages go to the upgrade caller by default.
+`websocket.with_reply_to` sends those stream messages to the configured
+process instead. It does not change the connection owner or redirect
+`gun_up` and `gun_down`.
 
 If the receiving process stops before it processes the messages, those messages are lost. Gluegun does not keep them in a different location.
+
+In this example, `conn` must have been opened by the current process,
+because that process calls `await_up`:
 
 ```gleam
 import gleam/erlang/process
@@ -115,6 +157,10 @@ pub fn upgrade_in_current_process(conn) {
 ```
 
 The receiver must await the upgrade and own the Socket receive/close sequence.
+If the receiver is not the connection owner, `websocket.close` can return
+`Timeout` or `ConnectionDown` after a successful peer close handshake:
+the normal `gun_down` confirmation goes only to the owner. Prefer keeping
+the opener and WebSocket receiver in the same process.
 Closing in another process does not drain that receiver's mailbox. Do not
 redirect a high-level `connect` handshake away from the calling process.
 The internal `websocket/raw` module is not a supported application interface.

@@ -169,6 +169,10 @@ pub fn socket(
 /// and close. Use socket receive helpers, or pass each actor-delivered envelope
 /// to `record_frame`, since close tracks delivered frames to restore finite
 /// flow credit during teardown.
+///
+/// Adopting a stream does not transfer the Gun connection's ownership.
+/// If this receiver did not open the connection, see `close` for the
+/// owner-only `gun_down` limitation.
 pub fn from_upgrade(
   connection connection: Connection,
   stream stream: Stream,
@@ -449,6 +453,11 @@ pub fn with_subprotocols(
 
 /// Deliver upgrade and frame messages to this process. That receiver must
 /// await the upgrade, adopt it, receive frames, and close its socket.
+///
+/// This does not transfer connection ownership or redirect `gun_up` and
+/// `gun_down`; those still go only to the process that opened the connection.
+/// A non-owner receiver can get a close error after a successful handshake;
+/// see `close`. Keep the connection owner alive for the socket's lifetime.
 pub fn with_reply_to(
   options: UpgradeOptions,
   receiver receiver: Pid,
@@ -630,6 +639,15 @@ pub fn send_close_frame(
 /// An already-exited connection returns `Ok(Nil)`. Repeated close is safe.
 /// Call from the socket's receiver; other receivers and external forwarders
 /// need separate mailbox cleanup. Do not reuse the socket after this call.
+///
+/// Gun sends `gun_down` only to the process that opened the connection,
+/// even when `with_reply_to` redirects frames. A non-owner receiver can
+/// complete the peer close handshake but still return `Timeout` or
+/// `ConnectionDown`, because it cannot receive the normal `gun_down`
+/// confirmation. Prefer opening and receiving in the same process.
+///
+/// Teardown calls `connection.terminate`, whose flush also removes queued
+/// Erlang `DOWN` notifications for all this caller's monitors of the connection.
 pub fn close(socket socket: Socket) -> Result(Nil, error.GluegunError) {
   ffi_ws_close(
     socket.connection,
