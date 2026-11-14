@@ -527,12 +527,6 @@ or the separate example lockfiles. Licence reports cover Hex packages;
 vulnerability reports cover Hex and GitHub dependencies and report skipped
 sources. OSV checks require network access.
 
-Advisory exceptions in `gleam.toml` accept the reported risks for Gun 2.2.0
-and Cowlib 2.16.0 through 2026-12-31 UTC. Each exception selects one CVE at
-one locked version, including its direct OSV aliases. The reports keep these
-findings visible; the exceptions do not fix the vulnerabilities or apply to
-other versions or new advisories.
-
 No licence allow list is configured, and reports do not enforce a gate. Run
 `licence_audit update` in an interactive terminal to review licences and
 save an approved policy in `gleam.toml`. After that, use
