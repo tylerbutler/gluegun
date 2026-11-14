@@ -104,38 +104,38 @@ url_api = "https://api.github.com/repos/tylerbutler/trellis/releases/assets/7408
 provenance = "github-attestations"
 
 [[tools.gleam]]
-version = "1.14.0"
+version = "1.19.2"
 backend = "aqua:gleam-lang/gleam"
-specifiers = ["1.14.0"]
+specifiers = ["1.19.2"]
 
 [tools.gleam."platforms.linux-arm64"]
-checksum = "sha256:16371f8e3b45303d240758fe07f4adcb0fe444edf2f82312a24451323869730c"
-url = "https://github.com/gleam-lang/gleam/releases/download/v1.14.0/gleam-v1.14.0-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/gleam-lang/gleam/releases/assets/332673782"
+checksum = "sha256:d1d1a9d53f6b317c0563a4806873c8ccace54291ead023373728af379402d4f1"
+url = "https://github.com/gleam-lang/gleam/releases/download/v1.19.2/gleam-v1.19.2-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/gleam-lang/gleam/releases/assets/633423257"
 provenance = "github-attestations"
 
 [tools.gleam."platforms.linux-x64"]
-checksum = "sha256:5dc66abbf3eb80f209f1c261ecfc44dc1404dd8ac503e483369d37182a4fcce8"
-url = "https://github.com/gleam-lang/gleam/releases/download/v1.14.0/gleam-v1.14.0-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/gleam-lang/gleam/releases/assets/332673808"
+checksum = "sha256:2ba2afb66ca9f6dcc01a4a6e9169b6942963bad6483bec9571ddc078cfe6f41f"
+url = "https://github.com/gleam-lang/gleam/releases/download/v1.19.2/gleam-v1.19.2-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/gleam-lang/gleam/releases/assets/633423401"
 provenance = "github-attestations"
 
 [tools.gleam."platforms.macos-arm64"]
-checksum = "sha256:81a7c879ff2ebd0d6a4831f92a738542e21148784ba6cc1aa1c3f726f36b0c22"
-url = "https://github.com/gleam-lang/gleam/releases/download/v1.14.0/gleam-v1.14.0-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/gleam-lang/gleam/releases/assets/332673772"
+checksum = "sha256:fa7c6113e162ab1d979f72e7dde3e907b87e4b30c518af178768e577d180324d"
+url = "https://github.com/gleam-lang/gleam/releases/download/v1.19.2/gleam-v1.19.2-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/gleam-lang/gleam/releases/assets/633423162"
 provenance = "github-attestations"
 
 [tools.gleam."platforms.macos-x64"]
-checksum = "sha256:809c9a0e2e440c62554ff5cf5c2c38a961d25b98197313dc4b73e6dea88f104d"
-url = "https://github.com/gleam-lang/gleam/releases/download/v1.14.0/gleam-v1.14.0-x86_64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/gleam-lang/gleam/releases/assets/332673794"
+checksum = "sha256:c578192530507b868c4a6c8cb7ad5d2ab0830890257f41036f17c82853f19d05"
+url = "https://github.com/gleam-lang/gleam/releases/download/v1.19.2/gleam-v1.19.2-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/gleam-lang/gleam/releases/assets/633423317"
 provenance = "github-attestations"
 
 [tools.gleam."platforms.windows-x64"]
-checksum = "sha256:0531746b964de611da660c4e65a635dc0f7a4e9147e4b2e89b8c58ec316501b8"
-url = "https://github.com/gleam-lang/gleam/releases/download/v1.14.0/gleam-v1.14.0-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/gleam-lang/gleam/releases/assets/332673801"
+checksum = "sha256:21744a7fb040f64142c1b45b7a0149bf2c46b4aa46b435abd35848f9821ce729"
+url = "https://github.com/gleam-lang/gleam/releases/download/v1.19.2/gleam-v1.19.2-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/gleam-lang/gleam/releases/assets/633423359"
 provenance = "github-attestations"
 
 [[tools.just]]

@@ -554,6 +554,8 @@ Before the first Hex release:
    `gleam publish --yes`, which uploads the package and API documentation.
    The explicit docs step also completes documentation after a partial upload
    where Trellis skips an existing Hex version.
+   Both commands use the compiler in the tagged `.mise.toml`. New release tags
+   use Gleam 1.19.2 to avoid conflicting upload Content-Type headers.
 6. Confirm the version on [Hex](https://hex.pm/packages/gluegun) and its API
    reference at `https://hexdocs.pm/gluegun/<version>/`. Remove the pending
    publication notice from installation instructions after this verification.
@@ -570,6 +572,13 @@ gh workflow run publish.yml --repo tylerbutler/gluegun --ref v1.0.0
 Do not dispatch it on a branch. Trellis skips
 existing Hex versions; the docs step uploads documentation for that version.
 Do not use `--replace` as a recovery shortcut.
+
+A retry or dispatch on an existing tag uses that tag's workflow, setup action,
+and tool pins. A pin change on `main` does not change the tagged publisher.
+For a tag with a broken publisher, obtain approval for a new candidate that
+includes the fix, or for a separate recovery from the unchanged tagged source
+with a verified corrected compiler. The existing workflow has no compiler
+override input.
 
 ### Website reference builds
 
