@@ -3,11 +3,9 @@ title: What is Gluegun?
 description: Learn what Gluegun does and when to use it.
 ---
 
-Gluegun is a Gleam interface to the Erlang [Gun](https://ninenines.eu/docs/en/gun/) HTTP client.
+Gluegun gives Gleam applications typed access to [Gun](https://ninenines.eu/docs/en/gun/), an asynchronous Erlang HTTP client. You can collect a complete response or process individual stream messages, with typed functions for connections, requests, responses, and WebSockets.
 
-Gun is an asynchronous HTTP client. It supports HTTP/1.1, HTTP/2, and WebSocket over HTTP/1.1. Gluegun gives Gleam code typed functions for connections, requests, responses, messages, and WebSockets. Gluegun keeps access to the stream model of Gun.
-
-Gun is Erlang only. Thus Gluegun runs only on the Erlang target.
+Gun supports HTTP/1.1, HTTP/2, and WebSockets over HTTP/1.1. Because Gun is Erlang only, Gluegun runs only on the Erlang target.
 
 If you only need HTTP/1.1 requests with complete responses, [`gleam_httpc`](https://hexdocs.pm/gleam_httpc/) has a smaller API. Choose Gluegun when you need HTTP/2, WebSockets, streaming, cancellation, flow control, or direct connection management. See [Choose an HTTP client](/choosing-a-client/) for a detailed comparison.
 

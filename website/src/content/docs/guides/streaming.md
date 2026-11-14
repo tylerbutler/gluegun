@@ -6,6 +6,8 @@ description: Send chunked request bodies and read asynchronous response messages
 Use `gluegun/request` to send request bodies in chunks and `gluegun/message`
 to read response chunks as they arrive.
 
+## Upload a chunked body and collect the response
+
 For an upload, start with `request.start_stream`, send zero or more chunks
 with `fin.NoFin`, and complete the body with `fin.Fin`.
 
@@ -66,7 +68,10 @@ HTTP/2 server push comes as `message.Push(stream, …)`. It holds a new stream. 
 
 ## Read response chunks
 
-To get response chunks or trailers as they arrive, continue to call `message.await` for `message.Data` and `message.Trailers`. Do not collect the full body with `message.await_body`.
+The upload example streams the request body but collects the response. To
+process the response in chunks, replace `message.await_body` with a
+`message.await` loop. Handle `message.Data` and `message.Trailers` as they
+arrive instead of collecting the full body.
 
 `message.await_body` collects all body chunks into one `BitArray` in memory. Call it only after you receive the `Response` message (for example, from a previous `message.await`). For very large responses, or responses without a known size, write your own loop with `message.await`. Then you can apply backpressure or send the body to a different location.
 
