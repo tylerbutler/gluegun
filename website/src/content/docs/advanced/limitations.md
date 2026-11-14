@@ -9,7 +9,30 @@ Gluegun is an interface to Erlang Gun. It is not available on the JavaScript tar
 
 ## Connection ownership is important
 
-Gun process ownership is important. Requests and WebSocket frames are asynchronous messages. Gun sends them to the process that owns, or waits for, the Gun stream, unless request options send replies to a different process. The high-level `client` functions read those messages on the calling process during `send`, then return. They do not start a separate consumer process.
+Gun monitors the process that calls `connection.open` and stops the
+connection when that process exits. Passing the handle does not transfer
+ownership, and Gluegun has no owner transfer API. Keep the opener alive
+for the connection's lifetime.
+
+Only the owner receives connection lifecycle messages such as `gun_up` and
+`gun_down`. Call `connection.await_up` there: a different process can time
+out or observe connection process exit, but cannot receive readiness.
+HTTP stream replies go to the request caller. `websocket.with_reply_to`
+redirects upgrade and frame messages, not connection lifecycle messages.
+Thus a non-owner WebSocket receiver can get a close error even after the
+peer completes the close handshake.
+
+The high-level `client` functions read stream messages on the calling
+process during `send`, then return. They do not start a separate consumer
+process. See [process ownership and reply routing](/advanced/message-flow/#process-ownership-and-reply_to).
+
+## Flush discards monitor notifications
+
+`request.flush` and `connection.terminate` remove queued Erlang `DOWN`
+messages for all the caller's monitor references to the connection,
+including application monitors. The notifications are not preserved for
+separate lifecycle handling. Other processes' mailboxes are unchanged.
+See [flush and monitor notifications](/advanced/message-flow/#flush-and-monitor-notifications).
 
 ## `close` and `shutdown`
 

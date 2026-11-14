@@ -271,6 +271,15 @@ pub fn tls_options(options: ConnectOptions) -> Option(tls.TlsOptions) {
 /// handshake completes asynchronously. Call `await_up` before sending any
 /// request or WebSocket upgrade.
 ///
+/// The calling process is the connection owner. Gun monitors it and stops
+/// the connection when it exits, even if another process holds the handle.
+/// Passing the handle does not transfer ownership; Gluegun has no owner
+/// transfer API. Open long-lived connections in a long-lived process.
+///
+/// Gun sends connection lifecycle messages, including `gun_up` and
+/// `gun_down`, only to the owner. Stream replies go to the request caller
+/// or a configured reply receiver; this does not change the owner.
+///
 /// Errors:
 /// - `InvalidOptions` — Gun rejected the converted options.
 /// - `ErlangError` — Gun could not spawn the connection process.
@@ -326,6 +335,11 @@ fn monotonic_milliseconds() -> Int
 /// Call after `open` and before any request, WebSocket upgrade, or close.
 /// Blocks the caller process until Gun reports readiness or `timeout` elapses.
 ///
+/// Call from the process that opened the connection. Gun sends `gun_up`
+/// only to that owner. A different process cannot receive readiness through
+/// this function: it can return `Timeout` while the connection stays alive,
+/// or `ConnectionDown` if the connection process exits during the wait.
+///
 /// Errors:
 /// - `Timeout` — Gun did not report ready within `timeout`.
 /// - `ConnectionDown` / `ConnectionError` — handshake failed.
@@ -362,6 +376,11 @@ pub fn shutdown(connection: Connection) -> Result(Nil, error.GluegunError) {
 /// the Gun process cannot send more messages and its queued messages are gone.
 /// This does not drain other receiving processes or third-party forwarders.
 /// It discards all streams on this connection, not only one stream.
+///
+/// The flush also removes queued Erlang `DOWN` messages for this connection
+/// from the caller's mailbox, for every monitor reference, including monitors
+/// created by application code. Do not wait for those notifications after
+/// this call; they are not preserved for separate lifecycle handling.
 pub fn terminate(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_terminate(connection)
 }

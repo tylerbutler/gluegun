@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Changed"
+body = "Clarify the documented connection owner lifetime, stream receiver rules, and flush side effects on queued DOWN notifications. Runtime behavior and APIs are unchanged."
