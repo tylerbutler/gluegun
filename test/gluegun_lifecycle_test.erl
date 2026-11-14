@@ -2,7 +2,160 @@
 -export([with_mailbox/2, with_down_timers/1, timed_await/2,
     with_dead_connection/1, with_retry_peer/1, close_peer/1,
     wait_lifecycle/2, lifecycle_count/1, fail_peer/1, retry_client_failure/2,
-    enqueue/2, with_reconnecting_mailbox/1]).
+    enqueue/2, with_reconnecting_mailbox/1, with_sustained_down/1,
+    with_waiting_down/1, with_late_up/1]).
+
+%% Isolate flood tests from Unitest's mailbox. A deliberately retained prefix
+%% makes consuming an open-ended queue expensive without depending on sender
+%% throughput alone. The producer is still active when the callback must finish.
+with_sustained_down(Callback) ->
+    with_sustained_down(Callback, true).
+
+with_waiting_down(Callback) ->
+    with_sustained_down(Callback, false).
+
+with_sustained_down(Callback, InitialDown) ->
+    Parent = self(),
+    Ref = make_ref(),
+    {Worker, Monitor} = spawn_monitor(fun() ->
+        with_mailbox([], fun(Conn) ->
+            Prefix = [{application, Ref, N} || N <- lists:seq(1, 4000)],
+            lists:foreach(fun(M) -> self() ! M end, Prefix),
+            case InitialDown of
+                true -> enqueue(Conn, lists:duplicate(4000, down));
+                false -> nil
+            end,
+            Parent ! {Ref, ready, self(), Conn},
+            receive {Ref, go} -> ok end,
+            Start = gluegun_ffi:monotonic_milliseconds(),
+            nil = Callback(Conn),
+            Elapsed = gluegun_ffi:monotonic_milliseconds() - Start,
+            Parent ! {Ref, returned, Elapsed},
+            %% Stop the sender before checking the exact preserved mailbox.
+            receive {Ref, stopped} -> ok end,
+            gluegun_ffi:drain_lifecycle(Conn),
+            lists:foreach(fun(M) ->
+                receive M -> ok after 0 -> error(prefix_consumed) end
+            end, Prefix),
+            nil
+        end)
+    end),
+    receive {Ref, ready, Worker, Conn} ->
+        {Producer, ProducerMonitor} = spawn_monitor(fun() ->
+            receive {Ref, start} ->
+                down_batch(Worker, Conn),
+                Parent ! {Ref, producing},
+                flood_down(Worker, Conn, Ref)
+            end
+        end),
+        try
+            case InitialDown of
+                true -> ok;
+                false ->
+                    Worker ! {Ref, go},
+                    ok = wait_in_receive(Worker, gluegun_ffi:monotonic_milliseconds() + 1000)
+            end,
+            Producer ! {Ref, start},
+            receive {Ref, producing} -> ok after 1000 -> error(producer_start_timeout) end,
+            case InitialDown of true -> Worker ! {Ref, go}; false -> ok end,
+            receive
+                {Ref, returned, Elapsed} ->
+                    true = Elapsed < 500,
+                    true = is_process_alive(Producer),
+                    Producer ! {Ref, stop},
+                    receive {'DOWN', ProducerMonitor, process, Producer, normal} -> ok end,
+                    Worker ! {Ref, stopped},
+                    receive
+                        {'DOWN', Monitor, process, Worker, normal} -> nil;
+                        {'DOWN', Monitor, process, Worker, Reason} -> error({worker_failed, Reason})
+                    after 2000 -> error(worker_cleanup_timeout)
+                    end;
+                {'DOWN', Monitor, process, Worker, Reason} -> error({worker_failed, Reason})
+            after 500 -> error(sustained_down_did_not_return_within_500ms)
+            end
+        after
+            exit(Producer, kill),
+            erlang:demonitor(ProducerMonitor, [flush]),
+            exit(Worker, kill),
+            erlang:demonitor(Monitor, [flush]),
+            exit(Conn, kill)
+        end
+    after 2000 -> error(worker_start_timeout)
+    end.
+
+wait_in_receive(Worker, Deadline) ->
+    case {process_info(Worker, status), process_info(Worker, current_function)} of
+        {{status, waiting}, {current_function, {gluegun_ffi, await_connection_up, 4}}} -> ok;
+        _ ->
+            case gluegun_ffi:monotonic_milliseconds() >= Deadline of
+                true -> error(worker_did_not_enter_receive);
+                false -> timer:sleep(1), wait_in_receive(Worker, Deadline)
+            end
+    end.
+
+flood_down(Worker, Conn, Ref) ->
+    down_batch(Worker, Conn),
+    receive {Ref, stop} -> ok
+    after 1 -> flood_down(Worker, Conn, Ref)
+    end.
+
+down_batch(Worker, Conn) ->
+    lists:foreach(fun(_) ->
+        Worker ! {gun_down, Conn, http, closed, []}
+    end, lists:seq(1, 200)).
+
+%% Suspend during the initial queue scan, then append an up after the budget.
+%% That late up is outside the initial observation and must not win at expiry.
+with_late_up(Callback) ->
+    Parent = self(),
+    Ref = make_ref(),
+    {Worker, Monitor} = spawn_monitor(fun() ->
+        with_mailbox([], fun(Conn) ->
+            Prefix = [{application, Ref, N} || N <- lists:seq(1, 4000)],
+            lists:foreach(fun(M) -> self() ! M end, Prefix),
+            enqueue(Conn, lists:duplicate(4000, down)),
+            Parent ! {Ref, ready, Conn},
+            receive {Ref, go} -> ok end,
+            nil = Callback(Conn),
+            lists:foreach(fun(M) ->
+                receive M -> ok after 0 -> error(prefix_consumed) end
+            end, Prefix),
+            nil
+        end)
+    end),
+    try
+        receive {Ref, ready, Conn} ->
+            try
+                Worker ! {Ref, go},
+                ok = wait_in_await(Worker, gluegun_ffi:monotonic_milliseconds() + 1000),
+                true = erlang:suspend_process(Worker),
+                timer:sleep(120),
+                Worker ! {gun_up, Conn, http2},
+                true = erlang:resume_process(Worker),
+                receive
+                    {'DOWN', Monitor, process, Worker, normal} -> nil;
+                    {'DOWN', Monitor, process, Worker, Reason} -> error({worker_failed, Reason})
+                after 500 -> error(late_up_wait_did_not_return)
+                end
+            after exit(Conn, kill)
+            end
+        after 2000 -> error(worker_start_timeout)
+        end
+    after
+        exit(Worker, kill),
+        erlang:demonitor(Monitor, [flush])
+    end.
+
+wait_in_await(Worker, Deadline) ->
+    case process_info(Worker, current_function) of
+        {current_function, {gluegun_ffi, queued_lifecycle, _}} -> ok;
+        {current_function, {gluegun_ffi, queued_lifecycle_receive, _}} -> ok;
+        _ ->
+            case gluegun_ffi:monotonic_milliseconds() >= Deadline of
+                true -> error(worker_did_not_enter_await);
+                false -> timer:sleep(1), wait_in_await(Worker, Deadline)
+            end
+    end.
 
 %% Events are typed test constructors: Up(Protocol) and Down.
 enqueue(Conn, Events) ->
@@ -21,6 +174,7 @@ with_mailbox(Events, Callback) ->
     Sentinel = make_ref(),
     Preserved = [
         {application, Sentinel},
+        {gluegun_lifecycle_fence, make_ref()},
         {gun_up, Other, http},
         {gun_down, Other, http, unrelated, []},
         {gun_response, Conn, Stream, fin, 200, []},

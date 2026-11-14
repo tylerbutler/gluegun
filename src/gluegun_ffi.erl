@@ -70,13 +70,23 @@ await_up(ConnPid, Timeout) ->
     end.
 
 %% These blocking operations own only this connection's lifecycle messages.
-%% A drain is a zero-time mailbox observation, not a barrier against messages
-%% still in transit. In particular, do not flush streams or external monitors.
+%% A private fence bounds the observation to mail queued when it is sent,
+%% even if matching messages keep arriving. It is not a transit barrier.
+%% In particular, do not flush streams or external monitors.
 drain_lifecycle(ConnPid) ->
-    receive
-        {gun_up, ConnPid, _} -> drain_lifecycle(ConnPid);
-        {gun_down, ConnPid, _, _, _} -> drain_lifecycle(ConnPid)
-    after 0 -> nil
+    with_lifecycle_fence(fun(Fence) ->
+        queued_lifecycle(ConnPid, none, Fence, waiting, infinity),
+        nil
+    end).
+
+with_lifecycle_fence(Callback) ->
+    Fence = make_ref(),
+    self() ! {gluegun_lifecycle_fence, Fence},
+    try Callback(Fence)
+    after
+        %% Only our own marker: preserve application mail and other invocations'
+        %% fences, including when a monitor DOWN or an exception ends the scan.
+        receive {gluegun_lifecycle_fence, Fence} -> ok after 0 -> ok end
     end.
 
 await_connection_up(ConnPid, Timeout) ->
@@ -85,7 +95,17 @@ await_connection_up(ConnPid, Timeout) ->
         _ -> monotonic_milliseconds() + Timeout
     end,
     Monitor = erlang:monitor(process, ConnPid),
-    try await_connection_up(ConnPid, Monitor, Deadline, waiting)
+    try
+        %% Exactly one finite initial observation, including at timeout zero.
+        %% Its scan/scheduler cost can exceed the budget; later observations
+        %% must never extend that budget or accept a late up after expiry.
+        case with_lifecycle_fence(fun(Fence) ->
+            queued_lifecycle(ConnPid, Monitor, Fence, waiting, infinity)
+        end) of
+            {up, Protocol} -> {ok, Protocol};
+            {error, _} = Error -> Error;
+            waiting -> await_connection_up(ConnPid, Monitor, Deadline, waiting)
+        end
     after erlang:demonitor(Monitor, [flush])
     end.
 
@@ -93,34 +113,46 @@ await_connection_up(ConnPid, Timeout) ->
 %% or letting an old up win over a later down. Gun's await_up only matches up
 %% and process DOWN; Gun may stay alive through any number of retry cycles.
 await_connection_up(ConnPid, Monitor, Deadline, State) ->
-    case queued_lifecycle(ConnPid, Monitor, State) of
-        {up, Protocol} -> {ok, Protocol};
-        {error, _} = Error -> Error;
-        waiting ->
-            Remaining = case Deadline of
-                infinity -> infinity;
-                _ -> max(0, Deadline - monotonic_milliseconds())
-            end,
+    case {lifecycle_remaining(Deadline), State} of
+        {_, {error, _} = Error} -> Error;
+        {0, _} -> {error, timeout};
+        {_, {up, Protocol}} -> {ok, Protocol};
+        {Remaining, waiting} ->
             receive
                 {gun_up, ConnPid, Protocol} ->
-                    await_connection_up(ConnPid, Monitor, Deadline, {up, Protocol});
+                    observe_connection_up(ConnPid, Monitor, Deadline, {up, Protocol});
                 {gun_down, ConnPid, _, _, _} ->
-                    await_connection_up(ConnPid, Monitor, Deadline, waiting);
+                    observe_connection_up(ConnPid, Monitor, Deadline, waiting);
                 {'DOWN', Monitor, process, ConnPid, Reason} ->
                     {error, {down, Reason}}
             after Remaining -> {error, timeout}
             end
     end.
 
-queued_lifecycle(ConnPid, Monitor, State) ->
+observe_connection_up(ConnPid, Monitor, Deadline, State) ->
+    Observed = with_lifecycle_fence(fun(Fence) ->
+        queued_lifecycle(ConnPid, Monitor, Fence, State, Deadline)
+    end),
+    await_connection_up(ConnPid, Monitor, Deadline, Observed).
+
+lifecycle_remaining(infinity) -> infinity;
+lifecycle_remaining(Deadline) -> max(0, Deadline - monotonic_milliseconds()).
+
+queued_lifecycle(ConnPid, Monitor, Fence, State, Deadline) ->
+    case lifecycle_remaining(Deadline) of
+        0 -> {error, timeout};
+        _ -> queued_lifecycle_receive(ConnPid, Monitor, Fence, State, Deadline)
+    end.
+
+queued_lifecycle_receive(ConnPid, Monitor, Fence, State, Deadline) ->
     receive
         {gun_up, ConnPid, Protocol} ->
-            queued_lifecycle(ConnPid, Monitor, {up, Protocol});
+            queued_lifecycle(ConnPid, Monitor, Fence, {up, Protocol}, Deadline);
         {gun_down, ConnPid, _, _, _} ->
-            queued_lifecycle(ConnPid, Monitor, waiting);
-        {'DOWN', Monitor, process, ConnPid, Reason} ->
-            {error, {down, Reason}}
-    after 0 -> State
+            queued_lifecycle(ConnPid, Monitor, Fence, waiting, Deadline);
+        {'DOWN', Monitor, process, ConnPid, Reason} when is_reference(Monitor) ->
+            {error, {down, Reason}};
+        {gluegun_lifecycle_fence, Fence} -> State
     end.
 
 close(ConnPid) ->

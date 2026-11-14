@@ -161,7 +161,9 @@ can succeed with a zero timeout. Down events during the wait do not restart
 the timeout budget. Readiness does not guarantee that the socket stays open.
 
 The client helpers drain these lifecycle events before dispatch and after
-completion, including failures. They preserve stream messages, events for
+completion, including failures. Each drain covers mail queued when it starts;
+new deliveries cannot keep the helper in the drain. Later events can remain
+queued. The helpers preserve stream messages, events for
 other connections, and application mail. Use an actor receive loop instead
 when you need to observe lifecycle events; do not mix both receive models for
 the same events.

@@ -70,6 +70,60 @@ pub fn waiting_through_down_events_keeps_one_finite_budget_test() -> Nil {
   })
 }
 
+pub fn sustained_queued_down_wait_stops_within_budget_test() -> Nil {
+  with_sustained_down(fn(conn) {
+    let #(result, elapsed) = timed_await(conn, timeout(80))
+    let assert Error(error.Timeout) = result
+    assert elapsed >= 60
+    assert elapsed < 180
+    Nil
+  })
+}
+
+pub fn sustained_down_after_initial_observation_keeps_receive_budget_test() -> Nil {
+  with_waiting_down(fn(conn) {
+    let #(result, elapsed) = timed_await(conn, timeout(80))
+    let assert Error(error.Timeout) = result
+    assert elapsed >= 60
+    assert elapsed < 180
+    Nil
+  })
+}
+
+pub fn sustained_queued_down_drain_returns_during_production_test() -> Nil {
+  with_sustained_down(fn(conn) {
+    assert drain_lifecycle(conn) == Nil
+    Nil
+  })
+}
+
+pub fn sustained_queued_down_common_client_dispatch_and_completion_test() -> Nil {
+  with_sustained_down(fn(conn) {
+    let assert Ok(response) =
+      client.request_with(
+        conn,
+        http.Get,
+        "/",
+        [],
+        <<>>,
+        request.options(),
+        timeout(500),
+        fn(_, _, _, _, _, _) { Ok(new_stream()) },
+        fn(_, _, _) { Ok(message.Response(fin.Fin, 204, [])) },
+      )
+    assert response.response.status == 204
+    Nil
+  })
+}
+
+pub fn late_queued_up_does_not_override_expired_wait_budget_test() -> Nil {
+  with_late_up(fn(conn) {
+    let assert Error(error.Timeout) = connection.await_up(conn, timeout(80))
+    // Later arrivals are not owned by an expired wait.
+    drain_lifecycle(conn)
+  })
+}
+
 pub fn wait_through_queued_and_future_down_until_new_up_test() -> Nil {
   with_reconnecting_mailbox(fn(conn) {
     let assert Ok(connection.Http2) = connection.await_up(conn, timeout(500))
@@ -242,6 +296,15 @@ fn drain_lifecycle(connection: connection.Connection) -> Nil
 
 @external(erlang, "gluegun_lifecycle_test", "with_down_timers")
 fn with_down_timers(callback: fn(connection.Connection) -> Nil) -> Nil
+
+@external(erlang, "gluegun_lifecycle_test", "with_sustained_down")
+fn with_sustained_down(callback: fn(connection.Connection) -> Nil) -> Nil
+
+@external(erlang, "gluegun_lifecycle_test", "with_waiting_down")
+fn with_waiting_down(callback: fn(connection.Connection) -> Nil) -> Nil
+
+@external(erlang, "gluegun_lifecycle_test", "with_late_up")
+fn with_late_up(callback: fn(connection.Connection) -> Nil) -> Nil
 
 @external(erlang, "gluegun_lifecycle_test", "with_reconnecting_mailbox")
 fn with_reconnecting_mailbox(callback: fn(connection.Connection) -> Nil) -> Nil

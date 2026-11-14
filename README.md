@@ -61,7 +61,9 @@ report ready; a latest up can succeed with a zero timeout. Down events do not
 restart the wait budget. Readiness does not guarantee that the socket stays open.
 
 `client` helpers drain these lifecycle events before dispatch and after
-completion, including failures. They preserve stream messages and unrelated
+completion, including failures. Each drain covers mail queued when it starts;
+new deliveries cannot keep the helper in the drain. Later events can remain
+queued. The helpers preserve stream messages and unrelated
 mail. Call blocking helpers from the receiving process; use an actor receive
 loop instead if you need to observe lifecycle events. Gluegun does not drain
 idle owners. With retry enabled, events can collect until the next blocking
