@@ -516,6 +516,25 @@ just main         # Run CI checks and build docs
 just td           # Validate the Trellis workspace
 ```
 
+### Dependency audits
+
+mise installs the self-contained `licence_audit` v1.0.0-rc.2 release. It does
+not add a Gleam dependency, because the audit tool itself depends on Gluegun.
+Run `just audit-licences` for a licence report and `just audit-vulns` for an
+OSV vulnerability report. These commands use the root `manifest.toml`,
+including development dependencies. They do not audit website npm dependencies
+or the separate example lockfiles. Licence reports cover Hex packages;
+vulnerability reports cover Hex and GitHub dependencies and report skipped
+sources. OSV checks require network access.
+
+No licence policy is configured, and reports do not enforce a gate. Run
+`licence_audit update` in an interactive terminal to review licences and
+save an approved policy in `gleam.toml`. After that, use
+`licence_audit check --vulns` to enforce the licence policy and the default
+high-severity vulnerability threshold. CI enforcement is not enabled.
+
+### CI checks
+
 CI runs library and standalone example checks on separate runners. Each
 runner keeps package operations serial. Example tests run before packaging
 so Webprobe can reuse its test build. The existing required Test check

@@ -68,6 +68,41 @@ checksum = "sha256:cd9bfe244c5919292d234ca35acb51d2ca75dce89ef6d9e49f5e3b7f70009
 url = "https://github.com/erlang/rebar3/releases/download/3.26.0/rebar3"
 url_api = "https://api.github.com/repos/erlang/rebar3/releases/assets/337644584"
 
+[[tools."github:tylerbutler/licence_audit"]]
+version = "1.0.0-rc.2"
+backend = "github:tylerbutler/licence_audit"
+specifiers = ["1.0.0-rc.2"]
+
+[tools."github:tylerbutler/licence_audit"."platforms.linux-arm64"]
+checksum = "sha256:fff79c33babe8d0e5cabd1a7fe438f5c4c64bc77917b0c0f87aea13c9e4b485b"
+url = "https://github.com/tylerbutler/licence_audit/releases/download/v1.0.0-rc.2/licence_audit-v1.0.0-rc.2-aarch64-linux-glibc.tar.gz"
+url_api = "https://api.github.com/repos/tylerbutler/licence_audit/releases/assets/746486307"
+provenance = "github-attestations"
+
+[tools."github:tylerbutler/licence_audit"."platforms.linux-x64"]
+checksum = "sha256:f04555619ec5c96478ba7a368544d8d2ca0af33de1fdadf7a691139a0ad23f40"
+url = "https://github.com/tylerbutler/licence_audit/releases/download/v1.0.0-rc.2/licence_audit-v1.0.0-rc.2-x86_64-linux-glibc.tar.gz"
+url_api = "https://api.github.com/repos/tylerbutler/licence_audit/releases/assets/746486315"
+provenance = "github-attestations"
+
+[tools."github:tylerbutler/licence_audit"."platforms.macos-arm64"]
+checksum = "sha256:2f0393946c55db60a96e5a0b5ce65ae45a6840df57188a94cbc90b986f478ce4"
+url = "https://github.com/tylerbutler/licence_audit/releases/download/v1.0.0-rc.2/licence_audit-v1.0.0-rc.2-aarch64-macos.tar.gz"
+url_api = "https://api.github.com/repos/tylerbutler/licence_audit/releases/assets/746486314"
+provenance = "github-attestations"
+
+[tools."github:tylerbutler/licence_audit"."platforms.macos-x64"]
+checksum = "sha256:8a1924c8bc65b45c477c6e3643f0a12f17686cc1d31aa621d206ec355bf2dbf4"
+url = "https://github.com/tylerbutler/licence_audit/releases/download/v1.0.0-rc.2/licence_audit-v1.0.0-rc.2-x86_64-macos.tar.gz"
+url_api = "https://api.github.com/repos/tylerbutler/licence_audit/releases/assets/746486358"
+provenance = "github-attestations"
+
+[tools."github:tylerbutler/licence_audit"."platforms.windows-x64"]
+checksum = "sha256:330bf368c4f4067550504c6f26bcd04646d844e17b6da17ea8bc6a27a9b1cadc"
+url = "https://github.com/tylerbutler/licence_audit/releases/download/v1.0.0-rc.2/licence_audit-v1.0.0-rc.2-x86_64-windows.zip"
+url_api = "https://api.github.com/repos/tylerbutler/licence_audit/releases/assets/746486368"
+provenance = "github-attestations"
+
 [[tools."github:tylerbutler/trellis"]]
 version = "1.5.0"
 backend = "github:tylerbutler/trellis"

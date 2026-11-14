@@ -54,6 +54,14 @@ format-check:
 check:
     gleam check
 
+# Report licences for the root project's locked dependencies
+audit-licences:
+    licence_audit
+
+# Report known vulnerabilities for the root project's locked dependencies
+audit-vulns:
+    licence_audit vulns
+
 # === EXAMPLES ===
 
 # Trellis exec accepts package names, not path globs; each command checks its package path.
