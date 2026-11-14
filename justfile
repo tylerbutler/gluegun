@@ -54,6 +54,18 @@ format-check:
 check:
     gleam check
 
+# Report licences for the root project's locked dependencies
+audit-licences:
+    licence_audit
+
+# Report known vulnerabilities for the root project's locked dependencies
+audit-vulns:
+    licence_audit vulns
+
+# Enforce licence policy and the configured vulnerability threshold
+audit-check:
+    licence_audit check --vulns
+
 # === EXAMPLES ===
 
 # Trellis exec accepts package names, not path globs; each command checks its package path.
@@ -152,11 +164,11 @@ clean:
 
 # === CI ===
 
-# Run all CI checks (format, check, test, build, workspace)
+# Run all CI checks (format, check, test, build, workspace, audits)
 ci: ci-library examples-format-check examples-test
 
 # Validate the library and documentation examples without standalone package work
-ci-library: format-check check test docs-examples build-strict trellis-doctor
+ci-library: format-check check test docs-examples build-strict trellis-doctor audit-check
 
 # Validate standalone packages on one runner, retaining test build output for packaging
 ci-examples: examples-format-check examples-test examples-build

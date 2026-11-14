@@ -5,6 +5,7 @@ just = "1.38.0"
 node = "24.19.0"
 "github:erlang/rebar3" = "3.26.0"
 "github:tylerbutler/trellis" = "1.5.0"
+"github:tylerbutler/licence_audit" = "1.0.0-rc.2"
 
 [settings.erlang]
 precompiled_os = "ubuntu-24.04"
