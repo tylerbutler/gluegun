@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Use Gleam 1.19.2 for package and API documentation publishing to avoid conflicting upload Content-Type headers."

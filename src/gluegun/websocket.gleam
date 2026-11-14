@@ -195,7 +195,10 @@ pub fn options() -> Options {
 }
 
 /// Set headers sent with the WebSocket upgrade request.
-pub fn with_headers(options: Options, headers headers: List(Header)) -> Options {
+pub fn with_headers(
+  options: Options,
+  headers headers: List(Header),
+) -> Options {
   Options(..options, headers: headers)
 }
 
@@ -659,7 +662,9 @@ pub fn send_many(
 /// Returns `DecodeError` for malformed incoming values, `Timeout` when no
 /// frame arrives, and `ConnectionDown` on disconnect (even with Gun retries).
 /// Only this socket's stream and connection messages are consumed.
-pub fn receive_frame(socket socket: Socket) -> Result(Frame, error.GluegunError) {
+pub fn receive_frame(
+  socket socket: Socket,
+) -> Result(Frame, error.GluegunError) {
   ffi_ws_await(socket.connection, socket.stream, socket.timeout)
   |> receive_from
   |> ffi_record_peer_close(socket.peer_close)

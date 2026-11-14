@@ -296,8 +296,7 @@ pub fn get_with(
     List(low_request.Header),
     BitArray,
     low_request.RequestOptions,
-  ) ->
-    Result(low_request.Stream, error.GluegunError),
+  ) -> Result(low_request.Stream, error.GluegunError),
   await_fn: fn(Connection, low_request.Stream, Timeout) ->
     Result(Message, error.GluegunError),
 ) -> Result(Response(BitArray), error.GluegunError) {
@@ -330,8 +329,7 @@ pub fn request_with(
     List(low_request.Header),
     BitArray,
     low_request.RequestOptions,
-  ) ->
-    Result(low_request.Stream, error.GluegunError),
+  ) -> Result(low_request.Stream, error.GluegunError),
   await_fn: fn(Connection, low_request.Stream, Timeout) ->
     Result(Message, error.GluegunError),
 ) -> Result(Response(BitArray), error.GluegunError) {

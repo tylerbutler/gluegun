@@ -150,7 +150,10 @@ pub fn insecure() -> TlsOptions {
 }
 
 /// Set the TLS peer verification mode.
-pub fn with_verify(options: TlsOptions, verify verify: VerifyMode) -> TlsOptions {
+pub fn with_verify(
+  options: TlsOptions,
+  verify verify: VerifyMode,
+) -> TlsOptions {
   TlsOptions(..options, verify: Some(verify))
 }
 
@@ -195,7 +198,10 @@ pub fn with_certfile(
 }
 
 /// Set the path to the client private key file.
-pub fn with_keyfile(options: TlsOptions, keyfile keyfile: String) -> TlsOptions {
+pub fn with_keyfile(
+  options: TlsOptions,
+  keyfile keyfile: String,
+) -> TlsOptions {
   TlsOptions(..options, keyfile: Some(keyfile))
 }
 
