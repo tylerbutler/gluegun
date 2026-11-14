@@ -5,7 +5,19 @@ description: Common Gluegun problems and where to look first.
 
 ## Connection does not become ready
 
+Call `connection.await_up` in the process that opened the connection.
+Only that owner receives `gun_up`. A different process can return `Timeout`
+while the connection stays alive, or `ConnectionDown` if it exits during
+the wait. Passing the handle does not transfer ownership.
+
 Check the host, port, transport, and timeout given to `connection.open` and `connection.await_up`. Use `connection.with_transport(transport: connection.Tls)` for port 443. Use `connection.with_transport(transport: connection.Tcp)` for port 80. Use a different transport only when the server requires it.
+
+## Connection stops after a task returns
+
+Gun monitors the process that opened the connection and stops it when the
+opener exits. Open the connection in a process that stays alive for its
+full lifetime. Returning the handle from a short-lived task does not
+transfer ownership to the recipient.
 
 ## WebSocket upgrade fails
 
@@ -34,6 +46,22 @@ application frame.
 - When you hold a reusable `Socket`, call `websocket.close(socket)`, including after a failed exchange.
 
 Both paths wait for the peer within the socket timeout, or five seconds for `Infinity`, then terminate the Gun process and flush this receiver's queued messages. A missing close reply returns `Timeout` after cleanup. Other handshake failures return typed errors after cleanup. Repeated close succeeds after the process exits.
+
+## WebSocket close fails after the peer handshake succeeds
+
+Check whether the socket receiver also opened the connection.
+`websocket.with_reply_to` redirects upgrade and frame messages but not
+`gun_down`, which goes only to the connection owner. A non-owner receiver
+can return `Timeout` or `ConnectionDown` after a successful peer close
+handshake. Prefer opening and receiving in the same process.
+
+## Application monitor notification is missing
+
+`request.flush` and `connection.terminate` call `gun:flush`, which removes
+queued Erlang `DOWN` messages for every caller monitor reference to the
+connection. This includes your application's monitors. `websocket.close`
+uses the same termination cleanup. Do not wait for those discarded
+notifications. See [Message Flow](/advanced/message-flow/#flush-and-monitor-notifications).
 
 ## Response body is not UTF-8
 

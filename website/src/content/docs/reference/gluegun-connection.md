@@ -134,10 +134,16 @@ Wait until a Gun connection is up and return the negotiated protocol.
  The latest queued event determines readiness: an up followed by a down
  does not report ready. A latest up can succeed with a zero timeout.
  Down events during the wait do not restart the timeout budget.
+ The initial queued-mail scan and scheduler delays can add elapsed time.
 
  Readiness reflects received events, not a guarantee that the socket will
  remain open. Call from the receiving process. Do not combine this blocking
  helper with an actor receive loop that needs the same lifecycle events.
+
+ Call from the process that opened the connection. Gun sends `gun_up`
+ only to that owner. A different process cannot receive readiness through
+ this function: it can return `Timeout` while the connection stays alive,
+ or `ConnectionDown` if the connection process exits during the wait.
 
  Errors:
  - `Timeout` — Gun did not report ready within `timeout`.
@@ -192,6 +198,15 @@ Open a Gun connection to `host:port`.
  handshake completes asynchronously. Call `await_up` before sending any
  request or WebSocket upgrade.
 
+ The calling process is the connection owner. Gun monitors it and stops
+ the connection when it exits, even if another process holds the handle.
+ Passing the handle does not transfer ownership; Gluegun has no owner
+ transfer API. Open long-lived connections in a long-lived process.
+
+ Gun sends connection lifecycle messages, including `gun_up` and
+ `gun_down`, only to the owner. Stream replies go to the request caller
+ or a configured reply receiver; this does not change the owner.
+
  Errors:
  - `InvalidOptions` — Gun rejected the converted options.
  - `ErlangError` — Gun could not spawn the connection process.
@@ -240,6 +255,11 @@ Force termination, wait for process exit, then flush its Gun messages.
  the Gun process cannot send more messages and its queued messages are gone.
  This does not drain other receiving processes or third-party forwarders.
  It discards all streams on this connection, not only one stream.
+
+ The flush also removes queued Erlang `DOWN` messages for this connection
+ from the caller's mailbox, for every monitor reference, including monitors
+ created by application code. Do not wait for those notifications after
+ this call; they are not preserved for separate lifecycle handling.
 
 ```gleam
 pub fn terminate(internal.Connection) -> Result(Nil, error.GluegunError)
