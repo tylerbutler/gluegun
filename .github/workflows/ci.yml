@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Select checks
     outputs:
-      full: ${{ github.event_name != 'pull_request' || steps.select.outputs.full == 'true' }}
+      full: ${{ github.event_name != 'pull_request' || steps.select.outputs.full == 'true' || steps.select.outputs.unusual == 'true' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
         if: github.event_name == 'pull_request'
@@ -40,6 +40,9 @@ jobs:
               - '!.changes/**/*.md'
               - '!.changes/**/*.toml'
               - '!CHANGELOG.md'
+            # Glob negations do not match newline filenames; require checks for those.
+            unusual:
+              - "**/*[\r\n]*"
 
   library:
     needs: changes
