@@ -1,3 +1,10 @@
+[[fragments]]
 package = "gluegun"
 kind = "Fixed"
 body = "Use Gleam 1.19.2 for package and API documentation publishing to avoid conflicting upload Content-Type headers."
+
+[fragments.source]
+commit = "72f079653ec803f02ca4e9a1ceb478ff545cd628"
+
+[[fragments.source.issues]]
+number = 131
