@@ -21,7 +21,9 @@ just site-check    # validate website
 just site-dev      # start local website dev server
 just site-preview  # preview built website
 just site-clean    # remove website build artifacts
-just ci            # format-check, check, test, examples-format-check, examples-test, build-strict, trellis-doctor
+just ci            # ci-library, examples-format-check, examples-test
+just ci-library    # library checks, docs-examples, build-strict, trellis-doctor
+just ci-examples   # examples-format-check, examples-test, examples-build
 just main          # ci, examples-build, docs, site-check, site-build
 ```
 
@@ -56,6 +58,14 @@ Examples under `examples/` are standalone Erlang-target Gleam packages and Trell
 
 Keep `examples-deps` and `examples-build` serial: the pinned Gleam compiler can
 race when concurrent packages write to its shared Hex cache.
+
+CI runs `ci-library` and `ci-examples` on separate runners. `just ci` still
+includes standalone example formatting and tests for local use. Cache only
+compiled Hex dependency directories selected from manifests, never workspace
+source/test outputs or generated artifacts. Keep the compiler fingerprint
+with those directories and use exact runner/toolchain/dependency cache keys.
+Compatibility commands must use explicit `mise exec` versions; `mise install`
+alone does not replace the setup action's exported PATH.
 
 Quick Start and the HTTP/2 guide display complete canonical modules from
 `examples/basic_request/src/basic_request/guide.gleam` and

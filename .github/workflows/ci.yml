@@ -11,24 +11,93 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    name: Select checks
+    outputs:
+      full: ${{ steps.select.outputs.full }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+
+      - name: Select checks
+        id: select
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          full=true
+          if [ "$EVENT_NAME" = pull_request ]; then
+            git diff --no-renames --name-only -z "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/ci-changed-files"
+            full=false
+            while IFS= read -r -d '' path; do
+              case "$path" in
+                .agents/skills/*|.claude/skills/*|.claude/commands/*|.github/skills/*|.changes/*.md|.changes/*.toml|CHANGELOG.md) ;;
+                *) full=true ;;
+              esac
+            done < "$RUNNER_TEMP/ci-changed-files"
+          fi
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+
   test:
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     name: Test
     steps:
+      - name: Require successful check selection
+        if: needs.changes.result != 'success'
+        run: exit 1
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
 
       - name: Setup environment
         uses: ./.github/actions/setup
+        with:
+          dependencies: ${{ needs.changes.outputs.full }}
 
       - name: Run CI checks
-        run: just ci
+        if: needs.changes.outputs.full == 'true'
+        run: just ci-library
 
-      - name: Compile standalone examples
-        run: just examples-build
+      - name: Validate workspace metadata
+        if: needs.changes.outputs.full == 'false'
+        run: just trellis-doctor
+
+  examples:
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    name: Examples
+    steps:
+      - name: Require successful check selection
+        if: needs.changes.result != 'success'
+        run: exit 1
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+        if: needs.changes.outputs.full == 'true'
+
+      - name: Setup environment
+        if: needs.changes.outputs.full == 'true'
+        uses: ./.github/actions/setup
+        with:
+          examples: "true"
+
+      - name: Validate standalone examples
+        if: needs.changes.outputs.full == 'true'
+        run: just ci-examples
 
   compatibility:
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     name: Compatibility (${{ matrix.resolution }})
+    env:
+      GLEAM_VERSION: ${{ matrix.gleam }}
+      ERLANG_VERSION: ${{ matrix.erlang }}
     strategy:
       fail-fast: false
       matrix:
@@ -40,24 +109,43 @@ jobs:
             gleam: "1.19.2"
             erlang: "29.1"
     steps:
+      - name: Require successful check selection
+        if: needs.changes.result != 'success'
+        run: exit 1
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+        if: needs.changes.outputs.full == 'true'
 
       - name: Setup tools without package development dependencies
+        if: needs.changes.outputs.full == 'true'
+        id: setup
         uses: ./.github/actions/setup
         with:
           dependencies: "false"
 
+      - name: Cache supported compiler and runtime
+        if: needs.changes.outputs.full == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # ratchet:actions/cache@v6
+        with:
+          path: |
+            ~/.local/share/mise/installs/gleam/${{ matrix.gleam }}
+            ~/.local/share/mise/installs/erlang/${{ matrix.erlang }}
+          key: mise-matrix-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup.outputs.platform }}-${{ matrix.gleam }}-${{ matrix.erlang }}-${{ hashFiles('.mise.toml', 'mise.lock') }}
+
       - name: Select supported compiler and runtime
-        env:
-          GLEAM_VERSION: ${{ matrix.gleam }}
-          ERLANG_VERSION: ${{ matrix.erlang }}
+        if: needs.changes.outputs.full == 'true'
         run: |
-          mise use "gleam@$GLEAM_VERSION" "erlang@$ERLANG_VERSION"
-          gleam --version
-          erl -noshell -eval 'io:format("OTP ~s~n", [erlang:system_info(otp_release)]), halt().'
+          mise install "gleam@$GLEAM_VERSION" "erlang@$ERLANG_VERSION"
+          actual_gleam="$(mise exec "gleam@$GLEAM_VERSION" "erlang@$ERLANG_VERSION" -- gleam --version)"
+          actual_erlang="$(mise exec "gleam@$GLEAM_VERSION" "erlang@$ERLANG_VERSION" -- erl -noshell -eval '
+            {ok, Version} = file:read_file(filename:join([code:root_dir(), "releases", erlang:system_info(otp_release), "OTP_VERSION"])),
+            io:format("~s", [string:trim(Version)]), halt().')"
+          echo "$actual_gleam / OTP $actual_erlang"
+          test "$actual_gleam" = "gleam $GLEAM_VERSION"
+          test "$actual_erlang" = "$ERLANG_VERSION"
 
       - name: Select exact minimum production dependencies
-        if: matrix.resolution == 'minimum'
+        if: needs.changes.outputs.full == 'true' && matrix.resolution == 'minimum'
         working-directory: compatibility
         run: |
           sed -i 's/gleam_stdlib = .*/gleam_stdlib = ">= 0.53.0 and <= 0.53.0"/' gleam.toml
@@ -66,37 +154,58 @@ jobs:
           sed -i 's/^gun = .*/gun = ">= 2.1.0 and <= 2.1.0"/' gleam.toml
 
       - name: Build and exercise public consumer APIs
+        if: needs.changes.outputs.full == 'true'
         working-directory: compatibility
-        run: gleam build --warnings-as-errors && gleam run
+        run: |
+          mise exec "gleam@$GLEAM_VERSION" "erlang@$ERLANG_VERSION" -- gleam build --warnings-as-errors
+          mise exec "gleam@$GLEAM_VERSION" "erlang@$ERLANG_VERSION" -- gleam run
 
       - name: Exercise HTTP/2 and TLS wire contracts with current dependencies
-        if: matrix.resolution == 'current'
+        if: needs.changes.outputs.full == 'true' && matrix.resolution == 'current'
         run: |
-          gleam deps update
-          gleam test -- test/bounded_streaming_test.gleam
+          mise exec "gleam@$GLEAM_VERSION" "erlang@$ERLANG_VERSION" -- gleam deps update
+          mise exec "gleam@$GLEAM_VERSION" "erlang@$ERLANG_VERSION" -- gleam test -- test/bounded_streaming_test.gleam
 
   docs:
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     name: Docs
     steps:
+      - name: Require successful check selection
+        if: needs.changes.result != 'success'
+        run: exit 1
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+        if: needs.changes.outputs.full == 'true'
 
       - name: Setup environment
+        if: needs.changes.outputs.full == 'true'
         uses: ./.github/actions/setup
 
       - name: Build documentation
+        if: needs.changes.outputs.full == 'true'
         run: just docs
 
   website:
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     name: Website
     steps:
+      - name: Require successful check selection
+        if: needs.changes.result != 'success'
+        run: exit 1
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+        if: needs.changes.outputs.full == 'true'
 
       - name: Setup environment
+        if: needs.changes.outputs.full == 'true'
         uses: ./.github/actions/setup
 
       - name: Cache pnpm dependencies
+        if: needs.changes.outputs.full == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # ratchet:actions/cache@v6
         with:
           path: ~/.local/share/pnpm/store
@@ -105,15 +214,19 @@ jobs:
             pnpm-${{ runner.os }}-
 
       - name: Install website dependencies
+        if: needs.changes.outputs.full == 'true'
         run: pnpm install --frozen-lockfile
         working-directory: website
 
       - name: Check committed references
+        if: needs.changes.outputs.full == 'true'
         run: pnpm test:reference && pnpm check:reference
         working-directory: website
 
       - name: Check Astro website
+        if: needs.changes.outputs.full == 'true'
         run: just site-check
 
       - name: Build website
+        if: needs.changes.outputs.full == 'true'
         run: just site-build

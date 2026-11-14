@@ -498,9 +498,25 @@ just format-check # Check formatting
 just check        # Type check
 just docs         # Build documentation
 just ci           # Run all CI checks
+just ci-library   # Validate the library and documentation examples
+just ci-examples  # Validate and package standalone examples
 just main         # Run CI checks and build docs
 just td           # Validate the Trellis workspace
 ```
+
+CI runs library and standalone example checks on separate runners. Each
+runner keeps package operations serial. Example tests run before packaging
+so Webprobe can reuse its test build. Dependency caches contain downloaded
+packages and compiled Hex dependencies, but no workspace source, tests,
+generated documentation, or escripts. Cache keys include the runner image,
+active compiler/runtime, rebar3, and root/example dependency manifests.
+
+On pull requests, CI checks workspace metadata but omits code and website
+work when changes affect only agent skills/commands or changelog files.
+Other changes run the full checks, including README and guide edits.
+Failed check selection fails the existing job checks. Main and tag workflows
+run the full checks. Compatibility commands use explicit `mise exec`
+versions and verify the compiler and exact OTP version before compilation.
 
 Add an unreleased change with:
 

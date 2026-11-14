@@ -6,6 +6,15 @@ inputs:
     description: "Whether to cache and download Gleam dependencies"
     required: false
     default: "true"
+  examples:
+    description: "Whether to include standalone example dependencies in the cache"
+    required: false
+    default: "false"
+
+outputs:
+  platform:
+    description: "Runner image identity for toolchain caches"
+    value: ${{ steps.platform.outputs.id }}
 
 runs:
   using: "composite"
@@ -20,16 +29,56 @@ runs:
       shell: bash
       run: corepack enable
 
+    - name: Identify runner image
+      id: platform
+      shell: bash
+      run: echo "id=${ImageOS:-$(uname -s)}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
+    - name: Select dependency cache inputs
+      if: inputs.dependencies == 'true'
+      id: cache
+      shell: bash
+      env:
+        CACHE_EXAMPLES: ${{ inputs.examples }}
+      run: |
+        python3 - <<'PY'
+        import hashlib
+        import os
+        from pathlib import Path
+        import subprocess
+        import tomllib
+
+        versions = [
+            subprocess.check_output(["gleam", "--version"]),
+            subprocess.check_output([
+                "erl", "-noshell", "-eval",
+                'io:format("~s", [erlang:system_info(system_version)]), halt().',
+            ]),
+            subprocess.check_output(["rebar3", "--version"]),
+        ]
+        identity = hashlib.sha256(b"\0".join(versions)).hexdigest()
+        manifests = [Path("manifest.toml")]
+        if os.environ["CACHE_EXAMPLES"] == "true":
+            manifests.extend(sorted(Path("examples").glob("*/manifest.toml")))
+        paths = ["~/.cache/gleam"]
+        for manifest in manifests:
+            build = manifest.parent / "build"
+            paths.extend([str(build / "packages"), str(build / "dev/erlang/fingerprint")])
+            for package in tomllib.loads(manifest.read_text())["packages"]:
+                # Only immutable Hex dependencies; never workspace source or tests.
+                if package["source"] == "hex":
+                    paths.append(str(build / "dev/erlang" / package["name"]))
+        with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+            output.write(f"identity={identity}\npaths<<CACHE_PATHS\n")
+            output.write("\n".join(paths) + "\nCACHE_PATHS\n")
+        PY
+
     - name: Cache Gleam dependencies
       if: inputs.dependencies == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # ratchet:actions/cache@v6
       with:
-        path: |
-          build/packages
-          ~/.cache/gleam
-        key: gleam-${{ runner.os }}-${{ hashFiles('gleam.toml', 'manifest.toml') }}
-        restore-keys: |
-          gleam-${{ runner.os }}-
+        path: ${{ steps.cache.outputs.paths }}
+        key: gleam-compiled-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.platform.outputs.id }}-${{ steps.cache.outputs.identity }}-${{ inputs.examples }}-${{ hashFiles('.github/actions/setup/action.yml', '.github/workflows/*.yml', 'justfile', '.mise.toml', 'mise.lock', 'gleam.toml', 'manifest.toml', 'examples/*/gleam.toml', 'examples/*/manifest.toml') }}
 
     - name: Download dependencies
       if: inputs.dependencies == 'true'
