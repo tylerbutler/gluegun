@@ -1,5 +1,5 @@
 name = "gluegun"
-version = "1.0.0-rc.0"
+version = "1.0.0-rc.1"
 description = "A Gleam wrapper for the Erlang Gun HTTP client"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "gluegun" }
