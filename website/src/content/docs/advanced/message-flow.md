@@ -42,7 +42,16 @@ The returned `Protocol` is the protocol that Gun selected. For TLS connections, 
 
 `connection.shutdown` sends an asynchronous graceful-shutdown request. Gun can finish active streams before it exits. The call does not wait for exit and cannot interrupt a blocked setup stage.
 
-Use `connection.terminate` when a deadline expires or setup stalls. It sends an untrappable kill signal, waits for process exit, then flushes that connection's Gun messages from the calling process. Call it from the receiving process. After it returns, the Gun process cannot send more messages. Other receivers and third-party message forwarders need their own cleanup. Forced termination can produce a Gun supervisor report with reason `killed`.
+Use `connection.terminate` when a deadline expires or setup stalls. It first
+attempts supervisor shutdown for up to 100 milliseconds, then sends an
+untrappable kill signal if the stop fails or exceeds that allowance. The
+allowance is separate from the operation's deadline; waiting for process exit
+and mailbox cleanup can add time. It waits for exit, then flushes that
+connection's Gun messages from the calling process. Call it from the receiving
+process. After it returns, the Gun process cannot send more messages. Other
+receivers and third-party message forwarders need their own cleanup. A successful
+supervisor stop avoids a killed-child error report; the kill fallback can still
+produce a Gun supervisor report with reason `killed`.
 
 ## `Fin` and `NoFin`: HTTP is half-closed
 
