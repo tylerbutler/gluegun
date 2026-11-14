@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Dependencies"
+body = "Update the locked Gun dependency to 2.8.0 and Cowlib to 2.22.0 to resolve reported security advisories."
