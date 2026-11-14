@@ -15,32 +15,31 @@ jobs:
     runs-on: ubuntu-latest
     name: Select checks
     outputs:
-      full: ${{ steps.select.outputs.full }}
+      full: ${{ github.event_name != 'pull_request' || steps.select.outputs.full == 'true' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
         if: github.event_name == 'pull_request'
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Select checks
+        if: github.event_name == 'pull_request'
         id: select
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          full=true
-          if [ "$EVENT_NAME" = pull_request ]; then
-            git diff --no-renames --name-only -z "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/ci-changed-files"
-            full=false
-            while IFS= read -r -d '' path; do
-              case "$path" in
-                .agents/skills/*|.claude/skills/*|.claude/commands/*|.github/skills/*|.changes/*.md|.changes/*.toml|CHANGELOG.md) ;;
-                *) full=true ;;
-              esac
-            done < "$RUNNER_TEMP/ci-changed-files"
-          fi
-          echo "full=$full" >> "$GITHUB_OUTPUT"
+        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # ratchet:dorny/paths-filter@v3
+        with:
+          token: ""
+          base: ${{ github.event.pull_request.base.sha }}
+          predicate-quantifier: every
+          filters: |
+            full:
+              - '!.agents/skills/**'
+              - '!.claude/skills/**'
+              - '!.claude/commands/**'
+              - '!.github/skills/**'
+              - '!.changes/**/*.md'
+              - '!.changes/**/*.toml'
+              - '!CHANGELOG.md'
 
   library:
     needs: changes
