@@ -6,17 +6,19 @@ next:
   label: Send your first request
 ---
 
-For a published Hex release, install Gluegun with:
+Gluegun [`1.0.0-rc.1`](https://hex.pm/packages/gluegun/1.0.0-rc.1) is available
+on Hex. It is a release candidate for 1.0, not a stable 1.0 release.
+To select this candidate from Hex, add these dependencies to `gleam.toml`:
 
-```sh
-gleam add gluegun
-gleam add gleam_http
+```toml
+[dependencies]
+gleam_http = ">= 4.0.0 and < 5.0.0"
+gluegun = "== 1.0.0-rc.1"
 ```
 
 Add `gleam_http` when you import standard HTTP modules, as the examples do.
-The release workflow publishes all release versions to Hex.
-Until a Hex release is available, or to use an unreleased revision, add a Git
-dependency to `gleam.toml`:
+Use the exact TOML requirement for this prerelease; Gleam 1.19.2 rejects
+`gleam add gluegun@1.0.0-rc.1`.
 
 <nav class="gg-lifecycle" aria-label="Request lifecycle">
   <ol>
@@ -27,21 +29,23 @@ dependency to `gleam.toml`:
   </ol>
 </nav>
 
-Add these dependencies to your `gleam.toml`:
-
-```toml
-[dependencies]
-gleam_http = ">= 4.0.0 and < 5.0.0"
-gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "main" }
-```
-
-For builds that you can repeat, replace `main` with a release tag or a commit SHA.
-
-Download the dependency:
+Download the dependencies:
 
 ```sh
 gleam deps download
 ```
+
+## Git installation
+
+For Git-based development, replace the Gluegun dependency with a release tag
+or an unreleased revision:
+
+```toml
+gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "v1.0.0-rc.1" }
+```
+
+Run `gleam deps download` again. For an unreleased revision, use `ref = "main"`
+or a commit SHA. Use a tag or commit SHA for builds that you can repeat.
 
 ## Compatibility
 
@@ -69,8 +73,7 @@ Gluegun uses these packages:
 The package controls these through its `gleam.toml`. Add
 `gleam_http = ">= 4.0.0 and < 5.0.0"` to your application's dependencies when
 you import standard HTTP modules, as the request examples do.
-After publication, find versioned API documentation at
-`https://hexdocs.pm/gluegun/<version>/`. Until then, use the Git dependency above
-and the [website API reference](/reference/). See the
+Use the [website API reference](/reference/) or
+[versioned HexDocs](https://hexdocs.pm/gluegun/1.0.0-rc.1/) for this candidate. See the
 [release setup instructions](https://github.com/tylerbutler/gluegun#hex-release-setup)
-for the steps that remain before publication.
+for publication and verification checks.

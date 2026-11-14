@@ -69,7 +69,7 @@ const sidebar = [
 			},
 			{
 				label: "API Reference (HexDocs)",
-				link: "https://hexdocs.pm/gluegun/",
+				link: "https://hexdocs.pm/gluegun/1.0.0-rc.1/",
 			},
 		],
 	},

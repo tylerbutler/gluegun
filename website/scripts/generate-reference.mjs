@@ -324,7 +324,7 @@ This site is the primary reference for ${code(packageInterface.name)} ${code(pac
 
 ${moduleGroups}
 
-For concepts and recommended patterns, use the [guides](/guides/basic-requests/) and [advanced topics](/advanced/error-handling/). HexDocs provides a [mirror of the API reference](https://hexdocs.pm/gluegun/).
+For concepts and recommended patterns, use the [guides](/guides/basic-requests/) and [advanced topics](/advanced/error-handling/). See [Installation](/installation/) for package installation. HexDocs provides a [versioned mirror of the API reference](https://hexdocs.pm/gluegun/${packageInterface.version}/).
 `;
 }
 

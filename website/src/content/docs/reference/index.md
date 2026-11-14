@@ -26,4 +26,4 @@ This site is the primary reference for `gluegun` `1.0.0-rc.1`. It is generated f
 - [`gluegun/error`](/reference/gluegun-error/) — Error types returned by Gluegun effectful APIs.
 - [`gluegun/tls`](/reference/gluegun-tls/) — Typed TLS client options for Gun and Erlang SSL.
 
-For concepts and recommended patterns, use the [guides](/guides/basic-requests/) and [advanced topics](/advanced/error-handling/). HexDocs provides a [mirror of the API reference](https://hexdocs.pm/gluegun/).
+For concepts and recommended patterns, use the [guides](/guides/basic-requests/) and [advanced topics](/advanced/error-handling/). See [Installation](/installation/) for package installation. HexDocs provides a [versioned mirror of the API reference](https://hexdocs.pm/gluegun/1.0.0-rc.1/).

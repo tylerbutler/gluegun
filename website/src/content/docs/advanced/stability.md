@@ -3,9 +3,11 @@ title: Stability
 description: Semantic versioning and compatibility guarantees for Gluegun.
 ---
 
-Gluegun is pre-1.0. The [API reference](/reference/) identifies the current
-package version, and [Installation](/installation/) explains how to add it
-from Git. Before 1.0, breaking changes require a minor release.
+Gluegun `1.0.0-rc.1` is a release candidate for 1.0. Stable 1.0 has not been
+released, so the API can still change before that release. The
+[API reference](/reference/) documents the current candidate, and
+[Installation](/installation/) gives the exact Hex requirement and
+Git-development options.
 
 The public API stability policy below is planned for version 1.0 and later.
 The supported version ranges describe the current package.

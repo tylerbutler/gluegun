@@ -90,6 +90,8 @@ test("generates reference index and module pages from Gleam docs JSON", async ()
 		assert.match(index, /title: Reference/);
 		assert.match(index, /## Start here/);
 		assert.match(index, /Find a symbol/);
+		assert.match(index, /\[Installation\]\(\/installation\/\)/);
+		assert.match(index, /https:\/\/hexdocs\.pm\/gluegun\/0\.1\.0\//);
 		assert.match(index, /\[`gluegun\/connection`\]\(\/reference\/gluegun-connection\/\)/);
 		assert.doesNotMatch(index, /:::note\[Generated content\]/);
 		assert.match(modulePage, /title: gluegun\/connection/);

@@ -9,25 +9,37 @@ Gun is an asynchronous HTTP client supporting HTTP/1.1, HTTP/2, and WebSocket ov
 
 ## Installation
 
-For a published Hex release, install Gluegun with:
-
-```sh
-gleam add gluegun
-gleam add gleam_http
-```
-
-Add `gleam_http` when you import standard HTTP modules, as the examples do.
-The release workflow publishes all release versions to Hex.
-Until a Hex release is available, or to use an unreleased revision, add a Git
-dependency to `gleam.toml`:
+Gluegun [`1.0.0-rc.1`](https://hex.pm/packages/gluegun/1.0.0-rc.1) is available
+on Hex. It is a release candidate for 1.0, not a stable 1.0 release.
+To select this candidate from Hex, add these dependencies to `gleam.toml`:
 
 ```toml
 [dependencies]
 gleam_http = ">= 4.0.0 and < 5.0.0"
-gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "main" }
+gluegun = "== 1.0.0-rc.1"
 ```
 
-For reproducible builds, replace `main` with a release tag or commit SHA.
+Then download the dependencies:
+
+```sh
+gleam deps download
+```
+
+Add `gleam_http` when you import standard HTTP modules, as the examples do.
+Use the exact TOML requirement for this prerelease; Gleam 1.19.2 rejects
+`gleam add gluegun@1.0.0-rc.1`.
+
+For Git-based development, replace the Gluegun dependency with a release tag
+or an unreleased revision:
+
+```toml
+gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "v1.0.0-rc.1" }
+```
+
+Run `gleam deps download` after changing the dependency. For an unreleased
+revision, use `ref = "main"` or a commit SHA. Use a tag or commit SHA for
+reproducible builds. Use the [website API reference](https://gluegun.tylerbutler.com/reference/)
+or [versioned HexDocs](https://hexdocs.pm/gluegun/1.0.0-rc.1/) for this candidate.
 
 ## Compatibility
 
@@ -523,7 +535,11 @@ release PR. Track publication verification in
 [#55](https://github.com/tylerbutler/gluegun/issues/55). Configuration and dry-run
 checks do not establish that Hex accepted a package or that HexDocs serves it.
 
-Before the first Hex release:
+The [`1.0.0-rc.1` release](https://hex.pm/packages/gluegun/1.0.0-rc.1) and its
+[versioned API documentation](https://hexdocs.pm/gluegun/1.0.0-rc.1/) are
+publicly available. This candidate does not mark the stable 1.0 release.
+
+For each release:
 
 1. Select the intended 1.0 candidate or stable version through the existing
    release process. Do not overwrite or duplicate `release/pending`.
@@ -537,7 +553,7 @@ Before the first Hex release:
    and its nested `contents.tar.gz`: include the licence, Gleam modules, and
    `src/gluegun_ffi.erl`; exclude test/compatibility helpers, build output,
    credentials, and development artifacts. Review production dependencies.
-   `trellis publish --dry-run --tag v1.0.0` checks tag selection and dependency
+   `trellis publish --dry-run --tag v1.0.0-rc.1` checks tag selection and dependency
    rewrites from the corresponding checkout; it does not replace the test suite.
 4. Confirm the repository's `HEXPM_API_KEY` Actions secret contains a scoped
    Hex key with package and documentation publishing access. Read secret names
@@ -556,9 +572,10 @@ Before the first Hex release:
    where Trellis skips an existing Hex version.
    Both commands use the compiler in the tagged `.mise.toml`. New release tags
    use Gleam 1.19.2 to avoid conflicting upload Content-Type headers.
-6. Confirm the version on [Hex](https://hex.pm/packages/gluegun) and its API
-   reference at `https://hexdocs.pm/gluegun/<version>/`. Remove the pending
-   publication notice from installation instructions after this verification.
+6. Confirm the exact version at `https://hex.pm/packages/gluegun/<version>`
+   and test the documented dependency in a consumer. Check its API reference
+   at `https://hexdocs.pm/gluegun/<version>/` before adding a HexDocs link.
+   A successful workflow alone does not confirm public availability.
 
 If publication fails, retain the approved tag and inspect whether Hex
 accepted the version before retrying. Do not retag or overwrite a published
@@ -566,7 +583,7 @@ version. After confirming the accepted package matches the approved tag,
 maintainers can dispatch another run on the same tag:
 
 ```sh
-gh workflow run publish.yml --repo tylerbutler/gluegun --ref v1.0.0
+gh workflow run publish.yml --repo tylerbutler/gluegun --ref v1.0.0-rc.1
 ```
 
 Do not dispatch it on a branch. Trellis skips
