@@ -1,15 +1,9 @@
 ---
 title: Basic Requests
 description: Use gluegun/client to send one request and collect one response.
-next:
-  link: /guides/production-checklist/
-  label: Harden requests for production
 ---
 
 Use `gluegun/client` to send an HTTP request on an open connection and collect the full response in memory. The result includes status, headers, body, trailers, and all `1xx` informational responses.
-
-If you are upgrading from Gluegun-specific HTTP types, follow the
-[migration guide](/advanced/migration/).
 
 <nav class="gg-lifecycle" aria-label="Request lifecycle">
   <ol>

@@ -20,7 +20,6 @@ const sidebar = [
 		label: "Guides",
 		items: [
 			{ label: "Basic Requests", slug: "guides/basic-requests" },
-			{ label: "Production Checklist", slug: "guides/production-checklist" },
 			{ label: "Streaming", slug: "guides/streaming" },
 			{ label: "WebSockets", slug: "guides/websockets" },
 			{ label: "HTTP/2", slug: "guides/http2" },
@@ -35,7 +34,6 @@ const sidebar = [
 			{ label: "Error Handling", slug: "advanced/error-handling" },
 			{ label: "Limitations", slug: "advanced/limitations" },
 			{ label: "Troubleshooting", slug: "advanced/troubleshooting" },
-			{ label: "Migration", slug: "advanced/migration" },
 		],
 	},
 	{
