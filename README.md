@@ -508,7 +508,7 @@ CI runs library and standalone example checks on separate runners. Each
 runner keeps package operations serial. Example tests run before packaging
 so Webprobe can reuse its test build. Dependency caches contain downloaded
 packages and compiled Hex dependencies, but no workspace source, tests,
-generated documentation, or escripts. Cache keys include the runner image,
+generated documentation, or escripts. Cache keys include the job, runner image,
 active compiler/runtime, rebar3, and root/example dependency manifests.
 
 On pull requests, CI checks workspace metadata but omits code and website
