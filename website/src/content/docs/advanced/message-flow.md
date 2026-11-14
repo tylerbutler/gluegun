@@ -67,8 +67,10 @@ in the caller's mailbox. It also removes queued Erlang
 monitor reference to that connection, including monitors created by your
 application. It does not change other processes' mailboxes.
 
-The flush does not remove the monitors themselves, but it does discard their
-queued notifications. Do not wait for a discarded `DOWN` after either call.
+Flushing a live connection does not demonitor it. When the connection exits,
+Erlang removes its monitors and sends their `DOWN` notifications. A later
+flush can discard those queued notifications. Do not wait for a discarded
+`DOWN` after either call.
 In particular, `connection.terminate` has already waited for process exit;
 its flush can consume the notification your own lifecycle code expected.
 `websocket.close` uses the same termination cleanup.

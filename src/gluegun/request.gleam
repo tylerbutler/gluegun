@@ -222,8 +222,9 @@ pub fn update_flow(
 /// streams on that connection in this caller's mailbox. It also removes
 /// queued Erlang `DOWN` messages for every caller monitor reference to the
 /// connection, including monitors created by application code. Other
-/// processes' mailboxes are unchanged. The monitors remain active, but
-/// removed notifications cannot be received later.
+/// processes' mailboxes are unchanged. Flushing a live connection does not
+/// demonitor it. After the connection exits, the monitor is already removed;
+/// flushing can discard its delivered `DOWN`, which cannot be received later.
 pub fn flush(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_flush(connection)
 }
