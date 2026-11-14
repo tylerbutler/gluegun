@@ -53,15 +53,10 @@ pub fn ws_echo() {
 
 Call `websocket.close(socket)` even after an exchange fails. It sends a close frame, waits for the peer, then terminates the Gun process and flushes this receiver's queued Gun messages.
 
-The handshake uses one deadline: the socket's finite timeout, or five seconds for `Infinity`. Incoming frames do not extend it. If the peer does not complete the handshake, close returns `Error(Timeout)` after teardown. Connection and stream failures also trigger teardown and return typed errors. A handshake error takes precedence over a termination error. An already-exited connection returns `Ok(Nil)`, so repeated close is safe.
-
-Call from the socket's receiver. If upgrade options redirect frames to another process or an external forwarder, drain that receiver separately. Do not reuse the socket after close.
-
-`websocket.send_close_frame(socket)` only sends a close frame. It does not release the Gun process. Use `websocket.close` for reusable sockets or `websocket.with_socket` for scoped cleanup.
-
 ## Scoped sockets
 
-For short one-shot flows, `with_socket` opens the socket, runs a callback, then closes the WebSocket and the connection.
+For short one-shot flows, use `with_socket` to handle cleanup for you. It opens
+the socket, runs a callback, then closes the WebSocket and the connection.
 
 ```gleam
 import gleam/io
@@ -101,6 +96,24 @@ If the callback panics, fails an assertion, or raises an Erlang exception,
 re-raises the original exception with its class, reason, and stack. Cleanup
 errors cannot replace the callback exception. This also releases the socket when you catch the exception
 outside `with_socket` and keep the owner process alive.
+
+## Close behavior
+
+Both reusable and scoped sockets use `websocket.close` for teardown. The close
+handshake uses one deadline: the socket's finite timeout, or five seconds for
+`Infinity`. Incoming frames do not extend it. If the peer does not complete the
+handshake, close returns `Error(Timeout)` after teardown. Connection and stream
+failures also trigger teardown and return typed errors. A handshake error takes
+precedence over a termination error. An already-exited connection returns
+`Ok(Nil)`, so repeated close is safe.
+
+Call `websocket.close` from the socket's receiver. If upgrade options redirect
+frames to another process or an external forwarder, drain that receiver
+separately. Do not reuse the socket after close.
+
+`websocket.send_close_frame(socket)` only sends a close frame. It does not
+release the Gun process. Use `websocket.close` for reusable sockets or
+`websocket.with_socket` for scoped cleanup.
 
 ## Control frames
 

@@ -23,6 +23,19 @@ Before you start, [install Gluegun](/installation/) and confirm that the package
   </ol>
 </nav>
 
+## Key idea
+
+Gluegun keeps connection setup and requests separate:
+
+1. Open a connection to a host and port.
+2. Wait until Gun reports the negotiated protocol.
+3. Send requests with paths such as `/`, `/api/items`, or `/health`.
+4. Close or shut down the connection when you are finished.
+
+If you have a full URL, parse it with `gleam/uri` before you call Gluegun. Gluegun accepts only the separate host, port, transport, path, and query values.
+
+## Send the request
+
 <Code code={guideSource} lang="gleam" />
 
 Run the example from the repository root:
@@ -37,24 +50,17 @@ You should see `status: 200`, followed by the HTML response from `example.com`.
 If the connection does not open or the request times out, use the
 [troubleshooting guide](/advanced/troubleshooting/).
 
-The example calls `connection.terminate` before returning a result, including
-after a failed exchange or stalled connection setup. If both the exchange and
-cleanup fail, it returns the exchange error. If only cleanup fails, it returns
-the cleanup error.
+## Close the connection
 
-## Key idea
-
-Gluegun keeps connection setup and requests separate:
-
-1. Open a connection to a host and port.
-2. Wait until Gun reports the negotiated protocol.
-3. Send requests with paths such as `/`, `/api/items`, or `/health`.
-4. Close or shut down the connection when you are finished.
-
-If you have a full URL, parse it with `gleam/uri` before you call Gluegun. Gluegun accepts only the separate host, port, transport, path, and query values.
-
-`connection.milliseconds(Int)` validates and returns a finite `Timeout`. Use `connection.infinity()` to wait without a limit. The same `Timeout` value applies to connection readiness, request bodies, and message receives.
+The example owns the connection, so it calls `connection.terminate` before
+returning a result. This releases the connection after success, a failed
+exchange, or stalled connection setup. If both the exchange and cleanup fail,
+it returns the exchange error. If only cleanup fails, it returns the cleanup error.
 
 Use `connection.close` to stop a connection through Gun's supervisor. `connection.shutdown` requests graceful shutdown without waiting for exit. Use `connection.terminate` for a stuck connection or deadline cleanup; it forces exit and flushes the caller's Gun messages. See [Message Flow](/advanced/message-flow/#close-and-shutdown).
+
+## Timeouts
+
+`connection.milliseconds(Int)` validates and returns a finite `Timeout`. Use `connection.infinity()` to wait without a limit. The same `Timeout` value applies to connection readiness, request bodies, and message receives.
 
 For full module, type, and function details, use the [API reference](/reference/).

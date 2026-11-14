@@ -32,7 +32,7 @@ Use this checklist before you ship Gluegun in a production BEAM service. It does
 
 | Decision | Ready for production when | Read next |
 |---|---|---|
-| Timeout policy | Each connection, request, and message receive uses a timeout that fits the caller's latency budget. `connection.infinity()` is used only for flows that can wait without a limit by design. | [Quick Start: timeout value](/quick-start/#key-idea) |
+| Timeout policy | Each connection, request, and message receive uses a timeout that fits the caller's latency budget. `connection.infinity()` is used only for flows that can wait without a limit by design. | [Quick Start: timeouts](/quick-start/#timeouts) |
 | Collector budget | The client timeout covers dispatch and all response messages together; a slow trickle cannot reset the deadline. | [Basic Requests](/guides/basic-requests/) |
 | Retry policy | HTTP retries default to zero and require explicit opt-in. WebSocket connect always disables retries; connection loss is terminal. | [WebSockets](/guides/websockets/) |
 | Error handling | Effectful calls pattern match on `Result(_, error.GluegunError)`. Expected failures such as `Timeout` and `ConnectionDown` have explicit handling. | [Error Handling](/advanced/error-handling/) |
@@ -64,7 +64,7 @@ Read the detailed API boundaries in [Basic Requests](/guides/basic-requests/#whe
 
 | Decision | Ready for production when | Read next |
 |---|---|---|
-| Usual teardown | The code calls `connection.close` when the work is complete. | [Quick Start: close or shutdown](/quick-start/#key-idea) |
+| Usual teardown | The code calls `connection.close` when the work is complete. | [Quick Start: close the connection](/quick-start/#close-the-connection) |
 | Stuck connections | The receiving process calls `connection.terminate` on deadline expiry to force exit and flush queued Gun messages. `shutdown` only requests graceful shutdown. | [Limitations: close and shutdown](/advanced/limitations/#close-and-shutdown) |
 | Paused HTTP/1.1 cancellation | Canceling with exhausted finite credit requires a new connection. This accepted upstream defect can prevent reuse. | [Limitations](/advanced/limitations/#http11-cancellation-with-exhausted-flow-credit) |
 | Reusable WebSockets | The receiver calls `websocket.close(socket)` after success or failure, or uses `websocket.with_socket` for scoped cleanup. It handles typed handshake errors after teardown. | [Troubleshooting: WebSocket connection stays open](/advanced/troubleshooting/#websocket-connection-stays-open) |

@@ -35,6 +35,7 @@ const sidebar = [
 			{ label: "Error Handling", slug: "advanced/error-handling" },
 			{ label: "Limitations", slug: "advanced/limitations" },
 			{ label: "Troubleshooting", slug: "advanced/troubleshooting" },
+			{ label: "Migration", slug: "advanced/migration" },
 		],
 	},
 	{

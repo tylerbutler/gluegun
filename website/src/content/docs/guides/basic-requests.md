@@ -8,6 +8,9 @@ next:
 
 Use `gluegun/client` to send an HTTP request on an open connection and collect the full response in memory. The result includes status, headers, body, trailers, and all `1xx` informational responses.
 
+If you are upgrading from Gluegun-specific HTTP types, follow the
+[migration guide](/advanced/migration/).
+
 <nav class="gg-lifecycle" aria-label="Request lifecycle">
   <ol>
     <li><a href="/installation/">Install</a></li>
@@ -154,21 +157,5 @@ Use `gluegun/request` and `gluegun/message` for streamed response chunks, traile
 The client helpers attempt to cancel a failed stream and drain its queued messages after a timeout, invalid message, or receive failure. They return the original error, keep the connection open, and preserve other streams. Cleanup failures produce a warning.
 
 Cancellation is asynchronous. The drain does not wait for Gun to process cancellation or for future messages. Messages in transit can arrive after the helper returns. The high-level API does not return the failed stream handle; use the low-level API in a separate receiving process if you need strict mailbox isolation.
-
-## Migration to standard HTTP types
-
-If you use an earlier API with Gluegun-specific HTTP methods or
-non-generic collected responses, update these types when you upgrade.
-
-Import `gleam/http` for `http.Get`, `http.Post`, and other methods. Replace
-`request.Method` with `http.Method` and `request.Custom` with `http.Other`.
-Add `gleam_http = ">= 4.0.0 and < 5.0.0"` to packages that import these modules.
-
-Update collected-response annotations from `response.Response` to
-`response.Response(BitArray)`. Replace `response.Informational(status, headers)`
-with standard `http_response.Response(status, headers, Nil)` values.
-The Gluegun status, headers, body, and text accessors remain available.
-Request paths and body builders keep their existing behavior. The current API
-uses one total timeout budget for dispatch and response collection.
 
 See the [client reference](/reference/gluegun-client/) for all high-level client functions.
