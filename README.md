@@ -471,7 +471,7 @@ Available examples:
 - `basic_request`: open a connection, send a GET, print negotiated protocol, collect text response.
 - `json_post`: send JSON request body with headers using high-level client builder.
 - `http2_preferred`: prefer HTTP/2 over TLS while allowing HTTP/1.1 fallback.
-- `chunked_upload`: stream request body with `request.headers`, `request.data`, `fin.NoFin`, `fin.Fin`.
+- `chunked_upload`: start a streamed request with `request.start_stream` and send body chunks with `request.data`, `fin.NoFin`, and `fin.Fin`.
 - `streaming_download`: process response chunks and trailers as low-level message values arrive.
 - `websocket_echo`: connect to local WebSocket echo server and exchange one text frame.
 - `websocket_chat`: use scoped WebSocket lifecycle helpers for text and binary frame conversation.
