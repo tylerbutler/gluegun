@@ -24,7 +24,7 @@ pub fn connect_options(
   case config.prefer_http2 && parsed_url.tls {
     True ->
       options |> connection.with_protocols([connection.Http2, connection.Http1])
-    False -> options
+    False -> options |> connection.with_protocols([connection.Http1])
   }
 }
 
