@@ -842,7 +842,12 @@ ws_options_to_gun(WsOptions) when is_list(WsOptions) ->
                     true -> ok;
                     false -> error({invalid_options, {ws, invalid_subprotocol}})
                 end
-            end, Protocols);
+            end, Protocols),
+            Names = [to_binary(Protocol) || {Protocol, _} <- Protocols],
+            case length(Names) =:= length(lists:usort(Names)) of
+                true -> ok;
+                false -> error({invalid_options, {ws, duplicate_subprotocol}})
+            end;
         (_) -> ok
     end, WsOptions),
     maps:from_list([ws_option_to_gun(Option) || Option <- WsOptions]).
