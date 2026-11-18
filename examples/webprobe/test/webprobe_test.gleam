@@ -216,7 +216,7 @@ pub fn report_formatting_renders_invalid_utf_8_bodies_as_byte_arrays_test() -> N
 }
 
 pub fn runner_request_construction_defaults_https_to_http_1_test() -> Nil {
-  let assert Ok(config) = cli.parse(["https://example.com"])
+  let assert Ok(cli.Probe(config)) = cli.parse(["https://example.com"])
   let assert Ok(parsed) = url.parse(config.url)
 
   let options = runner.connect_options(config, parsed)
@@ -225,7 +225,8 @@ pub fn runner_request_construction_defaults_https_to_http_1_test() -> Nil {
 }
 
 pub fn runner_request_construction_prefers_http_2_for_https_when_requested_test() -> Nil {
-  let assert Ok(config) = cli.parse(["--http2", "https://example.com"])
+  let assert Ok(cli.Probe(config)) =
+    cli.parse(["--http2", "https://example.com"])
   let assert Ok(parsed) = url.parse(config.url)
 
   let options = runner.connect_options(config, parsed)
@@ -235,7 +236,7 @@ pub fn runner_request_construction_prefers_http_2_for_https_when_requested_test(
 }
 
 pub fn runner_request_construction_defaults_http_to_http_1_test() -> Nil {
-  let assert Ok(config) = cli.parse(["http://example.com"])
+  let assert Ok(cli.Probe(config)) = cli.parse(["http://example.com"])
   let assert Ok(parsed) = url.parse(config.url)
 
   let options = runner.connect_options(config, parsed)
@@ -244,7 +245,8 @@ pub fn runner_request_construction_defaults_http_to_http_1_test() -> Nil {
 }
 
 pub fn runner_request_construction_keeps_http_1_for_cleartext_with_http2_flag_test() -> Nil {
-  let assert Ok(config) = cli.parse(["--http2", "http://example.com"])
+  let assert Ok(cli.Probe(config)) =
+    cli.parse(["--http2", "http://example.com"])
   let assert Ok(parsed) = url.parse(config.url)
 
   let options = runner.connect_options(config, parsed)
