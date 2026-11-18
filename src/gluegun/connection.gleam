@@ -80,6 +80,7 @@ pub type ConnectOption {
   AddressFamilyOption(AddressFamily)
   DomainLookupTimeoutOption(Timeout)
   TlsHandshakeTimeoutOption(Timeout)
+  WebsocketKeepaliveOption(Timeout)
   TlsOption(List(tls.TlsSetting))
 }
 
@@ -98,6 +99,7 @@ pub opaque type ConnectOptions {
     address_family: Option(AddressFamily),
     domain_lookup_timeout: Option(Timeout),
     tls_handshake_timeout: Option(Timeout),
+    websocket_keepalive: Option(Timeout),
   )
 }
 
@@ -112,6 +114,7 @@ pub fn options() -> ConnectOptions {
     address_family: None,
     domain_lookup_timeout: None,
     tls_handshake_timeout: None,
+    websocket_keepalive: None,
   )
 }
 
@@ -226,6 +229,20 @@ pub fn with_tls_handshake_timeout(
   timeout timeout: Timeout,
 ) -> ConnectOptions {
   ConnectOptions(..options, tls_handshake_timeout: Some(timeout))
+}
+
+/// Set the interval between automatic WebSocket pings, in milliseconds.
+///
+/// Gun reads this setting from the original connection options, not the
+/// upgrade options. Set it before `open`, then upgrade with
+/// `websocket.upgrade_options()` without `websocket.with_keepalive`.
+/// Defaults to `infinity()` (no automatic pings). This does not change
+/// connection, upgrade, or frame receive timeouts.
+pub fn with_websocket_keepalive(
+  options: ConnectOptions,
+  interval interval: Timeout,
+) -> ConnectOptions {
+  ConnectOptions(..options, websocket_keepalive: Some(interval))
 }
 
 /// Set TLS options for TLS or auto-transport connections.
@@ -424,6 +441,10 @@ pub fn options_to_ffi(options: ConnectOptions) -> List(ConnectOption) {
     Some(timeout) -> [TlsHandshakeTimeoutOption(timeout)]
     None -> []
   }
+  let websocket_options = case options.websocket_keepalive {
+    Some(interval) -> [WebsocketKeepaliveOption(interval)]
+    None -> []
+  }
 
   list.flatten([
     [
@@ -436,6 +457,7 @@ pub fn options_to_ffi(options: ConnectOptions) -> List(ConnectOption) {
     family_options,
     lookup_options,
     handshake_options,
+    websocket_options,
   ])
 }
 
