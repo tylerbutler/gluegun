@@ -1,7 +1,8 @@
 -module(gluegun_http2_test).
 -include_lib("public_key/include/public_key.hrl").
 
--export([run/3, with_tls_cancel_server/1, http2_push_cleanup/1, capture_alpn/1]).
+-export([run/3, with_tls_cancel_server/1, http2_push_cleanup/1, capture_alpn/1,
+    with_protocol_server/2]).
 
 %% List(connection.ConnectOption) -> Result(List(String), GluegunError).
 %% The caller owns the listener, accepted socket and Gun connection. No peer
@@ -78,6 +79,63 @@ alpn_extension(<<>>) -> [].
 alpn_names(<<Size:8, Name:Size/binary, Rest/binary>>) when Size > 0 ->
     [Name | alpn_names(Rest)];
 alpn_names(<<>>) -> [].
+
+%% The callback owns the Gun connection and exercises only public Gleam APIs.
+%% The peer verifies the selected wire protocol and waits for client cleanup.
+with_protocol_server(Protocol, Callback) ->
+    {ok, Listener} = gen_tcp:listen(0, [binary, {active, false},
+        {ip, {127, 0, 0, 1}}, {reuseaddr, true}]),
+    {ok, {_, Port}} = inet:sockname(Listener),
+    {Server, Monitor} = spawn_monitor(fun() ->
+        {ok, Socket} = gen_tcp:accept(Listener, 2000),
+        try serve_protocol(Socket, Protocol)
+        after gen_tcp:close(Socket)
+        end
+    end),
+    try
+        Result = Callback(Port),
+        case Result of
+            {error, _} -> Result;
+            {ok, nil} ->
+                receive
+                    {'DOWN', Monitor, process, Server, normal} -> Result;
+                    {'DOWN', Monitor, process, Server, Reason} ->
+                        {error, {erlang_error, gleam@string:inspect({protocol_peer_failed, Reason})}}
+                after 2000 ->
+                    {error, {erlang_error, <<"Protocol peer completion timeout">>}}
+                end
+        end
+    after
+        gen_tcp:close(Listener),
+        stop_tls_peer(Server, Monitor)
+    end.
+
+serve_protocol(Socket, http1) ->
+    ok = inet:setopts(Socket, [{packet, http_bin}]),
+    {ok, {http_request, 'GET', {abs_path, <<"/">>}, {1, 1}}} =
+        gen_tcp:recv(Socket, 0, 2000),
+    protocol_http1_headers(Socket),
+    ok = inet:setopts(Socket, [{packet, raw}]),
+    ok = gen_tcp:send(Socket,
+        <<"HTTP/1.1 200 OK\r\nContent-Length: 8\r\n\r\nselected">>),
+    {error, closed} = gen_tcp:recv(Socket, 0, 2000);
+serve_protocol(Socket, http2) ->
+    {ok, <<"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n">>} =
+        gen_tcp:recv(Socket, 24, 2000),
+    ok = gen_tcp:send(Socket, cow_http2:settings(#{})),
+    {Stream, _, Rest} = request_headers(Socket, <<>>, 65535, 65535),
+    {Headers, _} = cow_hpack:encode([{<<":status">>, <<"200">>}]),
+    ok = gen_tcp:send(Socket, [
+        cow_http2:headers(Stream, nofin, Headers),
+        cow_http2:data(Stream, fin, <<"selected">>)]),
+    wait_closed(Socket, Rest).
+
+protocol_http1_headers(Socket) ->
+    case gen_tcp:recv(Socket, 0, 2000) of
+        {ok, http_eoh} -> ok;
+        {ok, {http_header, _, _, _, _}} -> protocol_http1_headers(Socket);
+        Other -> error({unexpected_http1_header, Other})
+    end.
 
 %% Result(Nil, String), called by the Gleam client regression entrypoints.
 http2_push_cleanup(Mode) ->

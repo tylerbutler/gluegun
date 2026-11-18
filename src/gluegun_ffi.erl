@@ -593,7 +593,18 @@ prepare_connect_options(Host, Port, Options, Deps) ->
         false when Port =:= 443 -> GunOptions#{transport => tls};
         false -> GunOptions#{transport => tcp}
     end,
-    apply_secure_tls_defaults(Host, preserve_tls_protocol_order(Resolved), Deps).
+    Prepared = case {maps:get(transport, Resolved), maps:find(protocols, Resolved)} of
+        {_, {ok, []}} ->
+            error({invalid_options, {protocols, []}});
+        {tcp, {ok, [First | _]}} ->
+            %% TCP has no negotiation: Gun requires exactly one protocol.
+            %% Keep omission intact so Gun retains its default HTTP/1 path.
+            Resolved#{protocols => [First]};
+        _ ->
+            %% TLS needs the complete preference list for negotiation.
+            Resolved
+    end,
+    apply_secure_tls_defaults(Host, preserve_tls_protocol_order(Prepared), Deps).
 
 %% Gun 2.1 through the locked 2.8 builds ALPN with a prepending fold in
 %% ensure_tls_opts/3. Compensate only for explicit lists after resolving TLS:

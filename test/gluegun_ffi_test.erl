@@ -50,6 +50,7 @@
     gun_transport/1,
     gun_protocols/1,
     resolved_protocols/2,
+    prepared_protocol_options/3,
     gun_retry/1,
     gun_connect_timeout/1,
     gun_tls_opts/1,
@@ -248,6 +249,31 @@ resolved_protocols(Port, Options) ->
         }),
         [render(Protocol) || Protocol <- maps:get(protocols, Gun, [])]
     after persistent_term:erase(CacheKey)
+    end.
+
+%% Result({Transport, Option(List(Protocol))}, GluegunError). Keep omission
+%% distinct from an explicit list, and translate Gun's `http` to Gleam's Http1.
+%% Isolate TLS defaults from the machine's trust roots and shared cache.
+prepared_protocol_options(Host, Port, Options) ->
+    CacheKey = make_ref(),
+    try
+        Gun = gluegun_ffi:prepare_connect_options(Host, Port, Options, #{
+            cacerts_fun => fun() -> [<<"fake-der-ca">>] end,
+            cacerts_cache_key => CacheKey
+        }),
+        Protocols = case maps:find(protocols, Gun) of
+            error -> none;
+            {ok, Values} -> {some, [begin
+                {ok, Protocol} = gluegun_ffi:protocol_result(Value),
+                Protocol
+            end || Value <- Values]}
+        end,
+        {ok, {maps:get(transport, Gun), Protocols}}
+    catch
+        error:{invalid_options, Reason} ->
+            {error, {invalid_options, gleam@string:inspect(Reason)}}
+    after
+        persistent_term:erase(CacheKey)
     end.
 
 gun_retry(Options) ->
