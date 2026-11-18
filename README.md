@@ -231,6 +231,9 @@ Do not set `Content-Length` on a streamed upload. Gluegun rejects it before
 sending headers because supported Gun versions can crash on fixed-length
 chunk sequences. Use chunked uploads or send the complete body in one request.
 
+Skip informational responses such as `103 Early Hints` before you read the
+final response headers and body.
+
 ```gleam
 import gleam/http
 import gluegun/connection
@@ -240,7 +243,9 @@ import gluegun/message
 import gluegun/request
 import gleam/result
 
-pub fn upload_chunks(conn) {
+pub fn upload_chunks(
+  conn: connection.Connection,
+) -> Result(BitArray, error.GluegunError) {
   use timeout <- result.try(connection.milliseconds(5000))
 
   use stream <- result.try(
@@ -256,14 +261,25 @@ pub fn upload_chunks(conn) {
   use _ <- result.try(request.data(conn, stream, fin.NoFin, <<"first ":utf8>>))
   use _ <- result.try(request.data(conn, stream, fin.Fin, <<"last":utf8>>))
 
-  // Await response headers, then consume the response body.
-  use response <- result.try(message.await(conn, stream, timeout))
+  use response <- result.try(await_final_response(conn, stream, timeout))
 
   case response {
     message.Response(fin.NoFin, _status, _headers) ->
       message.await_body(conn, stream, timeout)
     message.Response(fin.Fin, _status, _headers) -> Ok(<<>>)
     _ -> Error(error.InvalidMessage("expected a final response message"))
+  }
+}
+
+fn await_final_response(
+  conn: connection.Connection,
+  stream: request.Stream,
+  timeout: connection.Timeout,
+) -> Result(message.Message, error.GluegunError) {
+  case message.await(conn, stream, timeout) {
+    Ok(message.Inform(_status, _headers)) ->
+      await_final_response(conn, stream, timeout)
+    other -> other
   }
 }
 ```
