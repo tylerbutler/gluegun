@@ -719,8 +719,48 @@ apply_secure_tls_defaults(Host, GunOptions, Deps) ->
         true ->
             TlsOpts0 = maps:get(tls_opts, GunOptions, []),
             TlsOpts = merge_secure_tls_defaults(Host, TlsOpts0, Deps),
+            validate_tls_ciphers(TlsOpts),
             GunOptions#{tls_opts => TlsOpts}
     end.
+
+%% OTP can silently replace an empty compatible cipher set with its defaults.
+%% Validate explicit lists before Gun starts, but preserve the caller's list:
+%% only one suite needs to be usable with one of the effective versions.
+validate_tls_ciphers(TlsOpts) ->
+    case proplists:lookup(ciphers, TlsOpts) of
+        none -> ok;
+        {ciphers, []} ->
+            error({invalid_options, {tls, no_usable_ciphers}});
+        {ciphers, Ciphers} ->
+            Suites = [tls_cipher_suite(Name) || Name <- Ciphers],
+            VersionInfo = ssl:versions(),
+            Versions = proplists:get_value(
+                versions, TlsOpts, proplists:get_value(supported, VersionInfo)
+            ),
+            Available = proplists:get_value(available, VersionInfo),
+            Permitted = lists:append([
+                tls_version_cipher_suites(Version)
+                || Version <- Versions, lists:member(Version, Available)
+            ]),
+            Usable = ssl:filter_cipher_suites(Permitted, []),
+            case lists:any(fun(Suite) -> lists:member(Suite, Usable) end, Suites) of
+                true -> ok;
+                false -> error({invalid_options, {tls, no_usable_ciphers}})
+            end
+    end.
+
+tls_cipher_suite(Name) ->
+    case ssl:str_to_suite(Name) of
+        Suite when is_map(Suite) -> Suite;
+        {error, Reason} -> error({invalid_options, {tls, {cipher, Reason}}})
+    end.
+
+%% `all` is inclusive of earlier versions, which is correct before TLS 1.3.
+%% TLS 1.3 has a disjoint suite set, so its list must be exclusive.
+tls_version_cipher_suites('tlsv1.3') ->
+    ssl:cipher_suites(exclusive, 'tlsv1.3');
+tls_version_cipher_suites(Version) ->
+    ssl:cipher_suites(all, Version) ++ ssl:cipher_suites(anonymous, Version).
 
 tls_defaults_apply_to_transport(GunOptions) ->
     case maps:get(transport, GunOptions, undefined) of
