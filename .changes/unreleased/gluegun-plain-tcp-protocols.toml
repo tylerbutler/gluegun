@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Use the first protocol in an explicit preference list for plain TCP, including Auto resolved to TCP, without fallback. Reject an empty protocol list with InvalidOptions before starting Gun."
