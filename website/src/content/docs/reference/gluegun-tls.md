@@ -147,6 +147,10 @@ Construct TLS options that **disable** peer verification.
  the protections that make HTTPS trustworthy — never use it against
  untrusted networks or production endpoints.
 
+ If neither CA certificates nor a CA file is set, Gluegun supplies an
+ empty CA list so Gun does not read the system trust store. Explicit
+ CA settings are kept.
+
 ```gleam
 pub fn insecure() -> TlsOptions
 ```

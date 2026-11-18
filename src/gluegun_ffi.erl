@@ -690,7 +690,7 @@ server_name_indication_to_gun({server_name, Hostname}) -> unicode_value_to_list(
 %%
 %% User-supplied `tls_opts` always win — the merge is "add only missing
 %% keys". If the caller explicitly sets `verify => verify_none` we skip the
-%% rest of the baseline (no cacerts, no hostname checks).
+%% rest of the baseline (no system roots, no hostname checks).
 
 apply_secure_tls_defaults(Host, GunOptions) ->
     apply_secure_tls_defaults(Host, GunOptions, #{}).
@@ -716,6 +716,12 @@ merge_secure_tls_defaults(Host, TlsOpts, Deps) when is_list(TlsOpts) ->
     case proplists:get_value(verify, TlsOpts) of
         undefined -> add_verify_peer_defaults(Host, [{verify, verify_peer} | TlsOpts], Deps);
         verify_peer -> add_verify_peer_defaults(Host, TlsOpts, Deps);
+        verify_none ->
+            %% Gun fills absent CA sources even with verification disabled.
+            case proplists:is_defined(cacerts, TlsOpts) orelse proplists:is_defined(cacertfile, TlsOpts) of
+                true -> TlsOpts;
+                false -> [{cacerts, []} | TlsOpts]
+            end;
         _ -> TlsOpts
     end.
 

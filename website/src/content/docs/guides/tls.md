@@ -163,5 +163,10 @@ the rest of the secure baseline (no system trust store lookup, no hostname
 match function). **Do not** use this on untrusted networks or production
 endpoints. It removes each protection that makes HTTPS safe.
 
+With explicit `VerifyNone`, Gluegun supplies an empty CA list if neither
+`with_cacerts` nor `with_cacertfile` is set. This prevents Gun from reading
+the system trust store during TLS setup. Explicit CA settings are kept.
+Verifying connections keep the secure defaults.
+
 See the [connection reference](/reference/gluegun-connection/) and
 [tls reference](/reference/gluegun-tls/) for the full API.
