@@ -326,6 +326,8 @@ Send one or more WebSocket frames on the stream.
 
  Validates the complete list before sending. If a frame is invalid, returns
  `InvalidMessage` without sending any frame.
+ `Close` or `CloseWithReason` must be the last frame in the list. A frame
+ after either close variant returns `InvalidMessage` without sending any frame.
 
  Binary, ping, pong, and close-reason payloads must contain whole bytes.
  Empty payloads are valid. A non-byte-aligned `BitArray` returns
