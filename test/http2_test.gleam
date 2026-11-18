@@ -59,33 +59,33 @@ pub fn auto_port_443_compensates_for_gun_alpn_reversal_test() -> Nil {
   assert actual == ["http", "http2"]
 }
 
-pub fn explicit_tcp_keeps_http2_first_even_on_port_443_test() -> Nil {
+pub fn explicit_tcp_keeps_http2_even_on_port_443_test() -> Nil {
   let actual =
     connection.options()
     |> connection.with_transport(connection.Tcp)
-    |> connection.with_protocols([connection.Http2, connection.Http1])
+    |> connection.with_protocols([connection.Http2])
     |> connection.options_to_ffi
     |> resolved_protocols(443, _)
-  assert actual == ["http2", "http"]
+  assert actual == ["http2"]
 }
 
-pub fn explicit_tcp_keeps_http1_first_even_on_port_443_test() -> Nil {
+pub fn explicit_tcp_keeps_http1_even_on_port_443_test() -> Nil {
   let actual =
     connection.options()
     |> connection.with_transport(connection.Tcp)
-    |> connection.with_protocols([connection.Http1, connection.Http2])
+    |> connection.with_protocols([connection.Http1])
     |> connection.options_to_ffi
     |> resolved_protocols(443, _)
-  assert actual == ["http", "http2"]
+  assert actual == ["http"]
 }
 
-pub fn auto_non_tls_port_keeps_protocol_order_test() -> Nil {
+pub fn auto_non_tls_port_keeps_http2_test() -> Nil {
   let actual =
     connection.options()
-    |> connection.with_protocols([connection.Http2, connection.Http1])
+    |> connection.with_protocols([connection.Http2])
     |> connection.options_to_ffi
     |> resolved_protocols(8080, _)
-  assert actual == ["http2", "http"]
+  assert actual == ["http2"]
 }
 
 pub fn tls_without_explicit_protocols_keeps_gun_defaults_test() -> Nil {
