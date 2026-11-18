@@ -452,6 +452,79 @@ pub fn tls_insecure_suppresses_the_secure_baseline_test() -> Nil {
   Nil
 }
 
+pub fn insecure_effective_gun_options_skip_system_roots_test() -> Nil {
+  assert_effective_ca_options(tls.insecure(), Some([]), None)
+}
+
+pub fn verify_none_effective_gun_options_skip_system_roots_test() -> Nil {
+  assert_effective_ca_options(
+    tls.options() |> tls.with_verify(tls.VerifyNone),
+    Some([]),
+    None,
+  )
+}
+
+pub fn verify_none_preserves_effective_explicit_cacerts_test() -> Nil {
+  let certificates = [<<"fixture-ca":utf8>>]
+  assert_effective_ca_options(
+    tls.insecure() |> tls.with_cacerts(certificates),
+    Some(certificates),
+    None,
+  )
+}
+
+pub fn verify_none_preserves_effective_explicit_empty_cacerts_test() -> Nil {
+  assert_effective_ca_options(
+    tls.insecure() |> tls.with_cacerts([]),
+    Some([]),
+    None,
+  )
+}
+
+pub fn verify_none_preserves_effective_explicit_cacertfile_test() -> Nil {
+  assert_effective_ca_options(
+    tls.insecure() |> tls.with_cacertfile("/fixture/ca.pem"),
+    None,
+    Some("/fixture/ca.pem"),
+  )
+}
+
+pub fn verify_none_preserves_effective_both_ca_sources_test() -> Nil {
+  let certificates = [<<"fixture-ca":utf8>>]
+  assert_effective_ca_options(
+    tls.insecure()
+      |> tls.with_cacerts(certificates)
+      |> tls.with_cacertfile("/fixture/ca.pem"),
+    Some(certificates),
+    Some("/fixture/ca.pem"),
+  )
+}
+
+fn assert_effective_ca_options(
+  options: tls.TlsOptions,
+  certificates: Option(List(BitArray)),
+  file: Option(String),
+) -> Nil {
+  let actual =
+    connection.options()
+    |> connection.with_transport(connection.Tls)
+    |> connection.with_tls_options(options)
+    |> connection.options_to_ffi
+    |> effective_ca_options(certificates, file)
+  // Exact effective values plus unchanged CA options prove Gun did not fill
+  // absent roots; the count independently checks Gluegun's injected loader.
+  let expected = #(True, True, 0)
+  let assert #(True, _, _) = #(actual == expected, actual, expected)
+  Nil
+}
+
+@external(erlang, "gluegun_tls_options_test", "effective_ca_options")
+fn effective_ca_options(
+  options: List(connection.ConnectOption),
+  certificates: Option(List(BitArray)),
+  file: Option(String),
+) -> #(Bool, Bool, Int)
+
 pub fn skips_sni_when_host_is_an_ip_literal_test() -> Nil {
   let options =
     connection.options()
@@ -789,7 +862,7 @@ fn insecure_tls_summary() -> TlsSummary {
     versions: None,
     depth: None,
     server_name_indication: Some("disable"),
-    has_cacerts: False,
+    has_cacerts: True,
     has_hostname_check: False,
   )
 }
