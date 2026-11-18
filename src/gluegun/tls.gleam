@@ -143,6 +143,10 @@ pub fn options() -> TlsOptions {
 /// trust store, hostname verification, TLS 1.2/1.3 floor). This bypasses
 /// the protections that make HTTPS trustworthy — never use it against
 /// untrusted networks or production endpoints.
+///
+/// If neither CA certificates nor a CA file is set, Gluegun supplies an
+/// empty CA list so Gun does not read the system trust store. Explicit
+/// CA settings are kept.
 pub fn insecure() -> TlsOptions {
   options()
   |> with_verify(verify: VerifyNone)
