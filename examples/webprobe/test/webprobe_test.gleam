@@ -152,12 +152,13 @@ pub fn cli_parsing_rejects_negative_timeouts_test() -> Nil {
 }
 
 pub fn cli_parsing_accepts_a_zero_timeout_test() -> Nil {
-  let assert Ok(config) = cli.parse(["--timeout", "0", "https://example.com"])
+  let assert Ok(cli.Probe(config)) =
+    cli.parse(["--timeout", "0", "https://example.com"])
   assert config.timeout == timeout(0)
 }
 
 pub fn cli_parsing_accepts_the_maximum_timeout_test() -> Nil {
-  let assert Ok(config) =
+  let assert Ok(cli.Probe(config)) =
     cli.parse(["--timeout", "4294967295", "https://example.com"])
   assert config.timeout == timeout(4_294_967_295)
 }
