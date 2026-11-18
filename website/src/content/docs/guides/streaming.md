@@ -57,12 +57,21 @@ fn await_final_response(conn, stream, timeout) {
 
 ## Message sequence
 
-Gun sends stream messages in a defined order. For an HTTP response, expect:
+For a normal HTTP response, Gun sends zero or more
+`message.Inform(status, headers)` messages for 1xx informational responses.
+Then it sends exactly one `message.Response(fin, status, headers)` with the
+final status and headers. The response follows one of three sequences:
 
-1. Zero or more `message.Inform(status, headers)` — 1xx informational responses.
-2. Exactly one `message.Response(fin, status, headers)` — the final status line and headers. If `fin` is `Fin`, the body is empty and no more messages come (except possible trailers).
-3. Zero or more `message.Data(fin, bytes)` — body chunks. The last chunk has `fin.Fin`.
-4. Zero or one `message.Trailers(headers)` — HTTP/1.1 trailers or HTTP/2 trailer frames.
+| Response | Message sequence after any `Inform` messages |
+|---|---|
+| Headers only | `Response(fin.Fin, status, headers)` |
+| Body without trailers | `Response(fin.NoFin, status, headers)`, zero or more `Data(fin.NoFin, bytes)`, then `Data(fin.Fin, bytes)` |
+| Response with trailers | `Response(fin.NoFin, status, headers)`, zero or more `Data(fin.NoFin, bytes)`, then `Trailers(headers)` |
+
+These are `gluegun/message` variants. Stop receiving for that response at
+`Response(fin.Fin, ...)`, `Data(fin.Fin, ...)`, or `Trailers(...)`.
+Trailers end the response without a separate `Data(fin.Fin, ...)`.
+Do not wait for trailers after `Fin`.
 
 HTTP/2 server push comes as `message.Push(stream, …)`. It holds a new stream. You can wait for that stream or cancel it. Protocol upgrade flows give `message.Upgrade(...)`. After a successful WebSocket upgrade, frames come as `message.WebSocket(frame)`. The high-level `client` functions reject `Push`, `Upgrade`, and `WebSocket` with `InvalidMessage`. Use the low-level loop for these messages.
 
@@ -73,7 +82,7 @@ process the response in chunks, replace `message.await_body` with a
 `message.await` loop. Handle `message.Data` and `message.Trailers` as they
 arrive instead of collecting the full body.
 
-`message.await_body` collects all body chunks into one `BitArray` in memory. Call it only after you receive the `Response` message (for example, from a previous `message.await`). For very large responses, or responses without a known size, write your own loop with `message.await`. Then you can apply backpressure or send the body to a different location.
+`message.await_body` collects all body chunks into one `BitArray` in memory. Call it only after you receive `message.Response(fin.NoFin, ...)` (for example, from a previous `message.await`). It stops at `Data(fin.Fin, ...)` or `Trailers(...)` and discards trailer headers. After `Response(fin.Fin, ...)`, the response is complete and there is no body to await. For very large responses, or responses without a known size, write your own loop with `message.await`. Then you can apply backpressure or send the body to a different location.
 
 ## Stream control
 

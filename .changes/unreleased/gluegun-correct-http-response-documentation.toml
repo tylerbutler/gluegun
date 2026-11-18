@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Correct HTTP response documentation to treat Response(Fin), Data(Fin), and Trailers as alternative terminal events. Do not wait for trailers after Fin or for Data(Fin) before trailers. Runtime behavior and APIs are unchanged."
