@@ -75,12 +75,21 @@ assert_rejected_options(Value) ->
                 gluegun_ffi:open(<<"localhost">>, 80, [{Key, Timeout}]),
             true = is_binary(Reason)
         end, [connect_timeout_option, domain_lookup_timeout_option,
-            tls_handshake_timeout_option]),
+            tls_handshake_timeout_option, websocket_keepalive_option]),
         lists:foreach(fun(Key) ->
             {error, {invalid_options, Reason}} =
                 gluegun_ffi:ws_upgrade(Conn, <<"/">>, [], [{Key, Timeout}]),
             true = is_binary(Reason)
-        end, [closing_timeout, keepalive]),
+        end, [closing_timeout]),
+        %% Upgrade keepalive is always rejected, including valid timeouts;
+        %% its replacement must still share timeout validation at open.
+        lists:foreach(fun(UpgradeTimeout) ->
+            {error, {invalid_options, Reason}} =
+                gluegun_ffi:ws_upgrade(Conn, <<"/">>, [],
+                    [{keepalive, UpgradeTimeout}]),
+            true = is_binary(Reason),
+            {_, _} = binary:match(Reason, <<"connection.with_websocket_keepalive">>)
+        end, [Timeout, infinity, {milliseconds, 25}]),
         %% Catch an accidental Gun cast to the connection fixture too.
         true = is_reference(Stream),
         nil

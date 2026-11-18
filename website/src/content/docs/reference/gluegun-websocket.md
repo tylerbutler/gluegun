@@ -86,7 +86,8 @@ Typed options for Gun WebSocket upgrades.
  Build with `upgrade_options()` then chain `with_closing_timeout`,
  `with_compress`, `with_flow`, `with_keepalive`, `with_subprotocols`, and
  `with_silence_pings`. The fallible `with_flow` builder rejects nonpositive
- credit.
+ credit. `with_keepalive` is supported only through high-level `connect`
+ and `with_socket`; low-level upgrades require open-time configuration.
 
 ```gleam
 pub type UpgradeOptions
@@ -151,6 +152,9 @@ Open a Gun connection, perform a WebSocket upgrade, and return a reusable
 
  Defaults to HTTP/1.1; HTTP/2 is rejected with `UnsupportedFeature`
  because Gun does not support WebSocket over HTTP/2.
+ An explicit upgrade `with_keepalive` setting takes precedence over
+ `connection.with_websocket_keepalive` and is applied when opening.
+ If absent, the connection setting or Gun's default (no pings) is preserved.
 
  The caller must receive the handshake. A `reply_to` PID other than the
  caller returns `InvalidOptions` before opening a connection, even with
@@ -362,6 +366,8 @@ Initiate a WebSocket upgrade with options when the negotiated protocol is known.
  `InvalidOptions`. Subprotocol names are case-sensitive.
  Upgrades have no request body, so a positive `Content-Length` also returns
  `InvalidOptions`. An absent or zero `Content-Length` is accepted.
+ `with_keepalive` also returns `InvalidOptions` before sending an upgrade:
+ use `connection.with_websocket_keepalive` before `connection.open`.
 
 ```gleam
 pub fn upgrade(
@@ -441,7 +447,16 @@ pub fn with_headers(
 
 ### `with_keepalive`
 
-Set Gun's WebSocket keepalive timeout.
+Set the interval between automatic pings for `connect` and `with_socket`.
+
+ High-level helpers apply this value at connection open, overriding any
+ `connection.with_websocket_keepalive` setting. Without it, they preserve
+ the connection setting or Gun's default `infinity()` (no pings).
+ This does not change the caller's receive timeout.
+
+ Low-level `upgrade` rejects this option with `InvalidOptions`, even for
+ `infinity()`: configure `connection.with_websocket_keepalive` before
+ opening the connection instead.
 
 ```gleam
 pub fn with_keepalive(
