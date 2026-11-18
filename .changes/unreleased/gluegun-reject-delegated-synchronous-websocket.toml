@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Reject a different reply_to PID in websocket.connect and websocket.with_socket before opening a connection, so the caller cannot wait for a handshake sent to another process. Default and self receivers remain valid. For delegated reception, use upgrade, then await_upgrade and from_upgrade in the receiver."
