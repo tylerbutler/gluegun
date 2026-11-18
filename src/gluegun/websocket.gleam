@@ -199,6 +199,9 @@ pub fn options() -> Options {
 }
 
 /// Set headers sent with the WebSocket upgrade request.
+///
+/// Upgrades have no request body. A positive `Content-Length` returns
+/// `InvalidOptions` before calling Gun; omit it or use zero.
 pub fn with_headers(
   options: Options,
   headers headers: List(Header),
@@ -529,6 +532,8 @@ pub fn upgrade_options_to_ffi(options: UpgradeOptions) -> List(UpgradeOption) {
 /// Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
 /// WebSocket over HTTP/2. Path, headers, and all subprotocol tokens are
 /// validated before calling Gun; invalid input returns `InvalidOptions`.
+/// Upgrades have no request body, so a positive `Content-Length` also returns
+/// `InvalidOptions`. An absent or zero `Content-Length` is accepted.
 pub fn upgrade(
   connection connection: Connection,
   protocol protocol: Protocol,

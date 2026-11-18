@@ -357,6 +357,8 @@ Initiate a WebSocket upgrade with options when the negotiated protocol is known.
  Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
  WebSocket over HTTP/2. Path, headers, and all subprotocol tokens are
  validated before calling Gun; invalid input returns `InvalidOptions`.
+ Upgrades have no request body, so a positive `Content-Length` also returns
+ `InvalidOptions`. An absent or zero `Content-Length` is accepted.
 
 ```gleam
 pub fn upgrade(
@@ -423,6 +425,9 @@ pub fn with_flow(
 ### `with_headers`
 
 Set headers sent with the WebSocket upgrade request.
+
+ Upgrades have no request body. A positive `Content-Length` returns
+ `InvalidOptions` before calling Gun; omit it or use zero.
 
 ```gleam
 pub fn with_headers(

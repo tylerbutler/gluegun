@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Reject a positive Content-Length on bodyless WebSocket upgrades with InvalidOptions before sending the request to Gun. Omit the header or use zero when reusing HTTP headers. Ordinary HTTP requests with bodies are unchanged."
