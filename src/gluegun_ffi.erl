@@ -328,6 +328,7 @@ ws_upgrade(ConnPid, Path, Headers, WsOptions) ->
 ws_send(ConnPid, StreamRef, Frames) ->
     try
         GunFrames = [gleam_frame_to_gun(Frame) || Frame <- Frames],
+        validate_ws_frame_order(GunFrames),
         with_normalize(stream_erlang, fun() ->
             gun:ws_send(ConnPid, StreamRef, GunFrames)
         end)
@@ -338,6 +339,15 @@ ws_send(ConnPid, StreamRef, Frames) ->
             {error, gleam_error({invalid_message, {invalid_frame, Reason}})};
         Class:Reason:_Stack -> {error, gleam_error({erlang_error, {Class, Reason}})}
     end.
+
+validate_ws_frame_order([]) -> ok;
+validate_ws_frame_order([_]) -> ok;
+validate_ws_frame_order([close | _]) ->
+    error({invalid_frame, close_not_last});
+validate_ws_frame_order([{close, _, _} | _]) ->
+    error({invalid_frame, close_not_last});
+validate_ws_frame_order([_ | Rest]) ->
+    validate_ws_frame_order(Rest).
 
 %% Forward a value unchanged. Used to build the opaque `HandlerOptions` term
 %% Gun passes to a WebSocket protocol handler module as `user_opts`.
@@ -835,7 +845,12 @@ ws_options_to_gun(WsOptions) when is_list(WsOptions) ->
                     true -> ok;
                     false -> error({invalid_options, {ws, invalid_subprotocol}})
                 end
-            end, Protocols);
+            end, Protocols),
+            Names = [to_binary(Protocol) || {Protocol, _} <- Protocols],
+            case length(Names) =:= length(lists:usort(Names)) of
+                true -> ok;
+                false -> error({invalid_options, {ws, duplicate_subprotocol}})
+            end;
         (_) -> ok
     end, WsOptions),
     maps:from_list([ws_option_to_gun(Option) || Option <- WsOptions]).

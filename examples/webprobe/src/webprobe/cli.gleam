@@ -21,6 +21,11 @@ pub type Config {
   )
 }
 
+pub type Command {
+  Help
+  Probe(Config)
+}
+
 type ParsedFlags {
   ParsedFlags(
     method: http.Method,
@@ -31,10 +36,10 @@ type ParsedFlags {
   )
 }
 
-pub fn parse(arguments: List(String)) -> Result(Config, String) {
+pub fn parse(arguments: List(String)) -> Result(Command, String) {
   case arguments {
-    ["--help", ..] | ["-h", ..] -> Error(help_text())
-    _ -> parse_config(arguments)
+    ["--help", ..] | ["-h", ..] -> Ok(Help)
+    _ -> parse_config(arguments) |> result.map(Probe)
   }
 }
 

@@ -7,6 +7,11 @@ It opens a Gun connection with Gluegun, waits for protocol negotiation, sends on
 HTTP request, collects the response, and prints the negotiated protocol, status,
 headers, and a response body preview.
 
+The command exits with status `0` after a complete HTTP response, including
+HTTP 4xx and 5xx responses, or when you use `--help` or `-h`. Invalid arguments,
+invalid URLs, connection failures, and request failures return a nonzero exit
+status. Help and probe results go to stdout; errors go to stderr.
+
 ## Usage
 
 ```sh
@@ -19,6 +24,10 @@ gleam run -- --timeout 750 --body-bytes 128 https://example.com/
 
 URLs must use HTTP or HTTPS and include a non-empty host. `--timeout` accepts
 0 through 4294967295 milliseconds, inclusive.
+
+Probes use HTTP/1.1 by default, including HTTPS probes. Use `--http2` with
+an HTTPS URL to offer HTTP/2 with HTTP/1.1 fallback. Cleartext HTTP probes
+use HTTP/1.1 with or without `--http2`.
 
 ## Tests
 
@@ -41,7 +50,12 @@ Build a single escript file with `gleescript`:
 gleam build
 gleam run -m gleescript -- --out=dist
 ./dist/webprobe --help
+python3 -B test/webprobe_process_test.py
 ```
+
+The Python checks run the packaged executable against local peers. They check
+exit status, help output, usage errors, connection and request failures, and
+complete HTTP 200, 404, and 500 responses. `just examples-build` also runs them.
 
 The generated escript is a single executable file, but it still requires an
 Erlang/OTP runtime on the target machine. Package managers such as Homebrew can
@@ -52,4 +66,3 @@ distribute it by installing the escript and declaring an Erlang dependency.
 - CLI parsing uses `clip` and `argv`.
 - Packaging uses `gleescript`.
 - HTTP work uses `gluegun/client` on an explicit `gluegun/connection`.
-- `--http2` prefers HTTP/2 only for HTTPS URLs and allows HTTP/1.1 fallback.

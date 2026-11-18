@@ -472,8 +472,9 @@ pub fn with_protocol_module(
   )
 }
 
-/// Offer subprotocols using Gun's standard WebSocket handler. Every token is
-/// validated before sending; order and case are preserved.
+/// Offer subprotocols using Gun's standard WebSocket handler. Invalid tokens
+/// and exact duplicate names return `InvalidOptions` before sending.
+/// Order and case are preserved; `"chat"` and `"Chat"` are distinct names.
 pub fn with_subprotocols(
   options: UpgradeOptions,
   protocols protocols: List(String),
@@ -545,8 +546,9 @@ pub fn upgrade_options_to_ffi(options: UpgradeOptions) -> List(UpgradeOption) {
 /// Initiate a WebSocket upgrade with options when the negotiated protocol is known.
 ///
 /// Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
-/// WebSocket over HTTP/2. Path, headers, and all subprotocol tokens are
-/// validated before calling Gun; invalid input returns `InvalidOptions`.
+/// WebSocket over HTTP/2. Path, headers, subprotocol tokens, and subprotocol
+/// name uniqueness are validated before calling Gun; invalid input returns
+/// `InvalidOptions`. Subprotocol names are case-sensitive.
 /// `with_keepalive` also returns `InvalidOptions` before sending an upgrade:
 /// use `connection.with_websocket_keepalive` before `connection.open`.
 pub fn upgrade(
@@ -700,6 +702,8 @@ pub fn close(socket socket: Socket) -> Result(Nil, error.GluegunError) {
 ///
 /// Validates the complete list before sending. If a frame is invalid, returns
 /// `InvalidMessage` without sending any frame.
+/// `Close` or `CloseWithReason` must be the last frame in the list. A frame
+/// after either close variant returns `InvalidMessage` without sending any frame.
 ///
 /// Binary, ping, pong, and close-reason payloads must contain whole bytes.
 /// Empty payloads are valid. A non-byte-aligned `BitArray` returns

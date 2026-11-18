@@ -244,6 +244,36 @@ pub fn retains_selected_subprotocol_and_response_headers_on_socket_test() -> Nil
   subprotocol_scenario("subprotocols", ["chat", "superchat"], "superchat")
 }
 
+pub fn rejects_duplicate_subprotocols_before_cast_test() -> Nil {
+  let actual =
+    websocket.upgrade(
+      current_connection(),
+      connection.Http1,
+      "/ws",
+      [],
+      websocket.upgrade_options()
+        |> websocket.with_subprotocols(["chat", "chat"]),
+    )
+  let assert True = no_cast()
+  let assert Error(error.InvalidOptions(_)) = actual
+  Nil
+}
+
+pub fn rejects_nonadjacent_duplicate_subprotocols_before_cast_test() -> Nil {
+  let actual =
+    websocket.upgrade(
+      current_connection(),
+      connection.Http1,
+      "/ws",
+      [],
+      websocket.upgrade_options()
+        |> websocket.with_subprotocols(["chat", "superchat", "chat"]),
+    )
+  let assert True = no_cast()
+  let assert Error(error.InvalidOptions(_)) = actual
+  Nil
+}
+
 pub fn validates_all_tokens_before_converting_internal_callback_modules_test() -> Nil {
   let assert Error(error.InvalidOptions("Ws(InvalidSubprotocol)")) =
     websocket.upgrade(
