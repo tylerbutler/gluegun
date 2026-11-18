@@ -49,6 +49,7 @@
     capture_update_flow/1,
     gun_transport/1,
     gun_protocols/1,
+    resolved_protocols/2,
     gun_retry/1,
     gun_connect_timeout/1,
     gun_tls_opts/1,
@@ -234,6 +235,20 @@ gun_transport(Options) ->
 
 gun_protocols(Options) ->
     [render(Protocol) || Protocol <- maps:get(protocols, gluegun_ffi:connect_options_to_gun(Options), [])].
+
+%% (Int, List(connection.ConnectOption)) -> List(String).
+%% Exercise actual port-aware preparation without consulting the OS trust store.
+%% Missing protocols project to [] rather than materializing Gun defaults.
+resolved_protocols(Port, Options) ->
+    CacheKey = make_ref(),
+    try
+        Gun = gluegun_ffi:prepare_connect_options(<<"localhost">>, Port, Options, #{
+            cacerts_fun => fun() -> [<<"fake-der-ca">>] end,
+            cacerts_cache_key => CacheKey
+        }),
+        [render(Protocol) || Protocol <- maps:get(protocols, Gun, [])]
+    after persistent_term:erase(CacheKey)
+    end.
 
 gun_retry(Options) ->
     render(maps:get(retry, gluegun_ffi:connect_options_to_gun(Options), undefined)).

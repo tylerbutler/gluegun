@@ -299,7 +299,9 @@ pub fn with_domain_lookup_timeout(
 
 Set HTTP protocol preference ordering for a connection.
 
- The list order is preserved when options are passed to Gun.
+ TLS advertises the protocols in this order in the ALPN ClientHello.
+ The server selects the protocol and can use its own preference order.
+ With no explicit list, Gun's default protocols are unchanged.
 
 ```gleam
 pub fn with_protocols(

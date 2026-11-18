@@ -165,7 +165,9 @@ pub fn with_transport(
 
 /// Set HTTP protocol preference ordering for a connection.
 ///
-/// The list order is preserved when options are passed to Gun.
+/// TLS advertises the protocols in this order in the ALPN ClientHello.
+/// The server selects the protocol and can use its own preference order.
+/// With no explicit list, Gun's default protocols are unchanged.
 pub fn with_protocols(
   options: ConnectOptions,
   protocols protocols: List(Protocol),

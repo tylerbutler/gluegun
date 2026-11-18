@@ -583,7 +583,15 @@ prepare_connect_options(Host, Port, Options, Deps) ->
         false when Port =:= 443 -> GunOptions#{transport => tls};
         false -> GunOptions#{transport => tcp}
     end,
-    apply_secure_tls_defaults(Host, Resolved, Deps).
+    apply_secure_tls_defaults(Host, preserve_tls_protocol_order(Resolved), Deps).
+
+%% Gun 2.1 through the locked 2.8 builds ALPN with a prepending fold in
+%% ensure_tls_opts/3. Compensate only for explicit lists after resolving TLS:
+%% TCP protocol selection and Gun's omitted-protocol defaults stay untouched.
+preserve_tls_protocol_order(#{transport := tls, protocols := Protocols} = GunOptions) ->
+    GunOptions#{protocols => lists:reverse(Protocols)};
+preserve_tls_protocol_order(GunOptions) ->
+    GunOptions.
 
 %% Option-only conversion leaves Auto (`transport_option, auto`) unresolved.
 %% Port-aware preparation then selects TLS on 443 and TCP elsewhere, matching
