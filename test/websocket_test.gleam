@@ -1050,6 +1050,32 @@ pub fn websocket_upgrade_options_rejects_unknown_default_protocol_modules_before
   Nil
 }
 
+pub fn websocket_upgrade_options_preserves_subprotocol_order_case_and_standard_handler_test() -> Nil {
+  let actual =
+    websocket.upgrade_options()
+    |> websocket.with_subprotocols(["chat", "Chat", "superchat"])
+    |> websocket.upgrade_options_to_ffi
+    |> capture_ws_upgrade_options
+  let expected =
+    Ok(
+      captured_ws_options(
+        compress: None,
+        silence_pings: None,
+        flow: None,
+        keepalive: None,
+        closing_timeout: None,
+        default_protocol: None,
+        protocols: [
+          #("chat", "gun_ws_h"),
+          #("Chat", "gun_ws_h"),
+          #("superchat", "gun_ws_h"),
+        ],
+      ),
+    )
+  let assert True = actual == expected
+  Nil
+}
+
 pub fn websocket_upgrade_options_rejects_unknown_protocol_modules_before_calling_gun_test() -> Nil {
   let actual_92 = {
     websocket.upgrade_options()
