@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Pass IPv4 and IPv6 literals, including bracketed IPv6, to Gun as address tuples. This prevents numeric TLS SNI and gives IPv6 HTTP authorities the required brackets. Preserve absolute DNS names for lookup but remove the final root dot from derived SNI. Explicit SNI and certificate identity checks are unchanged."

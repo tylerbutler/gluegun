@@ -17,7 +17,7 @@ connection:
 | `cacerts` | OS trust store through `public_key:cacerts_get/0` |
 | `versions` | `[tlsv1.3, tlsv1.2]` |
 | `depth` | `10` |
-| `server_name_indication` | The host given to `connection.open` (not set for IP literals) |
+| `server_name_indication` | The DNS host without its final root dot (not set for IP literals) |
 | `customize_hostname_check` | HTTPS match function from `public_key:pkix_verify_hostname_match_fun(https)` |
 
 Thus the minimum HTTPS setup is:
@@ -34,6 +34,18 @@ pub fn open_secure() {
 
 Fields that you set on `tls.TlsOptions` always replace the defaults. The
 baseline fills each field that you do not set.
+
+`connection.open` accepts IPv4 text and IPv6 text with or without brackets,
+such as `127.0.0.1`, `::1`, and `[::1]`. Gluegun passes these as address tuples
+to Gun. IPv6 HTTP authorities then use brackets, such as `[::1]:8443`.
+IP connections keep certificate chain and IP identity verification; they do
+not disable SNI to bypass verification. The certificate must identify the
+target IP unless you set an explicit DNS identity with `ServerName`.
+
+An absolute DNS name such as `service.example.` keeps its final root dot for
+DNS lookup. Only the derived SNI removes that dot: `service.example`.
+An explicit `ServerName` is passed through unchanged and selects the TLS
+certificate identity as well as SNI.
 
 `public_key:cacerts_get/0` is available on OTP 25 and newer. Gluegun
 currently pins OTP 27 in CI. If no system trust store is available (for
@@ -103,7 +115,8 @@ depth comes from configuration.
 
 Gluegun rejects disabled SNI with `VerifyPeer`, including the default verifying
 mode. OTP disables hostname verification along with SNI, so this combination
-cannot meet the verifying contract. Use a valid `ServerName` for verified TLS.
+cannot meet the verifying contract. Leave SNI unset for the target identity,
+or use a valid `ServerName` to select a DNS identity for verified TLS.
 `tls.insecure()` remains a development-only verification bypass.
 
 `with_ciphers` sets an explicit list of permitted cipher suite names. At least
