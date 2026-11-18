@@ -205,7 +205,7 @@ Open a Gun connection to `host:port`.
  or a configured reply receiver; this does not change the owner.
 
  Errors:
- - `InvalidOptions` — Gun rejected the converted options.
+ - `InvalidOptions` — the protocol list is empty or Gun rejected the options.
  - `ErlangError` — Gun could not spawn the connection process.
 
 ```gleam
@@ -305,7 +305,9 @@ pub fn with_domain_lookup_timeout(
 
 Set HTTP protocol preference ordering for a connection.
 
- The list order is preserved when options are passed to Gun.
+ TLS preserves the list for protocol negotiation. Plain TCP uses only the
+ first protocol, with no fallback. This also applies when `Auto` selects TCP.
+ An empty list makes `open` return `InvalidOptions`.
 
 ```gleam
 pub fn with_protocols(
