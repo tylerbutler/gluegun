@@ -1127,6 +1127,32 @@ pub fn websocket_rejection_rejects_frame_and_batch_byte_and_seven_bits_close_wit
   Nil
 }
 
+pub fn websocket_rejects_frames_after_close_without_casting_test() -> Nil {
+  let socket = websocket.socket(current_connection(), stream_ref(), timeout())
+  let result =
+    websocket.send_many(socket, [
+      message.Text("first"),
+      message.Close,
+      message.Text("last"),
+    ])
+  let assert False = has_payload_cast()
+  let assert Error(error.InvalidMessage("InvalidFrame(CloseNotLast)")) = result
+  Nil
+}
+
+pub fn websocket_rejects_frames_after_close_with_reason_without_casting_test() -> Nil {
+  let socket = websocket.socket(current_connection(), stream_ref(), timeout())
+  let result =
+    websocket.send_many(socket, [
+      message.Text("first"),
+      message.CloseWithReason(1000, <<"bye":utf8>>),
+      message.Text("last"),
+    ])
+  let assert False = has_payload_cast()
+  let assert Error(error.InvalidMessage("InvalidFrame(CloseNotLast)")) = result
+  Nil
+}
+
 pub fn socket_helpers_share_byte_validation_test() -> Nil {
   let socket = websocket.socket(current_connection(), stream_ref(), timeout())
   list.each([websocket.send_binary, websocket.ping, websocket.pong], fn(send) {
