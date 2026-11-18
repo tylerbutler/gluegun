@@ -17,6 +17,9 @@ gleam run -- --header "accept: application/json" https://api.github.com/
 gleam run -- --timeout 750 --body-bytes 128 https://example.com/
 ```
 
+URLs must use HTTP or HTTPS and include a non-empty host. `--timeout` accepts
+0 through 4294967295 milliseconds, inclusive.
+
 ## Tests
 
 Run the Unitest suite from this directory:

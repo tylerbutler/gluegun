@@ -282,12 +282,25 @@ pub fn upgrade_options() -> UpgradeOptions {
 /// An explicit upgrade `with_keepalive` setting takes precedence over
 /// `connection.with_websocket_keepalive` and is applied when opening.
 /// If absent, the connection setting or Gun's default (no pings) is preserved.
+///
+/// The caller must receive the handshake. A `reply_to` PID other than the
+/// caller returns `InvalidOptions` before opening a connection, even with
+/// `Infinity`. For another receiver, use `upgrade`, then `await_upgrade` and
+/// `from_upgrade` in that receiver.
 pub fn connect(
   host host: String,
   port port: Int,
   path path: String,
   options options: Options,
 ) -> Result(Socket, error.GluegunError) {
+  let caller = process.self()
+  use _ <- result.try(case options.upgrade_options.reply_to {
+    Some(receiver) if receiver != caller ->
+      Error(error.InvalidOptions(
+        "WebSocket connect requires reply_to to be the calling process; use upgrade and await_upgrade for another receiver",
+      ))
+    Some(_) | None -> Ok(Nil)
+  })
   use opened_connection <- result.try(connection.open(
     connect_options(options),
     host: host,
@@ -351,6 +364,9 @@ fn close_on_error(
 /// or raises an Erlang exception, teardown uses a finite close deadline before
 /// re-raising the original exception class, reason, and stack. Cleanup cannot
 /// replace it.
+///
+/// Like `connect`, rejects a different `reply_to` PID with `InvalidOptions`
+/// before opening a connection or calling the callback.
 pub fn with_socket(
   host host: String,
   port port: Int,
@@ -475,6 +491,10 @@ pub fn with_subprotocols(
 /// `gun_down`; those still go only to the process that opened the connection.
 /// A non-owner receiver can get a close error after a successful handshake;
 /// see `close`. Keep the connection owner alive for the socket's lifetime.
+///
+/// `connect` and `with_socket` accept only the caller's PID. To delegate
+/// reception, use `upgrade`, then `await_upgrade` and `from_upgrade` in the
+/// receiver.
 pub fn with_reply_to(
   options: UpgradeOptions,
   receiver receiver: Pid,
