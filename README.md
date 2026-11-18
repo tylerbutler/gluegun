@@ -422,6 +422,18 @@ To upgrade an existing connection, use `websocket.upgrade` with its negotiated
 protocol and upgrade options, then `await_upgrade` and `from_upgrade`. Use
 the same Socket frame and close operations after adoption.
 
+Automatic keepalive pings are off by default (`infinity()`). For `connect`
+and `with_socket`, set `websocket.with_keepalive` on the upgrade options
+passed to `websocket.with_upgrade_options`. The helpers apply it when opening
+the connection. An explicit upgrade setting overrides
+`connection.with_websocket_keepalive`; without one, the connection setting or
+default is preserved. Keepalive does not change the caller's receive timeout.
+
+For low-level upgrades, set `connection.with_websocket_keepalive` before
+`connection.open`. Passing `websocket.with_keepalive` directly to
+`websocket.upgrade` now returns `InvalidOptions`, including for `infinity()`:
+Gun cannot change its connection timer through upgrade options.
+
 See `examples/websocket_echo` for a fuller WebSocket example.
 
 ## Error handling

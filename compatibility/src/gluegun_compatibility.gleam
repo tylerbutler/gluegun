@@ -49,7 +49,9 @@ pub fn main() -> Nil {
     with_websocket_server(fn(port) {
       use timeout <- result.try(connection.milliseconds(2000))
       use connection <- result.try(
-        connection.options() |> connection.open(host: "127.0.0.1", port: port),
+        connection.options()
+        |> connection.with_websocket_keepalive(timeout)
+        |> connection.open(host: "127.0.0.1", port: port),
       )
       let exchange = {
         use protocol <- result.try(connection.await_up(connection, timeout))
@@ -68,12 +70,16 @@ pub fn main() -> Nil {
 
 /// Exercise finite-credit close after coalesced queued application frames.
 pub fn websocket_roundtrip(port: Int) -> Result(Nil, error.GluegunError) {
+  use interval <- result.try(connection.milliseconds(2000))
   use upgrade <- result.try(upgrade_options())
   websocket.with_socket(
     host: "127.0.0.1",
     port: port,
     path: "/",
-    options: websocket.options() |> websocket.with_upgrade_options(upgrade),
+    options: websocket.options()
+      |> websocket.with_upgrade_options(
+        upgrade |> websocket.with_keepalive(interval),
+      ),
     callback: check_socket,
   )
 }
