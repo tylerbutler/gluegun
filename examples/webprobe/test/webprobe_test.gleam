@@ -201,26 +201,41 @@ pub fn report_formatting_renders_invalid_utf_8_bodies_as_byte_arrays_test() -> N
   Nil
 }
 
-pub fn runner_request_construction_prefers_http_2_only_for_tls_urls_when_requested_test() -> Nil {
-  let config =
-    cli.Config(
-      url: "https://example.com",
-      method: http.Get,
-      headers: [],
-      timeout: timeout(5000),
-      prefer_http2: True,
-      body_preview_bytes: 512,
-    )
-
+pub fn runner_request_construction_defaults_https_to_http_1_test() -> Nil {
+  let assert Ok(config) = cli.parse(["https://example.com"])
   let assert Ok(parsed) = url.parse(config.url)
 
-  let actual_13 = {
-    runner.connect_options(config, parsed)
-    |> connection.protocols
-  }
-  let expected_13 = Some([connection.Http2, connection.Http1])
-  let assert #(True, _, _) = #(actual_13 == expected_13, actual_13, expected_13)
-  Nil
+  let options = runner.connect_options(config, parsed)
+  assert connection.protocols(options) == Some([connection.Http1])
+  assert connection.transport(options) == connection.Tls
+}
+
+pub fn runner_request_construction_prefers_http_2_for_https_when_requested_test() -> Nil {
+  let assert Ok(config) = cli.parse(["--http2", "https://example.com"])
+  let assert Ok(parsed) = url.parse(config.url)
+
+  let options = runner.connect_options(config, parsed)
+  assert connection.protocols(options)
+    == Some([connection.Http2, connection.Http1])
+  assert connection.transport(options) == connection.Tls
+}
+
+pub fn runner_request_construction_defaults_http_to_http_1_test() -> Nil {
+  let assert Ok(config) = cli.parse(["http://example.com"])
+  let assert Ok(parsed) = url.parse(config.url)
+
+  let options = runner.connect_options(config, parsed)
+  assert connection.protocols(options) == Some([connection.Http1])
+  assert connection.transport(options) == connection.Tcp
+}
+
+pub fn runner_request_construction_keeps_http_1_for_cleartext_with_http2_flag_test() -> Nil {
+  let assert Ok(config) = cli.parse(["--http2", "http://example.com"])
+  let assert Ok(parsed) = url.parse(config.url)
+
+  let options = runner.connect_options(config, parsed)
+  assert connection.protocols(options) == Some([connection.Http1])
+  assert connection.transport(options) == connection.Tcp
 }
 
 pub fn runner_request_construction_builds_the_gluegun_request_from_parsed_config_and_url_test() -> Nil {
