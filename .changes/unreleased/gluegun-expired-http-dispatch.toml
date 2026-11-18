@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Return Timeout before dispatch when an HTTP client request budget has expired, so zero-budget requests do not reach the server. A later timeout cannot undo a request already sent."

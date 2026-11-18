@@ -49,6 +49,26 @@ pub fn url_parsing_rejects_unsupported_schemes_test() -> Nil {
   Nil
 }
 
+pub fn url_parsing_rejects_a_missing_host_test() -> Nil {
+  assert url.parse("/ping") == Error("URL must include a host")
+}
+
+pub fn url_parsing_rejects_an_empty_http_host_test() -> Nil {
+  assert url.parse("http:///ping") == Error("URL must include a host")
+}
+
+pub fn url_parsing_rejects_an_empty_http_host_with_a_port_test() -> Nil {
+  assert url.parse("http://:8080/health") == Error("URL must include a host")
+}
+
+pub fn url_parsing_rejects_an_empty_https_host_test() -> Nil {
+  assert url.parse("https:///ping") == Error("URL must include a host")
+}
+
+pub fn url_parsing_rejects_an_empty_https_host_with_a_port_test() -> Nil {
+  assert url.parse("https://:8443/health") == Error("URL must include a host")
+}
+
 pub fn cli_parsing_parses_a_default_get_probe_test() -> Nil {
   let actual_5 = cli.parse(["https://example.com"])
   let expected_5 =
@@ -125,9 +145,26 @@ pub fn cli_parsing_rejects_negative_body_preview_sizes_test() -> Nil {
 
 pub fn cli_parsing_rejects_negative_timeouts_test() -> Nil {
   let actual_9 = cli.parse(["--timeout", "-1", "https://example.com"])
-  let expected_9 = Error("Timeout must be zero or greater")
+  let expected_9 =
+    Error("Timeout must be between 0 and 4294967295 milliseconds, inclusive")
   let assert #(True, _, _) = #(actual_9 == expected_9, actual_9, expected_9)
   Nil
+}
+
+pub fn cli_parsing_accepts_a_zero_timeout_test() -> Nil {
+  let assert Ok(config) = cli.parse(["--timeout", "0", "https://example.com"])
+  assert config.timeout == timeout(0)
+}
+
+pub fn cli_parsing_accepts_the_maximum_timeout_test() -> Nil {
+  let assert Ok(config) =
+    cli.parse(["--timeout", "4294967295", "https://example.com"])
+  assert config.timeout == timeout(4_294_967_295)
+}
+
+pub fn cli_parsing_rejects_a_timeout_above_the_maximum_test() -> Nil {
+  assert cli.parse(["--timeout", "4294967296", "https://example.com"])
+    == Error("Timeout must be between 0 and 4294967295 milliseconds, inclusive")
 }
 
 pub fn cli_parsing_documents_the_header_option_in_help_text_test() -> Nil {

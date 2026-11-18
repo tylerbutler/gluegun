@@ -24,6 +24,8 @@ pub fn parse(input: String) -> Result(ParsedUrl, String) {
   ) = parsed
 
   case host, scheme {
+    Some(""), _ -> Error("URL must include a host")
+
     Some(host), Some("http") ->
       Ok(ParsedUrl(
         host: host,

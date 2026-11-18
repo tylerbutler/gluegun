@@ -5,7 +5,59 @@
     remember_connection/1, remembered_connection/0, error_paths/0, with_tls_server/1,
     assert_exception_cleanup/2, assert_scoped_exception/2,
     cleanup_guard_paths/0,
-    with_control_frames/2, queue_control_frame/0]).
+    with_control_frames/2, queue_control_frame/0, with_unopened_server/1]).
+
+%% The parent remains a live, distinct reply_to receiver throughout the call.
+%% Keep the caller alive after returning so owned Gun processes are observable.
+%% Unlike with_server, a successful callback must never contact this listener.
+with_unopened_server(Callback) ->
+    checked(fun() ->
+        {ok, Listener} = gen_tcp:listen(0, [binary, {active, false},
+            {ip, {127, 0, 0, 1}}, {reuseaddr, true}]),
+        {ok, {_, Port}} = inet:sockname(Listener),
+        Parent = self(),
+        Ref = make_ref(),
+        {Caller, Monitor} = spawn_monitor(fun() ->
+            Outcome = try {returned, Callback(Port, Parent)}
+                catch Class:Reason:Stack -> {raised, Class, Reason, Stack}
+                end,
+            Parent ! {Ref, self(), Outcome},
+            receive {Ref, stop} -> ok end
+        end),
+        try
+            receive
+                {Ref, Caller, {returned, Result}} ->
+                    [] = caller_connections(Caller),
+                    case gen_tcp:accept(Listener, 0) of
+                        {error, timeout} -> Result;
+                        {ok, Socket} ->
+                            gen_tcp:close(Socket),
+                            error(unexpected_tcp_connection)
+                    end;
+                {Ref, Caller, {raised, Class, Reason, Stack}} ->
+                    erlang:raise(Class, Reason, Stack);
+                {'DOWN', Monitor, process, Caller, Reason} ->
+                    error({websocket_caller_exited, Reason})
+            after 500 ->
+                error(websocket_call_watchdog_timeout)
+            end
+        after
+            %% Capture ownership before killing the caller; then forcibly stop
+            %% its connections rather than waiting for Gun's graceful shutdown.
+            Connections = caller_connections(Caller),
+            stop_server(Caller, Monitor),
+            lists:foreach(fun(Connection) ->
+                ConnectionMonitor = monitor(process, Connection),
+                stop_server(Connection, ConnectionMonitor)
+            end, Connections),
+            gen_tcp:close(Listener),
+            receive {Ref, Caller, _} -> ok after 0 -> ok end
+        end
+    end).
+
+caller_connections(Caller) ->
+    [Pid || {_, Pid, _, _} <- supervisor:which_children(gun_conns_sup),
+        is_pid(Pid), owned_by(Pid, Caller)].
 
 queue_control_frame() ->
     Connection = self(),
