@@ -152,6 +152,11 @@ Open a Gun connection, perform a WebSocket upgrade, and return a reusable
  Defaults to HTTP/1.1; HTTP/2 is rejected with `UnsupportedFeature`
  because Gun does not support WebSocket over HTTP/2.
 
+ The caller must receive the handshake. A `reply_to` PID other than the
+ caller returns `InvalidOptions` before opening a connection, even with
+ `Infinity`. For another receiver, use `upgrade`, then `await_upgrade` and
+ `from_upgrade` in that receiver.
+
 ```gleam
 pub fn connect(
   host: String,
@@ -447,6 +452,10 @@ Deliver upgrade and frame messages to this process. That receiver must
  A non-owner receiver can get a close error after a successful handshake;
  see `close`. Keep the connection owner alive for the socket's lifetime.
 
+ `connect` and `with_socket` accept only the caller's PID. To delegate
+ reception, use `upgrade`, then `await_upgrade` and `from_upgrade` in the
+ receiver.
+
 ```gleam
 pub fn with_reply_to(
   UpgradeOptions,
@@ -477,6 +486,9 @@ Open a WebSocket, run a callback, then send the close frame and close
  or raises an Erlang exception, teardown uses a finite close deadline before
  re-raising the original exception class, reason, and stack. Cleanup cannot
  replace it.
+
+ Like `connect`, rejects a different `reply_to` PID with `InvalidOptions`
+ before opening a connection or calling the callback.
 
 ```gleam
 pub fn with_socket(

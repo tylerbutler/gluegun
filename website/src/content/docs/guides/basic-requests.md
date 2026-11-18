@@ -40,6 +40,8 @@ target such as `/items?tag=a%2Fb&tag=c`; Gluegun sends it without encoding the
 path or query again. Bodies must be byte-aligned `BitArray` values, with no
 UTF-8 requirement. `client.with_timeout` sets one total budget for dispatch
 and response collection; informational responses and body chunks do not restart it.
+An expired budget, including zero, returns `Timeout` before dispatch.
+A later timeout cannot undo a request already sent. `Infinity` has no limit.
 
 Gluegun retains this custom request type to avoid repeating the connection's
 destination. Standard `gleam/http/request.Request` values and converter
