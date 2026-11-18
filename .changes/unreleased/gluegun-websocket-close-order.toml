@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Reject WebSocket send_many batches with a frame after Close or CloseWithReason before sending any frames, instead of letting Gun silently discard the later frames."
