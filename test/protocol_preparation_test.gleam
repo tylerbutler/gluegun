@@ -1,4 +1,6 @@
+import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order
 import gluegun/client
 import gluegun/connection
 import gluegun/error
@@ -273,7 +275,24 @@ fn assert_prepared(
       port,
       connection.options_to_ffi(options),
     )
-  assert actual == Ok(#(transport, protocols))
+  case actual, transport, protocols {
+    Ok(#(connection.Tls, Some(prepared))), connection.Tls, Some(expected) -> {
+      // Check TLS retention without requiring Gun's internal ALPN list order.
+      let compare = fn(left, right) {
+        case left, right {
+          connection.Http1, connection.Http1
+          | connection.Http2, connection.Http2
+          -> order.Eq
+          connection.Http1, connection.Http2 -> order.Lt
+          connection.Http2, connection.Http1 -> order.Gt
+        }
+      }
+      assert list.sort(prepared, compare) == list.sort(expected, compare)
+    }
+    _, _, _ -> {
+      assert actual == Ok(#(transport, protocols))
+    }
+  }
 }
 
 fn assert_empty_rejected(options: connection.ConnectOptions, port: Int) -> Nil {
