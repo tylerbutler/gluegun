@@ -269,6 +269,12 @@ pub fn tls_options(options: ConnectOptions) -> Option(tls.TlsOptions) {
 
 /// Open a Gun connection to `host:port`.
 ///
+/// Accepts DNS names, IPv4 text, and IPv6 text with or without brackets.
+/// IP literals are passed to Gun as address tuples so IPv6 HTTP authorities
+/// have brackets. DNS lookup keeps the supplied name, including a final root
+/// dot. Derived TLS SNI omits that dot; explicit SNI settings are unchanged.
+/// TLS certificate identity checks remain enabled for DNS names and IPs.
+///
 /// Returns immediately with a `Connection` handle; the underlying TCP/TLS
 /// handshake completes asynchronously. Call `await_up` before sending any
 /// request or WebSocket upgrade.
