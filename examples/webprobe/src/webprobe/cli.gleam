@@ -103,7 +103,9 @@ fn timeout_opt() -> opt.Opt(connection.Timeout) {
   |> opt.int
   |> opt.try_map(fn(milliseconds) {
     connection.milliseconds(milliseconds)
-    |> result.map_error(fn(_) { "Timeout must be zero or greater" })
+    |> result.map_error(fn(_) {
+      "Timeout must be between 0 and 4294967295 milliseconds, inclusive"
+    })
   })
   |> opt.default(default_timeout())
 }
