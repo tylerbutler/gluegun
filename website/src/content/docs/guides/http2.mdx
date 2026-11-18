@@ -12,7 +12,11 @@ Use TLS and put `Http2` before `Http1`. Gun then selects HTTP/2 when possible an
 
 TLS ALPN (Application-Layer Protocol Negotiation) selects the protocol. When you list `[Http2, Http1]`, Gun advertises `h2` and `http/1.1` in the TLS ClientHello. The server selects one. `connection.await_up` returns the selected protocol. If the server advertises only HTTP/1.1, Gun negotiates HTTP/1.1 and `await_up` returns `Http1`.
 
-Plain TCP (`connection.Tcp`) does not negotiate. Gun uses the first protocol in the list.
+Plain TCP (`connection.Tcp`) does not negotiate. Gluegun passes only the first
+protocol in the list to Gun, with no fallback. This also applies when
+`connection.Auto` selects TCP on a non-443 port without configured TLS options.
+An explicit empty protocol list makes `connection.open` return `InvalidOptions`
+before it starts a Gun process. Omit `with_protocols` to keep Gun's default.
 
 <Code code={guideSource} lang="gleam" />
 
