@@ -210,6 +210,8 @@ Set the total request budget, including dispatch and all response messages.
 
  Informational responses and body chunks do not restart the budget.
  `Infinity` has no limit. Collection still keeps the complete body in memory.
+ An expired budget returns `Timeout` before dispatch. A later timeout cannot
+ undo a request that was already sent.
 
 ```gleam
 pub fn with_timeout(
