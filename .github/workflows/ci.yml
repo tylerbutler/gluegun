@@ -192,6 +192,7 @@ jobs:
         run: |
           mise exec "gleam@$GLEAM_VERSION" "erlang@$ERLANG_VERSION" -- gleam deps update
           mise exec "gleam@$GLEAM_VERSION" "erlang@$ERLANG_VERSION" -- gleam test -- test/bounded_streaming_test.gleam
+          mise exec "gleam@$GLEAM_VERSION" "erlang@$ERLANG_VERSION" -- gleam test -- test/http2_test.gleam
 
   docs:
     needs: changes
