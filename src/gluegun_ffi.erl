@@ -569,7 +569,15 @@ validate_utf8(IoData) ->
         {incomplete, _Encoded, _Rest} -> {error, invalid_utf8}
     end.
 
-normalize_host(Host) when is_binary(Host) -> unicode:characters_to_list(Host);
+normalize_host(Host) when is_binary(Host) ->
+    normalize_host(unicode:characters_to_list(Host));
+normalize_host(Host) when is_list(Host) ->
+    %% Gun recognizes IP origins by their tuple representation. Leaving text
+    %% here would reintroduce numeric SNI and leave IPv6 authorities unbracketed.
+    case inet:parse_address(strip_ipv6_brackets(Host)) of
+        {ok, Address} -> Address;
+        {error, _} -> Host
+    end;
 normalize_host(Host) -> Host.
 
 %% --- Connection options -----------------------------------------------------
@@ -798,7 +806,13 @@ sni_for_host(Host) ->
         _ ->
             case inet:parse_address(strip_ipv6_brackets(HostStr)) of
                 {ok, _IP} -> skip;
-                {error, _} -> {ok, HostStr}
+                {error, _} ->
+                    %% Preserve the DNS lookup spelling; only derived SNI
+                    %% omits the terminal root dot. Explicit SNI bypasses this.
+                    case lists:reverse(HostStr) of
+                        [$. | Rest] -> {ok, lists:reverse(Rest)};
+                        _ -> {ok, HostStr}
+                    end
             end
     end.
 
