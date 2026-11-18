@@ -44,7 +44,8 @@ fn offered_protocols(flags: List(String)) -> Result(List(String), String) {
     with_listener(fn(listener, port) {
       capture_client_hello(listener, fn() {
         let endpoint = "https://127.0.0.1:" <> int.to_string(port) <> "/"
-        use config <- result.try(cli.parse(list.append(flags, [endpoint])))
+        use command <- result.try(cli.parse(list.append(flags, [endpoint])))
+        let assert cli.Probe(config) = command
         use parsed <- result.try(url.parse(config.url))
         runner.connect_options(config, parsed)
         |> connection.open(host: parsed.host, port: parsed.port)
