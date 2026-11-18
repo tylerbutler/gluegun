@@ -52,14 +52,16 @@ pub fn url_parsing_rejects_unsupported_schemes_test() -> Nil {
 pub fn cli_parsing_parses_a_default_get_probe_test() -> Nil {
   let actual_5 = cli.parse(["https://example.com"])
   let expected_5 =
-    Ok(cli.Config(
-      url: "https://example.com",
-      method: http.Get,
-      headers: [],
-      timeout: timeout(5000),
-      prefer_http2: False,
-      body_preview_bytes: 512,
-    ))
+    Ok(
+      cli.Probe(cli.Config(
+        url: "https://example.com",
+        method: http.Get,
+        headers: [],
+        timeout: timeout(5000),
+        prefer_http2: False,
+        body_preview_bytes: 512,
+      )),
+    )
   let assert #(True, _, _) = #(actual_5 == expected_5, actual_5, expected_5)
   Nil
 }
@@ -81,17 +83,19 @@ pub fn cli_parsing_parses_method_headers_timeout_http_2_preference_and_body_size
       "https://example.com/api",
     ])
   let expected_6 =
-    Ok(cli.Config(
-      url: "https://example.com/api",
-      method: http.Head,
-      headers: [
-        #("accept", "application/json"),
-        #("x-trace", "abc"),
-      ],
-      timeout: timeout(750),
-      prefer_http2: True,
-      body_preview_bytes: 64,
-    ))
+    Ok(
+      cli.Probe(cli.Config(
+        url: "https://example.com/api",
+        method: http.Head,
+        headers: [
+          #("accept", "application/json"),
+          #("x-trace", "abc"),
+        ],
+        timeout: timeout(750),
+        prefer_http2: True,
+        body_preview_bytes: 64,
+      )),
+    )
   let assert #(True, _, _) = #(actual_6 == expected_6, actual_6, expected_6)
   Nil
 }
@@ -101,6 +105,15 @@ pub fn cli_parsing_rejects_malformed_headers_test() -> Nil {
   let expected_7 = Error("Header must use name:value format")
   let assert #(True, _, _) = #(actual_7 == expected_7, actual_7, expected_7)
   Nil
+}
+
+pub fn cli_parsing_recognises_help_test() -> Nil {
+  assert cli.parse(["--help"]) == Ok(cli.Help)
+  assert cli.parse(["-h"]) == Ok(cli.Help)
+}
+
+pub fn cli_parsing_preserves_leading_help_precedence_test() -> Nil {
+  assert cli.parse(["--help", "--header", "missing-colon"]) == Ok(cli.Help)
 }
 
 pub fn cli_parsing_rejects_negative_body_preview_sizes_test() -> Nil {

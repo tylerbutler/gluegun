@@ -7,6 +7,11 @@ It opens a Gun connection with Gluegun, waits for protocol negotiation, sends on
 HTTP request, collects the response, and prints the negotiated protocol, status,
 headers, and a response body preview.
 
+The command exits with status `0` after a complete HTTP response, including
+HTTP 4xx and 5xx responses, or when you use `--help` or `-h`. Invalid arguments,
+invalid URLs, connection failures, and request failures return a nonzero exit
+status. Help and probe results go to stdout; errors go to stderr.
+
 ## Usage
 
 ```sh
@@ -38,7 +43,12 @@ Build a single escript file with `gleescript`:
 gleam build
 gleam run -m gleescript -- --out=dist
 ./dist/webprobe --help
+python3 -B test/webprobe_process_test.py
 ```
+
+The Python checks run the packaged executable against local peers. They check
+exit status, help output, usage errors, connection and request failures, and
+complete HTTP 200, 404, and 500 responses. `just examples-build` also runs them.
 
 The generated escript is a single executable file, but it still requires an
 Erlang/OTP runtime on the target machine. Package managers such as Homebrew can
