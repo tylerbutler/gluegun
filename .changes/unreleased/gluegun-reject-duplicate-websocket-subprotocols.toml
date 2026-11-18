@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Reject exact duplicate WebSocket subprotocol names with InvalidOptions before sending the upgrade. Distinct-case names and preference order remain unchanged. Remove repeated names from subprotocol offers."
