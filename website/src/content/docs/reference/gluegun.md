@@ -19,7 +19,7 @@ Wait for connection readiness and the negotiated HTTP protocol.
 
 ```gleam
 pub fn await_up(
-  internal.Connection,
+  connection.Connection,
   connection.Timeout
 ) -> Result(connection.Protocol, error.GluegunError)
 ```
@@ -37,7 +37,7 @@ pub fn body_text(response.Response(BitArray)) -> Result(String, error.GluegunErr
 Stop the connection through Gun's supervisor; this does not flush messages.
 
 ```gleam
-pub fn close(internal.Connection) -> Result(Nil, error.GluegunError)
+pub fn close(connection.Connection) -> Result(Nil, error.GluegunError)
 ```
 
 ### `connection_options`
@@ -86,7 +86,7 @@ pub fn open(
   connection.ConnectOptions,
   host: String,
   port: Int
-) -> Result(internal.Connection, error.GluegunError)
+) -> Result(connection.Connection, error.GluegunError)
 ```
 
 ### `send`
@@ -96,7 +96,7 @@ Send a request and collect its complete HTTP response in memory.
 ```gleam
 pub fn send(
   client.Request,
-  connection: internal.Connection
+  connection: connection.Connection
 ) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
@@ -105,7 +105,7 @@ pub fn send(
 Request graceful asynchronous shutdown.
 
 ```gleam
-pub fn shutdown(internal.Connection) -> Result(Nil, error.GluegunError)
+pub fn shutdown(connection.Connection) -> Result(Nil, error.GluegunError)
 ```
 
 ### `terminate`
@@ -113,5 +113,5 @@ pub fn shutdown(internal.Connection) -> Result(Nil, error.GluegunError)
 Force connection exit and flush its queued messages from this receiver.
 
 ```gleam
-pub fn terminate(internal.Connection) -> Result(Nil, error.GluegunError)
+pub fn terminate(connection.Connection) -> Result(Nil, error.GluegunError)
 ```
