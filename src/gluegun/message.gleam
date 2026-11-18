@@ -65,7 +65,8 @@ pub type Message {
   /// `Data(NoFin, ...)` messages, with no separate `Data(Fin, ...)`.
   Trailers(headers: List(Header))
   /// An HTTP/2 server push. The `stream` is a new stream the caller may
-  /// await or cancel.
+  /// await or cancel. Method names are case-sensitive: `GET` becomes
+  /// `gleam/http.Get`, while `get` becomes `gleam/http.Other("get")`.
   Push(stream: Stream, method: Method, uri: String, headers: List(Header))
   /// A successful protocol upgrade. Subsequent messages on this stream use
   /// the new protocol (e.g. WebSocket).
