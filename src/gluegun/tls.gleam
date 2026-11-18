@@ -165,7 +165,12 @@ pub fn with_versions(
   TlsOptions(..options, versions: Some(versions))
 }
 
-/// Set TLS cipher suite names.
+/// Set the permitted TLS cipher suite names.
+///
+/// On open, at least one suite must be usable with the effective TLS versions.
+/// An empty list or a list with no usable suite returns `InvalidOptions` before
+/// Gun starts. Mixed lists are accepted when at least one suite is usable.
+/// Leave ciphers unset to use OTP defaults.
 pub fn with_ciphers(
   options: TlsOptions,
   ciphers ciphers: List(String),

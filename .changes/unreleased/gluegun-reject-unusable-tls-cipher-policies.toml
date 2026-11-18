@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Reject explicit TLS cipher lists with no suite usable for the effective TLS versions before starting Gun, instead of allowing OTP to fall back to default suites. Omit the cipher list to keep OTP defaults."
