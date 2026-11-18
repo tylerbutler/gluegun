@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Fix the README streamed-upload example to skip informational responses before collecting the final response body."

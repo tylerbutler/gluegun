@@ -23,13 +23,22 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
+      - name: Find pull request merge base
+        if: github.event_name == 'pull_request'
+        id: merge-base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          merge_base="$(git merge-base "$BASE_SHA" HEAD)"
+          echo "sha=$merge_base" >> "$GITHUB_OUTPUT"
+
       - name: Select checks
         if: github.event_name == 'pull_request'
         id: select
         uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # ratchet:dorny/paths-filter@v3
         with:
           token: ""
-          base: ${{ github.event.pull_request.base.sha }}
+          base: ${{ steps.merge-base.outputs.sha }}
           predicate-quantifier: every
           filters: |
             full:
