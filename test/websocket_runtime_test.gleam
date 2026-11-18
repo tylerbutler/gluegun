@@ -1,11 +1,216 @@
+import gleam/erlang/process
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/result
 import gluegun/connection
 import gluegun/error
 import gluegun/message
 import gluegun/request
 import gluegun/tls
 import gluegun/websocket
+
+type SynchronousCall {
+  Connect
+  WithSocket
+}
+
+pub fn connect_rejects_another_reply_to_before_opening_test() -> Nil {
+  rejects_another_reply_to(Connect, timeout(50))
+}
+
+pub fn connect_rejects_another_reply_to_with_infinity_test() -> Nil {
+  rejects_another_reply_to(Connect, connection.infinity())
+}
+
+pub fn with_socket_rejects_another_reply_to_before_opening_test() -> Nil {
+  rejects_another_reply_to(WithSocket, timeout(50))
+}
+
+pub fn with_socket_rejects_another_reply_to_with_infinity_test() -> Nil {
+  rejects_another_reply_to(WithSocket, connection.infinity())
+}
+
+fn rejects_another_reply_to(
+  call: SynchronousCall,
+  wait: connection.Timeout,
+) -> Nil {
+  let assert Ok(Nil) =
+    with_unopened_server(fn(port, receiver) {
+      let assert True = receiver != process.self()
+      let assert True = process.is_alive(receiver)
+      let options =
+        websocket.options()
+        |> websocket.with_timeout(wait)
+        |> websocket.with_upgrade_options(
+          websocket.upgrade_options() |> websocket.with_reply_to(receiver),
+        )
+      let called = process.new_subject()
+      // The fixture's independent watchdog also bounds the Infinity cases.
+      let #(actual, elapsed) =
+        timed(fn() {
+          case call {
+            Connect ->
+              websocket.connect("127.0.0.1", port, "/", options)
+              |> result.map(fn(_) { Nil })
+            WithSocket ->
+              websocket.with_socket("127.0.0.1", port, "/", options, fn(_) {
+                process.send(called, Nil)
+                Ok(Nil)
+              })
+          }
+        })
+      let assert Error(Nil) = process.receive(called, within: 0)
+      let assert Error(error.InvalidOptions(_)) = actual
+      let assert True = elapsed < 250
+      Ok(Nil)
+    })
+  Nil
+}
+
+pub fn connect_accepts_explicit_self_reply_to_test() -> Nil {
+  let assert Ok(Nil) =
+    with_server("normal", fn(port) {
+      let assert Ok(socket) =
+        connect(
+          port,
+          websocket.upgrade_options()
+            |> websocket.with_reply_to(process.self()),
+        )
+      let exchanged = exchange_text(socket)
+      let cleanup = websocket.close(socket)
+      let assert Ok(Nil) = exchanged
+      cleanup
+    })
+  Nil
+}
+
+pub fn connect_accepts_default_reply_to_test() -> Nil {
+  let assert Ok(Nil) =
+    with_server("normal", fn(port) {
+      let assert Ok(socket) = connect(port, websocket.upgrade_options())
+      let exchanged = exchange_text(socket)
+      let cleanup = websocket.close(socket)
+      let assert Ok(Nil) = exchanged
+      cleanup
+    })
+  Nil
+}
+
+pub fn with_socket_accepts_explicit_self_reply_to_test() -> Nil {
+  let assert Ok(Nil) =
+    with_server("normal", fn(port) {
+      scoped_exchange(
+        port,
+        websocket.upgrade_options() |> websocket.with_reply_to(process.self()),
+      )
+    })
+  Nil
+}
+
+pub fn with_socket_accepts_default_reply_to_test() -> Nil {
+  let assert Ok(Nil) =
+    with_server("normal", fn(port) {
+      scoped_exchange(port, websocket.upgrade_options())
+    })
+  Nil
+}
+
+fn scoped_exchange(
+  port: Int,
+  upgrade: websocket.UpgradeOptions,
+) -> Result(Nil, error.GluegunError) {
+  websocket.with_socket(
+    "127.0.0.1",
+    port,
+    "/",
+    websocket.options()
+      |> websocket.with_timeout(timeout(500))
+      |> websocket.with_upgrade_options(upgrade),
+    exchange_text,
+  )
+}
+
+pub fn low_level_upgrade_can_delegate_handshake_and_frames_test() -> Nil {
+  let assert Ok(Nil) =
+    with_server("normal", fn(port) {
+      let ready = process.new_subject()
+      let finished = process.new_subject()
+      let receiver =
+        process.spawn_unlinked(fn() {
+          let start = process.new_subject()
+          process.send(ready, start)
+          let exchanged = case process.receive(start, within: 1000) {
+            Ok(#(connection, stream)) -> {
+              use handshake <- result.try(websocket.await_upgrade(
+                connection,
+                stream,
+                timeout(500),
+              ))
+              websocket.from_upgrade(
+                connection,
+                stream,
+                handshake,
+                timeout(500),
+              )
+              |> exchange_text
+            }
+            Error(Nil) -> Error(error.Timeout)
+          }
+          process.send(finished, exchanged)
+        })
+      let assert Ok(start) = process.receive(ready, within: 1000)
+      // This process opens and owns Gun, and stays alive during the exchange.
+      let assert Ok(connection) = open(port, 0)
+      let upgraded =
+        websocket.upgrade(
+          connection,
+          connection.Http1,
+          "/",
+          [],
+          websocket.upgrade_options() |> websocket.with_reply_to(receiver),
+        )
+      case upgraded {
+        Ok(stream) -> process.send(start, #(connection, stream))
+        Error(_) -> Nil
+      }
+      let exchanged = process.receive(finished, within: 2000)
+      // Do not assert delegated close succeeds: gun_down is owner-only.
+      // Force termination in the still-live owner after the frame exchange.
+      let cleanup = connection.terminate(connection)
+      stop_worker(receiver)
+      let assert Ok(_) = upgraded
+      let assert Ok(Ok(Nil)) = exchanged
+      cleanup
+    })
+  Nil
+}
+
+fn exchange_text(socket: websocket.Socket) -> Result(Nil, error.GluegunError) {
+  use _ <- result.try(websocket.send_text(socket, "receiver owns the stream"))
+  use frame <- result.try(websocket.receive_frame(socket))
+  case frame {
+    message.Text("receiver owns the stream") -> Ok(Nil)
+    message.Text(_)
+    | message.Binary(_)
+    | message.Ping(_)
+    | message.Pong(_)
+    | message.Close
+    | message.CloseWithReason(_, _) ->
+      Error(error.InvalidMessage("expected the echoed text"))
+  }
+}
+
+fn stop_worker(worker: process.Pid) -> Nil {
+  let monitor = process.monitor(worker)
+  process.kill(worker)
+  let stopped =
+    process.new_selector()
+    |> process.select_specific_monitor(monitor, fn(_) { Nil })
+    |> process.selector_receive(within: 1000)
+  process.demonitor_process(monitor)
+  let assert Ok(Nil) = stopped
+  Nil
+}
 
 pub fn validates_the_entire_subprotocol_list_before_cast_test() -> Nil {
   list.each(
@@ -380,6 +585,14 @@ fn with_server(
   mode: String,
   callback: fn(Int) -> Result(Nil, error.GluegunError),
 ) -> Result(Nil, error.GluegunError)
+
+@external(erlang, "gluegun_ws_close_test", "with_unopened_server")
+fn with_unopened_server(
+  callback: fn(Int, process.Pid) -> Result(Nil, error.GluegunError),
+) -> Result(Nil, error.GluegunError)
+
+@external(erlang, "gluegun_ws_close_test", "timed")
+fn timed(callback: fn() -> a) -> #(a, Int)
 
 @external(erlang, "gluegun_ws_close_test", "with_tls_server")
 fn with_tls_server(
