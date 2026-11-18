@@ -302,7 +302,7 @@ ws_upgrade(ConnPid, Path, Headers, WsOptions) ->
     try
         GunOpts = ws_options_to_gun(WsOptions),
         PathBin = validate_request_path(Path),
-        HeadersOut = validate_request_headers(Headers),
+        HeadersOut = validate_request_headers(Headers, websocket),
         with_normalize(stream_erlang, fun() ->
             try
                 case gun:ws_upgrade(ConnPid, PathBin, HeadersOut, GunOpts) of
@@ -1246,6 +1246,20 @@ validate_request_headers(Headers) ->
     ],
     reject_transfer_encoding(Normalized),
     validate_content_length(Normalized),
+    Normalized.
+
+%% Upgrades have no request body. Check validated decimal bytes rather than
+%% converting to an integer, so arbitrarily long lengths remain safe to inspect.
+validate_request_headers(Headers, websocket) ->
+    Normalized = validate_request_headers(Headers),
+    case lists:keyfind(<<"content-length">>, 1, Normalized) of
+        false -> ok;
+        {_, Value} ->
+            case lists:all(fun(Byte) -> Byte =:= $0 end, binary_to_list(Value)) of
+                true -> ok;
+                false -> error({invalid_options, {request, websocket_content_length}})
+            end
+    end,
     Normalized.
 
 validate_header_name(Name) ->

@@ -200,6 +200,9 @@ pub fn options() -> Options {
 }
 
 /// Set headers sent with the WebSocket upgrade request.
+///
+/// Upgrades have no request body. A positive `Content-Length` returns
+/// `InvalidOptions` before calling Gun; omit it or use zero.
 pub fn with_headers(
   options: Options,
   headers headers: List(Header),
@@ -549,6 +552,8 @@ pub fn upgrade_options_to_ffi(options: UpgradeOptions) -> List(UpgradeOption) {
 /// WebSocket over HTTP/2. Path, headers, subprotocol tokens, and subprotocol
 /// name uniqueness are validated before calling Gun; invalid input returns
 /// `InvalidOptions`. Subprotocol names are case-sensitive.
+/// Upgrades have no request body, so a positive `Content-Length` also returns
+/// `InvalidOptions`. An absent or zero `Content-Length` is accepted.
 /// `with_keepalive` also returns `InvalidOptions` before sending an upgrade:
 /// use `connection.with_websocket_keepalive` before `connection.open`.
 pub fn upgrade(

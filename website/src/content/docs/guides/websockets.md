@@ -163,6 +163,11 @@ follows a close frame, Gluegun returns `InvalidMessage` and sends no frames.
 
 Use the low-level functions when you already control the connection lifecycle, or when you must check the negotiated protocol before the upgrade.
 
+WebSocket upgrades have no request body. A positive `Content-Length` returns
+`InvalidOptions` before Gluegun calls Gun. Omit this header or use zero.
+Remove a positive length when you reuse headers from an HTTP request with a body.
+Ordinary HTTP requests with bodies still accept a positive length.
+
 The process that calls this example must also have opened `conn`, so it can
 receive readiness through `connection.await_up`.
 
