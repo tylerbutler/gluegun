@@ -25,6 +25,10 @@ gleam run -- --timeout 750 --body-bytes 128 https://example.com/
 URLs must use HTTP or HTTPS and include a non-empty host. `--timeout` accepts
 0 through 4294967295 milliseconds, inclusive.
 
+Probes use HTTP/1.1 by default, including HTTPS probes. Use `--http2` with
+an HTTPS URL to offer HTTP/2 with HTTP/1.1 fallback. Cleartext HTTP probes
+use HTTP/1.1 with or without `--http2`.
+
 ## Tests
 
 Run the Unitest suite from this directory:
@@ -62,4 +66,3 @@ distribute it by installing the escript and declaring an Erlang dependency.
 - CLI parsing uses `clip` and `argv`.
 - Packaging uses `gleescript`.
 - HTTP work uses `gluegun/client` on an explicit `gluegun/connection`.
-- `--http2` prefers HTTP/2 only for HTTPS URLs and allows HTTP/1.1 fallback.

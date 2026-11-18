@@ -156,6 +156,9 @@ Invalid control frames return `InvalidMessage` before Gluegun calls Gun.
 `send_many` checks the complete list before sending any frame. After a rejected
 send, you can continue to use the connection.
 
+In a `send_many` batch, `Close` or `CloseWithReason` must be last. If any frame
+follows a close frame, Gluegun returns `InvalidMessage` and sends no frames.
+
 ## Low-level upgrade flow
 
 Use the low-level functions when you already control the connection lifecycle, or when you must check the negotiated protocol before the upgrade.
