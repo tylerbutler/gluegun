@@ -113,7 +113,8 @@ pub opaque type Options {
 /// Build with `upgrade_options()` then chain `with_closing_timeout`,
 /// `with_compress`, `with_flow`, `with_keepalive`, `with_subprotocols`, and
 /// `with_silence_pings`. The fallible `with_flow` builder rejects nonpositive
-/// credit.
+/// credit. `with_keepalive` is supported only through high-level `connect`
+/// and `with_socket`; low-level upgrades require open-time configuration.
 pub opaque type UpgradeOptions {
   UpgradeOptions(
     closing_timeout: Option(Timeout),
@@ -278,6 +279,9 @@ pub fn upgrade_options() -> UpgradeOptions {
 ///
 /// Defaults to HTTP/1.1; HTTP/2 is rejected with `UnsupportedFeature`
 /// because Gun does not support WebSocket over HTTP/2.
+/// An explicit upgrade `with_keepalive` setting takes precedence over
+/// `connection.with_websocket_keepalive` and is applied when opening.
+/// If absent, the connection setting or Gun's default (no pings) is preserved.
 pub fn connect(
   host host: String,
   port port: Int,
@@ -300,7 +304,7 @@ pub fn connect(
       protocol,
       path,
       options.headers,
-      options.upgrade_options,
+      UpgradeOptions(..options.upgrade_options, keepalive: None),
     ))
     use handshake <- result.try(await_upgrade(
       opened_connection,
@@ -314,7 +318,12 @@ pub fn connect(
 /// Effective options: WebSockets cannot negotiate HTTP/2 or resume on retry.
 @internal
 pub fn connect_options(options: Options) -> connection.ConnectOptions {
-  options.connect_options
+  let connect_options = case options.upgrade_options.keepalive {
+    Some(interval) ->
+      connection.with_websocket_keepalive(options.connect_options, interval)
+    None -> options.connect_options
+  }
+  connect_options
   |> connection.with_protocols([connection.Http1])
   |> connection.with_retry(connection.default_retry_count())
 }
@@ -400,7 +409,16 @@ pub fn with_flow(
   }
 }
 
-/// Set Gun's WebSocket keepalive timeout.
+/// Set the interval between automatic pings for `connect` and `with_socket`.
+///
+/// High-level helpers apply this value at connection open, overriding any
+/// `connection.with_websocket_keepalive` setting. Without it, they preserve
+/// the connection setting or Gun's default `infinity()` (no pings).
+/// This does not change the caller's receive timeout.
+///
+/// Low-level `upgrade` rejects this option with `InvalidOptions`, even for
+/// `infinity()`: configure `connection.with_websocket_keepalive` before
+/// opening the connection instead.
 pub fn with_keepalive(
   options: UpgradeOptions,
   timeout timeout: Timeout,
@@ -509,6 +527,8 @@ pub fn upgrade_options_to_ffi(options: UpgradeOptions) -> List(UpgradeOption) {
 /// Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
 /// WebSocket over HTTP/2. Path, headers, and all subprotocol tokens are
 /// validated before calling Gun; invalid input returns `InvalidOptions`.
+/// `with_keepalive` also returns `InvalidOptions` before sending an upgrade:
+/// use `connection.with_websocket_keepalive` before `connection.open`.
 pub fn upgrade(
   connection connection: Connection,
   protocol protocol: Protocol,

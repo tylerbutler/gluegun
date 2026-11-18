@@ -359,3 +359,20 @@ pub fn with_transport(
   transport: Transport
 ) -> ConnectOptions
 ```
+
+### `with_websocket_keepalive`
+
+Set the interval between automatic WebSocket pings, in milliseconds.
+
+ Gun reads this setting from the original connection options, not the
+ upgrade options. Set it before `open`, then upgrade with
+ `websocket.upgrade_options()` without `websocket.with_keepalive`.
+ Defaults to `infinity()` (no automatic pings). This does not change
+ connection, upgrade, or frame receive timeouts.
+
+```gleam
+pub fn with_websocket_keepalive(
+  ConnectOptions,
+  interval: Timeout
+) -> ConnectOptions
+```

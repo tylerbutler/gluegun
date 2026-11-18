@@ -965,7 +965,6 @@ pub fn websocket_upgrade_options_normalizes_typed_options_before_calling_gun_tes
     |> websocket.with_flow(16)
   let actual_89 = {
     flow_options
-    |> websocket.with_keepalive(timeout(45_000))
     |> websocket.with_closing_timeout(connection.infinity())
     |> websocket.upgrade_options_to_ffi
     |> capture_ws_upgrade_options
@@ -976,7 +975,7 @@ pub fn websocket_upgrade_options_normalizes_typed_options_before_calling_gun_tes
         compress: Some(True),
         silence_pings: Some(False),
         flow: Some(16),
-        keepalive: Some("45000"),
+        keepalive: None,
         closing_timeout: Some("infinity"),
         default_protocol: None,
         protocols: [],

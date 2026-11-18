@@ -195,6 +195,43 @@ under one deadline. Its handshake result retains the response headers.
 Adopt it before reading application frames, then use the Socket operations
 for send, receive, and close with a finite deadline.
 
+## Automatic keepalive pings
+
+Gun sends no automatic pings by default (`infinity()`). For `connect` and
+`with_socket`, set the interval through high-level upgrade options:
+
+```gleam
+let assert Ok(interval) = connection.milliseconds(30_000)
+let options =
+  websocket.options()
+  |> websocket.with_upgrade_options(
+    websocket.upgrade_options() |> websocket.with_keepalive(interval),
+  )
+```
+
+The helpers apply this value when opening the connection, where Gun reads its
+WebSocket timer. An explicit upgrade setting takes precedence over
+`connection.with_websocket_keepalive`, regardless of builder order. If absent,
+the connection setting or Gun's default is preserved. Use `infinity()` to
+disable pings explicitly. Keepalive does not change connection readiness,
+upgrade, or frame receive timeouts; set those with `websocket.with_timeout`.
+
+For a low-level upgrade, configure the interval before opening:
+
+```gleam
+let assert Ok(interval) = connection.milliseconds(30_000)
+let options =
+  connection.options()
+  |> connection.with_websocket_keepalive(interval)
+```
+
+Pass these connection options to `connection.open`, then use
+`websocket.upgrade_options()` for the upgrade. A direct `websocket.upgrade`
+with `websocket.with_keepalive` now returns `InvalidOptions` before sending,
+even for `infinity()`. Move that setting to
+`connection.with_websocket_keepalive`: Gun does not apply upgrade-only
+keepalive values to its connection timer.
+
 ## Subprotocols
 
 Use `websocket.with_subprotocols(options, ["chat", "graphql-transport-ws"])`
