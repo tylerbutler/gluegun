@@ -72,14 +72,16 @@ pub fn url_parsing_rejects_an_empty_https_host_with_a_port_test() -> Nil {
 pub fn cli_parsing_parses_a_default_get_probe_test() -> Nil {
   let actual_5 = cli.parse(["https://example.com"])
   let expected_5 =
-    Ok(cli.Config(
-      url: "https://example.com",
-      method: http.Get,
-      headers: [],
-      timeout: timeout(5000),
-      prefer_http2: False,
-      body_preview_bytes: 512,
-    ))
+    Ok(
+      cli.Probe(cli.Config(
+        url: "https://example.com",
+        method: http.Get,
+        headers: [],
+        timeout: timeout(5000),
+        prefer_http2: False,
+        body_preview_bytes: 512,
+      )),
+    )
   let assert #(True, _, _) = #(actual_5 == expected_5, actual_5, expected_5)
   Nil
 }
@@ -101,17 +103,19 @@ pub fn cli_parsing_parses_method_headers_timeout_http_2_preference_and_body_size
       "https://example.com/api",
     ])
   let expected_6 =
-    Ok(cli.Config(
-      url: "https://example.com/api",
-      method: http.Head,
-      headers: [
-        #("accept", "application/json"),
-        #("x-trace", "abc"),
-      ],
-      timeout: timeout(750),
-      prefer_http2: True,
-      body_preview_bytes: 64,
-    ))
+    Ok(
+      cli.Probe(cli.Config(
+        url: "https://example.com/api",
+        method: http.Head,
+        headers: [
+          #("accept", "application/json"),
+          #("x-trace", "abc"),
+        ],
+        timeout: timeout(750),
+        prefer_http2: True,
+        body_preview_bytes: 64,
+      )),
+    )
   let assert #(True, _, _) = #(actual_6 == expected_6, actual_6, expected_6)
   Nil
 }
@@ -121,6 +125,15 @@ pub fn cli_parsing_rejects_malformed_headers_test() -> Nil {
   let expected_7 = Error("Header must use name:value format")
   let assert #(True, _, _) = #(actual_7 == expected_7, actual_7, expected_7)
   Nil
+}
+
+pub fn cli_parsing_recognises_help_test() -> Nil {
+  assert cli.parse(["--help"]) == Ok(cli.Help)
+  assert cli.parse(["-h"]) == Ok(cli.Help)
+}
+
+pub fn cli_parsing_preserves_leading_help_precedence_test() -> Nil {
+  assert cli.parse(["--help", "--header", "missing-colon"]) == Ok(cli.Help)
 }
 
 pub fn cli_parsing_rejects_negative_body_preview_sizes_test() -> Nil {
@@ -139,12 +152,13 @@ pub fn cli_parsing_rejects_negative_timeouts_test() -> Nil {
 }
 
 pub fn cli_parsing_accepts_a_zero_timeout_test() -> Nil {
-  let assert Ok(config) = cli.parse(["--timeout", "0", "https://example.com"])
+  let assert Ok(cli.Probe(config)) =
+    cli.parse(["--timeout", "0", "https://example.com"])
   assert config.timeout == timeout(0)
 }
 
 pub fn cli_parsing_accepts_the_maximum_timeout_test() -> Nil {
-  let assert Ok(config) =
+  let assert Ok(cli.Probe(config)) =
     cli.parse(["--timeout", "4294967295", "https://example.com"])
   assert config.timeout == timeout(4_294_967_295)
 }
@@ -201,26 +215,43 @@ pub fn report_formatting_renders_invalid_utf_8_bodies_as_byte_arrays_test() -> N
   Nil
 }
 
-pub fn runner_request_construction_prefers_http_2_only_for_tls_urls_when_requested_test() -> Nil {
-  let config =
-    cli.Config(
-      url: "https://example.com",
-      method: http.Get,
-      headers: [],
-      timeout: timeout(5000),
-      prefer_http2: True,
-      body_preview_bytes: 512,
-    )
-
+pub fn runner_request_construction_defaults_https_to_http_1_test() -> Nil {
+  let assert Ok(cli.Probe(config)) = cli.parse(["https://example.com"])
   let assert Ok(parsed) = url.parse(config.url)
 
-  let actual_13 = {
-    runner.connect_options(config, parsed)
-    |> connection.protocols
-  }
-  let expected_13 = Some([connection.Http2, connection.Http1])
-  let assert #(True, _, _) = #(actual_13 == expected_13, actual_13, expected_13)
-  Nil
+  let options = runner.connect_options(config, parsed)
+  assert connection.protocols(options) == Some([connection.Http1])
+  assert connection.transport(options) == connection.Tls
+}
+
+pub fn runner_request_construction_prefers_http_2_for_https_when_requested_test() -> Nil {
+  let assert Ok(cli.Probe(config)) =
+    cli.parse(["--http2", "https://example.com"])
+  let assert Ok(parsed) = url.parse(config.url)
+
+  let options = runner.connect_options(config, parsed)
+  assert connection.protocols(options)
+    == Some([connection.Http2, connection.Http1])
+  assert connection.transport(options) == connection.Tls
+}
+
+pub fn runner_request_construction_defaults_http_to_http_1_test() -> Nil {
+  let assert Ok(cli.Probe(config)) = cli.parse(["http://example.com"])
+  let assert Ok(parsed) = url.parse(config.url)
+
+  let options = runner.connect_options(config, parsed)
+  assert connection.protocols(options) == Some([connection.Http1])
+  assert connection.transport(options) == connection.Tcp
+}
+
+pub fn runner_request_construction_keeps_http_1_for_cleartext_with_http2_flag_test() -> Nil {
+  let assert Ok(cli.Probe(config)) =
+    cli.parse(["--http2", "http://example.com"])
+  let assert Ok(parsed) = url.parse(config.url)
+
+  let options = runner.connect_options(config, parsed)
+  assert connection.protocols(options) == Some([connection.Http1])
+  assert connection.transport(options) == connection.Tcp
 }
 
 pub fn runner_request_construction_builds_the_gluegun_request_from_parsed_config_and_url_test() -> Nil {
