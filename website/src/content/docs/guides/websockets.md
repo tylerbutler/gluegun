@@ -8,6 +8,11 @@ and zero retries after applying your connection options, including TLS
 settings. A dropped socket returns `ConnectionDown`. Reconnecting Gun as HTTP
 would not restore its WebSocket upgrade.
 
+`connect` and `with_socket` await the handshake in the calling process.
+They accept an absent `reply_to` or the caller's PID. A different PID returns
+`InvalidOptions` before opening a connection, even with an `Infinity` timeout.
+To receive in another process, use the low-level upgrade flow below.
+
 :::caution[HTTP/2 not supported]
 Gun does not support WebSocket over HTTP/2 (RFC 8441).
 `websocket.upgrade(conn, protocol, path, headers, options)` rejects `Http2`
@@ -194,6 +199,12 @@ pub fn low_level_echo(conn) {
 under one deadline. Its handshake result retains the response headers.
 Adopt it before reading application frames, then use the Socket operations
 for send, receive, and close with a finite deadline.
+
+For delegated reception, the owner calls `upgrade` with
+`websocket.with_reply_to(options, receiver)`. Pass the connection and returned
+stream to that receiver. The receiver calls `await_upgrade` and `from_upgrade`,
+then sends and receives frames. Keep the owner alive throughout the session;
+delegation does not transfer ownership or redirect `gun_up` and `gun_down`.
 
 ## Subprotocols
 
