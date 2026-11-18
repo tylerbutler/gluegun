@@ -650,6 +650,11 @@ connect_option_to_gun({domain_lookup_timeout_option, Timeout}, GunOptions) ->
     GunOptions#{domain_lookup_timeout => timeout_to_gun(Timeout)};
 connect_option_to_gun({tls_handshake_timeout_option, Timeout}, GunOptions) ->
     GunOptions#{tls_handshake_timeout => timeout_to_gun(Timeout)};
+connect_option_to_gun({websocket_keepalive_option, Timeout}, GunOptions) ->
+    %% Gun starts protocol timers from the original connection options, not
+    %% the map passed to ws_upgrade. Preserve any other WebSocket defaults.
+    WsOptions = maps:get(ws_opts, GunOptions, #{}),
+    GunOptions#{ws_opts => WsOptions#{keepalive => timeout_to_gun(Timeout)}};
 connect_option_to_gun({tls_option, TlsSettings}, GunOptions) ->
     GunOptions#{tls_opts => tls_settings_to_gun(TlsSettings)}.
 
@@ -901,6 +906,10 @@ unicode_value_to_list(Value) -> Value.
 ws_options_to_gun(WsOptions) when is_list(WsOptions) ->
     %% Preflight the complete list before callback-module conversion or cast.
     lists:foreach(fun
+        ({keepalive, _Timeout}) ->
+            error({invalid_options,
+                <<"WebSocket keepalive must be set when opening the connection; "
+                  "use connection.with_websocket_keepalive">>});
         ({protocols, Protocols}) ->
             lists:foreach(fun({Protocol, _}) ->
                 case is_valid_token(to_binary(Protocol)) of
@@ -922,7 +931,6 @@ ws_option_to_gun({compress, Compress}) -> {compress, Compress};
 ws_option_to_gun({default_protocol, Module}) -> {default_protocol, module_name_to_atom(Module)};
 ws_option_to_gun({flow, Flow}) when is_integer(Flow), Flow > 0 -> {flow, Flow};
 ws_option_to_gun({flow, Flow}) -> error({invalid_options, {ws, {flow, Flow}}});
-ws_option_to_gun({keepalive, Timeout}) -> {keepalive, timeout_to_gun(Timeout)};
 ws_option_to_gun({protocols, Protocols}) ->
     {protocols, [ws_protocol_to_gun(Protocol) || Protocol <- Protocols]};
 ws_option_to_gun({reply_to, ReplyTo}) -> {reply_to, ReplyTo};
