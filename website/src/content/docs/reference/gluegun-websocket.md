@@ -105,8 +105,8 @@ Wait for the WebSocket upgrade confirmation (`101 Switching Protocols`).
 
 ```gleam
 pub fn await_upgrade(
-  connection: internal.Connection,
-  stream: internal.Stream,
+  connection: connection.Connection,
+  stream: request.Stream,
   timeout: connection.Timeout
 ) -> Result(Handshake, error.GluegunError)
 ```
@@ -183,8 +183,8 @@ Adopt a completed upgrade. Call immediately after `await_upgrade`, in the
 
 ```gleam
 pub fn from_upgrade(
-  connection: internal.Connection,
-  stream: internal.Stream,
+  connection: connection.Connection,
+  stream: request.Stream,
   handshake: Handshake,
   timeout: connection.Timeout
 ) -> Socket
@@ -371,12 +371,12 @@ Initiate a WebSocket upgrade with options when the negotiated protocol is known.
 
 ```gleam
 pub fn upgrade(
-  connection: internal.Connection,
+  connection: connection.Connection,
   protocol: connection.Protocol,
   path: String,
   headers: List(#(String, String)),
   options: UpgradeOptions
-) -> Result(internal.Stream, error.GluegunError)
+) -> Result(request.Stream, error.GluegunError)
 ```
 
 ### `upgrade_options`

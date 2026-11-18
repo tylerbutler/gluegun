@@ -32,8 +32,8 @@ A decoded `Message` paired with the connection and stream Gun says it
 ```gleam
 pub type Envelope {
   Envelope(
-    connection: internal.Connection,
-    stream: internal.Stream,
+    connection: connection.Connection,
+    stream: request.Stream,
     message: Message
   )
 }
@@ -140,7 +140,7 @@ pub type Message {
   )
   Trailers(headers: List(#(String, String)))
   Push(
-    stream: internal.Stream,
+    stream: request.Stream,
     method: http.Method,
     uri: String,
     headers: List(#(String, String))
@@ -176,7 +176,7 @@ Trailing headers that end the response (HTTP/1.1 trailers or HTTP/2
  trailer frames). They follow `Response(NoFin, ...)` and zero or more
  `Data(NoFin, ...)` messages, with no separate `Data(Fin, ...)`.
 
-##### `Push(stream: internal.Stream, method: http.Method, uri: String, headers: List(#(String, String)))`
+##### `Push(stream: request.Stream, method: http.Method, uri: String, headers: List(#(String, String)))`
 
 An HTTP/2 server push. The `stream` is a new stream the caller may
  await or cancel. Method names are case-sensitive: `GET` becomes
@@ -209,8 +209,8 @@ Await the next Gun message for a stream.
 
 ```gleam
 pub fn await(
-  internal.Connection,
-  internal.Stream,
+  connection.Connection,
+  request.Stream,
   connection.Timeout
 ) -> Result(Message, error.GluegunError)
 ```
@@ -233,8 +233,8 @@ Await and collect the full response body for a stream.
 
 ```gleam
 pub fn await_body(
-  internal.Connection,
-  internal.Stream,
+  connection.Connection,
+  request.Stream,
   connection.Timeout
 ) -> Result(BitArray, error.GluegunError)
 ```

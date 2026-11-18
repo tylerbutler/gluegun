@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Show the supported connection.Connection and request.Stream names in website API signatures and constructor fields. Runtime behavior and public types are unchanged."

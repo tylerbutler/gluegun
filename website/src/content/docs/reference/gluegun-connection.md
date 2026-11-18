@@ -143,7 +143,7 @@ Wait until a Gun connection is up and return the negotiated protocol.
 
 ```gleam
 pub fn await_up(
-  internal.Connection,
+  Connection,
   Timeout
 ) -> Result(Protocol, error.GluegunError)
 ```
@@ -158,7 +158,7 @@ Stop a Gun connection through its supervisor.
  connection or deadline cleanup.
 
 ```gleam
-pub fn close(internal.Connection) -> Result(Nil, error.GluegunError)
+pub fn close(Connection) -> Result(Nil, error.GluegunError)
 ```
 
 ### `infinity`
@@ -213,7 +213,7 @@ pub fn open(
   ConnectOptions,
   host: String,
   port: Int
-) -> Result(internal.Connection, error.GluegunError)
+) -> Result(Connection, error.GluegunError)
 ```
 
 ### `options`
@@ -240,7 +240,7 @@ Request graceful shutdown of a Gun connection.
  exits; this call does not wait for exit and cannot interrupt blocked setup.
 
 ```gleam
-pub fn shutdown(internal.Connection) -> Result(Nil, error.GluegunError)
+pub fn shutdown(Connection) -> Result(Nil, error.GluegunError)
 ```
 
 ### `terminate`
@@ -259,7 +259,7 @@ Force termination, wait for process exit, then flush its Gun messages.
  this call; they are not preserved for separate lifecycle handling.
 
 ```gleam
-pub fn terminate(internal.Connection) -> Result(Nil, error.GluegunError)
+pub fn terminate(Connection) -> Result(Nil, error.GluegunError)
 ```
 
 ### `with_address_family`

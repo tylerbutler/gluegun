@@ -101,11 +101,9 @@ test("generates reference index and module pages from Gleam docs JSON", async ()
 		assert.match(modulePage, /## Type aliases/);
 		assert.match(modulePage, /pub type Header = #\(String, String\)/);
 		assert.match(modulePage, /## Functions/);
-		// internal.Connection (last path segment), and Protocol unqualified because
-		// it lives in the current module.
 		assert.match(
 			modulePage,
-			/pub fn await_up\(internal\.Connection\) -> Result\(Protocol\)/,
+			/pub fn await_up\(Connection\) -> Result\(Protocol\)/,
 		);
 	} finally {
 		await cleanup();
@@ -148,6 +146,142 @@ test("distinguishes standard responses from the current response module", async 
 		const page = await read("gluegun-response.md");
 		assert.match(page, /Response\(response: http_response\.Response\(a\)\)/);
 		assert.doesNotMatch(page, /response: response\.Response/);
+	} finally {
+		await cleanup();
+	}
+});
+
+test("renders expanded Gun handles with public names without self-referencing aliases", async () => {
+	// Selected metadata from `gleam docs build` (Gleam 1.19.2).
+	const connection = namedType("Connection", "gluegun/internal");
+	const stream = namedType("Stream", "gluegun/internal");
+	const error = namedType("GluegunError", "gluegun/error");
+	const headers = namedType("List", "gleam", [{
+		kind: "tuple",
+		elements: [stringType(), stringType()],
+	}]);
+	const { read, cleanup } = await runWithFixture({
+		name: "gluegun",
+		version: "1.0.0-rc.1",
+		modules: {
+			"gluegun/connection": {
+				"type-aliases": {
+					Connection: { parameters: 0, alias: connection },
+				},
+				functions: {
+					open: {
+						parameters: [
+							{ label: null, type: namedType("ConnectOptions", "gluegun/connection") },
+							{ label: "host", type: stringType() },
+							{ label: "port", type: intType() },
+						],
+						return: namedType("Result", "gleam", [connection, error]),
+					},
+				},
+			},
+			"gluegun/request": {
+				"type-aliases": {
+					Stream: { parameters: 0, alias: stream },
+				},
+				functions: {
+					request: {
+						parameters: [
+							{ label: null, type: connection },
+							{ label: null, type: { ...namedType("Method", "gleam/http"), package: "gleam_http" } },
+							{ label: null, type: stringType() },
+							{ label: null, type: headers },
+							{ label: null, type: namedType("BitArray") },
+							{ label: null, type: namedType("RequestOptions", "gluegun/request") },
+						],
+						return: namedType("Result", "gleam", [stream, error]),
+					},
+				},
+			},
+			"gluegun/client": {
+				functions: {
+					send: {
+						parameters: [
+							{ label: null, type: namedType("Request", "gluegun/client") },
+							{ label: "connection", type: connection },
+						],
+						return: namedType("Result", "gleam", [
+							namedType("Response", "gluegun/response", [namedType("BitArray")]),
+							error,
+						]),
+					},
+				},
+			},
+			"gluegun/message": {
+				types: {
+					Message: {
+						parameters: 0,
+						constructors: [{
+							name: "Push",
+							documentation: "An HTTP/2 server push.",
+							parameters: [
+								{ label: "stream", type: stream },
+								{ label: "method", type: { ...namedType("Method", "gleam/http"), package: "gleam_http" } },
+								{ label: "uri", type: stringType() },
+								{ label: "headers", type: headers },
+							],
+						}],
+					},
+				},
+			},
+		},
+	});
+
+	try {
+		const connectionPage = await read("gluegun-connection.md");
+		const requestPage = await read("gluegun-request.md");
+		const clientPage = await read("gluegun-client.md");
+		const messagePage = await read("gluegun-message.md");
+
+		assert.match(connectionPage, /pub type Connection = internal\.Connection/);
+		assert.match(connectionPage, /\) -> Result\(Connection, error\.GluegunError\)/);
+		assert.match(requestPage, /pub type Stream = internal\.Stream/);
+		assert.match(requestPage, /pub fn request\(\n {2}connection\.Connection,/);
+		assert.match(requestPage, /\) -> Result\(Stream, error\.GluegunError\)/);
+		assert.match(clientPage, /connection: connection\.Connection/);
+		assert.match(messagePage, /Push\(\n {4}stream: request\.Stream,/);
+		assert.match(messagePage, /##### `Push\(stream: request\.Stream, method: http\.Method, uri: String, headers: List\(#\(String, String\)\)\)`/);
+		for (const page of [connectionPage, requestPage, clientPage, messagePage]) {
+			assert.doesNotMatch(page, /pub type (Connection|Stream) = \1/);
+			assert.doesNotMatch(
+				page.replaceAll(/pub type (Connection|Stream) = internal\.\1/g, ""),
+				/internal\.(Connection|Stream)/,
+			);
+		}
+	} finally {
+		await cleanup();
+	}
+});
+
+test("does not rename unrelated internal types or handles from other packages", async () => {
+	const { read, cleanup } = await runWithFixture({
+		name: "gluegun",
+		version: "1.0.0-rc.1",
+		modules: {
+			"gluegun/message": {
+				functions: {
+					example: {
+						parameters: [
+							{ type: namedType("RawGunMessage", "gluegun/internal") },
+							{ type: namedType("Connection", "other/internal") },
+							{ type: { ...namedType("Stream", "gluegun/internal"), package: "other" } },
+						],
+						return: namedType("Nil"),
+					},
+				},
+			},
+		},
+	});
+
+	try {
+		assert.match(
+			await read("gluegun-message.md"),
+			/pub fn example\(\n {2}internal\.RawGunMessage,\n {2}internal\.Connection,\n {2}internal\.Stream\n\) -> Nil/,
+		);
 	} finally {
 		await cleanup();
 	}
