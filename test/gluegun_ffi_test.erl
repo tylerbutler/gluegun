@@ -395,10 +395,7 @@ summarize_secure_tls_opts(Gun) ->
         undefined -> none;
         DepthValue -> {some, DepthValue}
     end,
-    HasCACerts = case Get(cacerts) of
-        List when is_list(List), List =/= [] -> true;
-        _ -> false
-    end,
+    HasCACerts = proplists:is_defined(cacerts, TlsOpts),
     HasHostnameCheck = Get(customize_hostname_check) =/= undefined,
     {Verify, Versions, Depth, Sni, HasCACerts, HasHostnameCheck}.
 

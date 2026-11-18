@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Avoid system trust store reads for development-only TLS connections with explicit VerifyNone and no CA settings. Preserve explicit CA settings and secure defaults for verifying connections."
