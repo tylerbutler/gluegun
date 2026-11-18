@@ -168,8 +168,12 @@ pub fn with_transport(
 
 /// Set HTTP protocol preference ordering for a connection.
 ///
-/// TLS preserves the list for protocol negotiation. Plain TCP uses only the
-/// first protocol, with no fallback. This also applies when `Auto` selects TCP.
+/// TLS advertises the protocols in this order in the ALPN ClientHello.
+/// The server selects the protocol and can use its own preference order.
+/// With no explicit list, Gun's default protocols are unchanged.
+///
+/// Plain TCP uses only the first protocol, with no fallback.
+/// This also applies when `Auto` selects TCP.
 /// An empty list makes `open` return `InvalidOptions`.
 pub fn with_protocols(
   options: ConnectOptions,

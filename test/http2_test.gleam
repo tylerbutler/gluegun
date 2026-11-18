@@ -8,6 +8,94 @@ import gluegun/internal
 import gluegun/message
 import gluegun/request
 import gluegun/response
+import gluegun/tls
+
+pub fn tls_client_hello_prefers_http2_when_listed_first_test() -> Nil {
+  let actual =
+    connection.options()
+    |> connection.with_transport(connection.Tls)
+    |> connection.with_protocols([connection.Http2, connection.Http1])
+    |> connection.options_to_ffi
+    |> capture_alpn
+  assert actual == Ok(["h2", "http/1.1"])
+}
+
+pub fn tls_client_hello_prefers_http1_when_listed_first_test() -> Nil {
+  let actual =
+    connection.options()
+    |> connection.with_transport(connection.Tls)
+    |> connection.with_protocols([connection.Http1, connection.Http2])
+    |> connection.options_to_ffi
+    |> capture_alpn
+  assert actual == Ok(["http/1.1", "h2"])
+}
+
+pub fn auto_with_tls_options_client_hello_prefers_http2_when_listed_first_test() -> Nil {
+  let actual =
+    connection.options()
+    |> connection.with_tls_options(tls.options())
+    |> connection.with_protocols([connection.Http2, connection.Http1])
+    |> connection.options_to_ffi
+    |> capture_alpn
+  assert actual == Ok(["h2", "http/1.1"])
+}
+
+pub fn auto_with_tls_options_client_hello_prefers_http1_when_listed_first_test() -> Nil {
+  let actual =
+    connection.options()
+    |> connection.with_tls_options(tls.options())
+    |> connection.with_protocols([connection.Http1, connection.Http2])
+    |> connection.options_to_ffi
+    |> capture_alpn
+  assert actual == Ok(["http/1.1", "h2"])
+}
+
+pub fn auto_port_443_compensates_for_gun_alpn_reversal_test() -> Nil {
+  let actual =
+    connection.options()
+    |> connection.with_protocols([connection.Http2, connection.Http1])
+    |> connection.options_to_ffi
+    |> resolved_protocols(443, _)
+  assert actual == ["http", "http2"]
+}
+
+pub fn explicit_tcp_keeps_http2_even_on_port_443_test() -> Nil {
+  let actual =
+    connection.options()
+    |> connection.with_transport(connection.Tcp)
+    |> connection.with_protocols([connection.Http2])
+    |> connection.options_to_ffi
+    |> resolved_protocols(443, _)
+  assert actual == ["http2"]
+}
+
+pub fn explicit_tcp_keeps_http1_even_on_port_443_test() -> Nil {
+  let actual =
+    connection.options()
+    |> connection.with_transport(connection.Tcp)
+    |> connection.with_protocols([connection.Http1])
+    |> connection.options_to_ffi
+    |> resolved_protocols(443, _)
+  assert actual == ["http"]
+}
+
+pub fn auto_non_tls_port_keeps_http2_test() -> Nil {
+  let actual =
+    connection.options()
+    |> connection.with_protocols([connection.Http2])
+    |> connection.options_to_ffi
+    |> resolved_protocols(8080, _)
+  assert actual == ["http2"]
+}
+
+pub fn tls_without_explicit_protocols_keeps_gun_defaults_test() -> Nil {
+  let actual =
+    connection.options()
+    |> connection.with_transport(connection.Tls)
+    |> connection.options_to_ffi
+    |> resolved_protocols(8443, _)
+  assert actual == []
+}
 
 pub fn protocol_negotiation_encodes_protocol_preference_in_order_test() -> Nil {
   let actual_1 = {
@@ -155,3 +243,14 @@ fn invalid_connection() -> internal.Connection
 
 @external(erlang, "gluegun_ffi_test", "stream_ref")
 fn stream_ref() -> internal.Stream
+
+@external(erlang, "gluegun_http2_test", "capture_alpn")
+fn capture_alpn(
+  options: List(connection.ConnectOption),
+) -> Result(List(String), error.GluegunError)
+
+@external(erlang, "gluegun_ffi_test", "resolved_protocols")
+fn resolved_protocols(
+  port: Int,
+  options: List(connection.ConnectOption),
+) -> List(String)

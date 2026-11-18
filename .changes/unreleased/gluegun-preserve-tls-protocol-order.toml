@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Preserve the requested HTTP protocol order in the TLS ClientHello. Explicit TLS protocol lists now advertise the first protocol first; TCP behavior and omitted protocol defaults are unchanged."
