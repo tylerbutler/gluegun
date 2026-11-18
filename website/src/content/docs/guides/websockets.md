@@ -213,8 +213,10 @@ delegation does not transfer ownership or redirect `gun_up` and `gun_down`.
 
 Use `websocket.with_subprotocols(options, ["chat", "graphql-transport-ws"])`
 to request subprotocols with Gun's default handler. You do not need an Erlang
-module name. Names must be non-empty ASCII HTTP tokens; Gluegun rejects the
-complete list before sending anything if a name is invalid.
+module name. Names must be non-empty ASCII HTTP tokens and must be unique.
+Gluegun rejects the complete list with `InvalidOptions` before sending anything
+if a name is invalid or repeated. Order and case are preserved; `"chat"` and
+`"Chat"` are distinct names.
 
 Read `websocket.selected_subprotocol(socket)` after connect or adoption to
 find the server's selection. The handshake also retains other response
