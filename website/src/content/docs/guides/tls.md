@@ -119,6 +119,14 @@ cannot meet the verifying contract. Leave SNI unset for the target identity,
 or use a valid `ServerName` to select a DNS identity for verified TLS.
 `tls.insecure()` remains a development-only verification bypass.
 
+`with_ciphers` sets an explicit list of permitted cipher suite names. At least
+one suite must be usable with the effective TLS versions. Gluegun returns
+`InvalidOptions` before it starts Gun if the list is empty or has no usable
+suite. You can combine suites for different versions in one list if at least
+one suite is usable. This check also applies to `tls.insecure()`, which uses
+the runtime's default versions unless you set `with_versions`. Leave ciphers
+unset to keep OTP defaults.
+
 ## Full typed option list
 
 `gluegun/tls` has these typed builders:
