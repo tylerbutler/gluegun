@@ -129,6 +129,31 @@ pub fn outbound_frame_encoding_encodes_multiple_frames_test() -> Nil {
   Nil
 }
 
+pub fn outbound_frame_encoding_accepts_a_terminal_close_test() -> Nil {
+  let socket =
+    websocket.socket(current_connection(), stream_ref(), timeout(500))
+  let assert Ok(Nil) =
+    websocket.send_many(socket, [message.Text("first"), message.Close])
+  let assert Ok([#("text", <<"first":utf8>>), #("close", <<>>)]) =
+    capture_ws_send_frames()
+  Nil
+}
+
+pub fn outbound_frame_encoding_accepts_a_terminal_close_with_reason_test() -> Nil {
+  let socket =
+    websocket.socket(current_connection(), stream_ref(), timeout(500))
+  let assert Ok(Nil) =
+    websocket.send_many(socket, [
+      message.Text("first"),
+      message.CloseWithReason(1000, <<"bye":utf8>>),
+    ])
+  let assert Ok([
+    #("text", <<"first":utf8>>),
+    #("close_with_reason", <<"1000:bye":utf8>>),
+  ]) = capture_ws_send_frames()
+  Nil
+}
+
 pub fn outbound_frame_encoding_surfaces_invalid_frame_list_errors_test() -> Nil {
   let actual_11 = invalid_ws_send_frame_list_result()
   let expected_11 = Error(error.InvalidMessage("InvalidFrame(BadFrame)"))
@@ -1022,6 +1047,32 @@ pub fn websocket_upgrade_options_rejects_unknown_default_protocol_modules_before
       "Ws(UnknownModule(\"gluegun_nonexistent_ws_handler\"))",
     ))
   let assert #(True, _, _) = #(actual_91 == expected_91, actual_91, expected_91)
+  Nil
+}
+
+pub fn websocket_upgrade_options_preserves_subprotocol_order_case_and_standard_handler_test() -> Nil {
+  let actual =
+    websocket.upgrade_options()
+    |> websocket.with_subprotocols(["chat", "Chat", "superchat"])
+    |> websocket.upgrade_options_to_ffi
+    |> capture_ws_upgrade_options
+  let expected =
+    Ok(
+      captured_ws_options(
+        compress: None,
+        silence_pings: None,
+        flow: None,
+        keepalive: None,
+        closing_timeout: None,
+        default_protocol: None,
+        protocols: [
+          #("chat", "gun_ws_h"),
+          #("Chat", "gun_ws_h"),
+          #("superchat", "gun_ws_h"),
+        ],
+      ),
+    )
+  let assert True = actual == expected
   Nil
 }
 

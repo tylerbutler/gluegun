@@ -326,6 +326,8 @@ Send one or more WebSocket frames on the stream.
 
  Validates the complete list before sending. If a frame is invalid, returns
  `InvalidMessage` without sending any frame.
+ `Close` or `CloseWithReason` must be the last frame in the list. A frame
+ after either close variant returns `InvalidMessage` without sending any frame.
 
  Binary, ping, pong, and close-reason payloads must contain whole bytes.
  Empty payloads are valid. A non-byte-aligned `BitArray` returns
@@ -355,8 +357,9 @@ pub fn send_text(
 Initiate a WebSocket upgrade with options when the negotiated protocol is known.
 
  Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
- WebSocket over HTTP/2. Path, headers, and all subprotocol tokens are
- validated before calling Gun; invalid input returns `InvalidOptions`.
+ WebSocket over HTTP/2. Path, headers, subprotocol tokens, and subprotocol
+ name uniqueness are validated before calling Gun; invalid input returns
+ `InvalidOptions`. Subprotocol names are case-sensitive.
  Upgrades have no request body, so a positive `Content-Length` also returns
  `InvalidOptions`. An absent or zero `Content-Length` is accepted.
 
@@ -507,8 +510,9 @@ pub fn with_socket(
 
 ### `with_subprotocols`
 
-Offer subprotocols using Gun's standard WebSocket handler. Every token is
- validated before sending; order and case are preserved.
+Offer subprotocols using Gun's standard WebSocket handler. Invalid tokens
+ and exact duplicate names return `InvalidOptions` before sending.
+ Order and case are preserved; `"chat"` and `"Chat"` are distinct names.
 
 ```gleam
 pub fn with_subprotocols(

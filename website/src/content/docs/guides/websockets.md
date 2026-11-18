@@ -156,6 +156,9 @@ Invalid control frames return `InvalidMessage` before Gluegun calls Gun.
 `send_many` checks the complete list before sending any frame. After a rejected
 send, you can continue to use the connection.
 
+In a `send_many` batch, `Close` or `CloseWithReason` must be last. If any frame
+follows a close frame, Gluegun returns `InvalidMessage` and sends no frames.
+
 ## Low-level upgrade flow
 
 Use the low-level functions when you already control the connection lifecycle, or when you must check the negotiated protocol before the upgrade.
@@ -215,8 +218,10 @@ delegation does not transfer ownership or redirect `gun_up` and `gun_down`.
 
 Use `websocket.with_subprotocols(options, ["chat", "graphql-transport-ws"])`
 to request subprotocols with Gun's default handler. You do not need an Erlang
-module name. Names must be non-empty ASCII HTTP tokens; Gluegun rejects the
-complete list before sending anything if a name is invalid.
+module name. Names must be non-empty ASCII HTTP tokens and must be unique.
+Gluegun rejects the complete list with `InvalidOptions` before sending anything
+if a name is invalid or repeated. Order and case are preserved; `"chat"` and
+`"Chat"` are distinct names.
 
 Read `websocket.selected_subprotocol(socket)` after connect or adoption to
 find the server's selection. The handshake also retains other response

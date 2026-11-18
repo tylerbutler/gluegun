@@ -93,7 +93,8 @@ examples-build:
             if grep -q "^gleescript " gleam.toml || grep -q "^gleescript " manifest.toml 2>/dev/null; then \
                 gleam run -m gleescript -- --out=dist; \
             fi ;; \
-        esac' sh {{quote(justfile_directory())}}
+        esac; \
+        case "$PWD" in "$1"/examples/webprobe) python3 -B test/webprobe_process_test.py ;; esac' sh {{quote(justfile_directory())}}
 
 # === DOCUMENTATION ===
 
