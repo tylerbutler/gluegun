@@ -52,6 +52,7 @@
     prepared_protocol_options/3,
     gun_retry/1,
     gun_connect_timeout/1,
+    gun_websocket_keepalive/1,
     gun_tls_opts/1,
     secure_tls_opts_summary/3,
     secure_tls_opts_with_empty_cacerts/3,
@@ -266,6 +267,15 @@ gun_retry(Options) ->
 
 gun_connect_timeout(Options) ->
     render(maps:get(connect_timeout, gluegun_ffi:connect_options_to_gun(Options), undefined)).
+
+%% Gleam: (List(ConnectOption)) -> Option(String).
+%% Projects the ORIGINAL connection options, not the upgrade cast.
+gun_websocket_keepalive(Options) ->
+    GunOptions = gluegun_ffi:connect_options_to_gun(Options),
+    case maps:find(keepalive, maps:get(ws_opts, GunOptions, #{})) of
+        error -> none;
+        {ok, Value} -> {some, render(Value)}
+    end.
 
 %% Project Gun `tls_opts` to `[{Key, [Value]}]` with every value rendered as a
 %% binary, so Gleam can assert on them without inspecting Erlang terms.

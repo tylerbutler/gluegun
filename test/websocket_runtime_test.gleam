@@ -1,7 +1,8 @@
-import gleam/erlang/process
+import gleam/erlang/process.{type Pid}
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
+import gleam/string
 import gluegun/connection
 import gluegun/error
 import gluegun/message
@@ -423,6 +424,270 @@ pub fn connect_forces_http1_and_zero_retry_after_caller_options_test() -> Nil {
   Nil
 }
 
+pub fn connect_preserves_open_time_keepalive_without_upgrade_override_test() -> Nil {
+  let encoded =
+    websocket.options()
+    |> websocket.with_connect_options(
+      connection.options()
+      |> connection.with_websocket_keepalive(timeout(80)),
+    )
+    |> websocket.connect_options
+    |> connection.options_to_ffi
+  let assert True =
+    list.contains(encoded, connection.WebsocketKeepaliveOption(timeout(80)))
+  Nil
+}
+
+pub fn open_time_keepalive_is_encoded_in_gun_connection_options_test() -> Nil {
+  let actual =
+    connection.options()
+    |> connection.with_websocket_keepalive(timeout(25))
+    |> connection.options_to_ffi
+    |> gun_websocket_keepalive
+  let assert Some("25") = actual
+  Nil
+}
+
+pub fn open_time_infinity_is_encoded_in_gun_connection_options_test() -> Nil {
+  let actual =
+    connection.options()
+    |> connection.with_websocket_keepalive(connection.infinity())
+    |> connection.options_to_ffi
+    |> gun_websocket_keepalive
+  let assert Some("infinity") = actual
+  Nil
+}
+
+pub fn default_connection_preserves_gun_keepalive_default_test() -> Nil {
+  let actual =
+    connection.options()
+    |> connection.options_to_ffi
+    |> gun_websocket_keepalive
+  let assert None = actual
+  Nil
+}
+
+pub fn connect_upgrade_keepalive_overrides_connection_setting_in_either_builder_order_test() -> Nil {
+  let connect =
+    connection.options()
+    |> connection.with_websocket_keepalive(timeout(80))
+  let upgrade =
+    websocket.upgrade_options()
+    |> websocket.with_keepalive(timeout(30))
+  list.each(
+    [
+      websocket.options()
+        |> websocket.with_connect_options(connect)
+        |> websocket.with_upgrade_options(upgrade),
+      websocket.options()
+        |> websocket.with_upgrade_options(upgrade)
+        |> websocket.with_connect_options(connect),
+    ],
+    fn(options) {
+      let encoded =
+        options |> websocket.connect_options |> connection.options_to_ffi
+      let assert True =
+        list.contains(encoded, connection.WebsocketKeepaliveOption(timeout(30)))
+      let assert False =
+        list.contains(encoded, connection.WebsocketKeepaliveOption(timeout(80)))
+      Nil
+    },
+  )
+}
+
+pub fn connect_explicit_infinity_overrides_finite_connection_keepalive_test() -> Nil {
+  let encoded =
+    websocket.options()
+    |> websocket.with_connect_options(
+      connection.options()
+      |> connection.with_websocket_keepalive(timeout(80)),
+    )
+    |> websocket.with_upgrade_options(
+      websocket.upgrade_options()
+      |> websocket.with_keepalive(connection.infinity()),
+    )
+    |> websocket.connect_options
+    |> connection.options_to_ffi
+  let assert True =
+    list.contains(
+      encoded,
+      connection.WebsocketKeepaliveOption(connection.infinity()),
+    )
+  let assert False =
+    list.contains(encoded, connection.WebsocketKeepaliveOption(timeout(80)))
+  Nil
+}
+
+pub fn low_level_upgrade_rejects_finite_keepalive_before_cast_test() -> Nil {
+  rejects_upgrade_keepalive(timeout(30))
+}
+
+pub fn low_level_upgrade_rejects_infinite_keepalive_before_cast_test() -> Nil {
+  rejects_upgrade_keepalive(connection.infinity())
+}
+
+pub fn connect_finite_upgrade_keepalive_sends_an_idle_wire_ping_test() -> Nil {
+  let assert Ok(Nil) =
+    with_keepalive_peer(fn(port, peer) {
+      use socket <- result.try(websocket.connect(
+        host: "127.0.0.1",
+        port: port,
+        path: "/",
+        options: websocket.options()
+          |> websocket.with_connect_options(
+            connection.options()
+            |> connection.with_websocket_keepalive(connection.infinity()),
+          )
+          |> websocket.with_upgrade_options(
+            websocket.upgrade_options()
+            |> websocket.with_keepalive(timeout(25)),
+          ),
+      ))
+      let observed = await_ping(peer, 500)
+      let cleanup = websocket.close(socket)
+      let assert Ok(True) = observed
+      cleanup
+    })
+  Nil
+}
+
+pub fn default_keepalive_sends_no_idle_wire_ping_test() -> Nil {
+  let assert Ok(Nil) =
+    with_keepalive_peer(fn(port, peer) {
+      use socket <- result.try(connect(port, websocket.upgrade_options()))
+      let observed = await_ping(peer, 200)
+      let cleanup = websocket.close(socket)
+      let assert Ok(False) = observed
+      cleanup
+    })
+  Nil
+}
+
+pub fn connect_preserves_connection_keepalive_on_the_wire_test() -> Nil {
+  let assert Ok(Nil) =
+    with_keepalive_peer(fn(port, peer) {
+      use socket <- result.try(websocket.connect(
+        host: "127.0.0.1",
+        port: port,
+        path: "/",
+        options: websocket.options()
+          |> websocket.with_connect_options(
+            connection.options()
+            |> connection.with_websocket_keepalive(timeout(25)),
+          ),
+      ))
+      let observed = await_ping(peer, 500)
+      let cleanup = websocket.close(socket)
+      let assert Ok(True) = observed
+      cleanup
+    })
+  Nil
+}
+
+pub fn explicit_upgrade_infinity_disables_open_time_pings_on_the_wire_test() -> Nil {
+  let assert Ok(Nil) =
+    with_keepalive_peer(fn(port, peer) {
+      use socket <- result.try(websocket.connect(
+        host: "127.0.0.1",
+        port: port,
+        path: "/",
+        options: websocket.options()
+          |> websocket.with_connect_options(
+            connection.options()
+            |> connection.with_websocket_keepalive(timeout(25)),
+          )
+          |> websocket.with_upgrade_options(
+            websocket.upgrade_options()
+            |> websocket.with_keepalive(connection.infinity()),
+          ),
+      ))
+      let observed = await_ping(peer, 200)
+      let cleanup = websocket.close(socket)
+      let assert Ok(False) = observed
+      cleanup
+    })
+  Nil
+}
+
+pub fn scoped_keepalive_does_not_replace_the_caller_receive_timeout_test() -> Nil {
+  let assert Ok(Nil) =
+    with_keepalive_peer(fn(port, peer) {
+      websocket.with_socket(
+        host: "127.0.0.1",
+        port: port,
+        path: "/",
+        options: websocket.options()
+          |> websocket.with_timeout(timeout(150))
+          |> websocket.with_upgrade_options(
+            websocket.upgrade_options()
+            |> websocket.with_keepalive(timeout(25)),
+          ),
+        callback: fn(socket) {
+          let assert Some(started) = connection.deadline(timeout(0))
+          let assert Error(error.Timeout) = websocket.receive_app_frame(socket)
+          let assert Some(finished) = connection.deadline(timeout(0))
+          let elapsed = finished - started
+          let assert True = elapsed >= 100 && elapsed < 500
+          let assert Ok(True) = await_ping(peer, 500)
+          Ok(Nil)
+        },
+      )
+    })
+  Nil
+}
+
+pub fn low_level_open_time_keepalive_sends_an_idle_wire_ping_test() -> Nil {
+  let assert Ok(Nil) =
+    with_keepalive_peer(fn(port, peer) {
+      use opened <- result.try(
+        connection.options()
+        |> connection.with_protocols([connection.Http1])
+        |> connection.with_websocket_keepalive(timeout(25))
+        |> connection.open(host: "127.0.0.1", port: port),
+      )
+      let exchange = {
+        use protocol <- result.try(connection.await_up(opened, timeout(500)))
+        use stream <- result.try(websocket.upgrade(
+          opened,
+          protocol,
+          "/",
+          [],
+          websocket.upgrade_options(),
+        ))
+        use handshake <- result.try(websocket.await_upgrade(
+          opened,
+          stream,
+          timeout(500),
+        ))
+        let socket =
+          websocket.from_upgrade(opened, stream, handshake, timeout(500))
+        let observed = await_ping(peer, 500)
+        let cleanup = websocket.close(socket)
+        let assert Ok(True) = observed
+        cleanup
+      }
+      let cleanup = connection.terminate(opened)
+      use _ <- result.try(exchange)
+      cleanup
+    })
+  Nil
+}
+
+fn rejects_upgrade_keepalive(interval: connection.Timeout) -> Nil {
+  let assert Error(error.InvalidOptions(reason)) =
+    websocket.upgrade(
+      current_connection(),
+      connection.Http1,
+      "/",
+      [],
+      websocket.upgrade_options() |> websocket.with_keepalive(interval),
+    )
+  let assert True =
+    string.contains(reason, "connection.with_websocket_keepalive")
+  let assert True = no_cast()
+  Nil
+}
+
 pub fn default_socket_detects_a_dropped_connection_test() -> Nil {
   let assert Ok(Nil) =
     with_server("drop", fn(port) {
@@ -648,3 +913,16 @@ fn timed_upgrade(
   stream: request.Stream,
   timeout: connection.Timeout,
 ) -> #(Result(websocket.Handshake, error.GluegunError), Int)
+
+@external(erlang, "gluegun_ws_control_test", "with_keepalive_peer")
+fn with_keepalive_peer(
+  callback: fn(Int, Pid) -> Result(Nil, error.GluegunError),
+) -> Result(Nil, error.GluegunError)
+
+@external(erlang, "gluegun_ws_control_test", "await_ping")
+fn await_ping(peer: Pid, milliseconds: Int) -> Result(Bool, error.GluegunError)
+
+@external(erlang, "gluegun_ffi_test", "gun_websocket_keepalive")
+fn gun_websocket_keepalive(
+  options: List(connection.ConnectOption),
+) -> option.Option(String)
