@@ -1137,12 +1137,12 @@ frame_from_gun({pong, Data}) -> {pong, inbound_bytes(Data)};
 frame_from_gun(close) -> close;
 frame_from_gun(Other) -> error({invalid_message, {ws, Other}}).
 
-%% Gun reports pushed request methods as binaries. Known methods map onto the
-%% `gleam/http.Method` constructors; anything else keeps its original
-%% casing inside `Other`.
+%% Gun reports pushed request methods as binaries. Exact, case-sensitive matches
+%% map onto the `gleam/http.Method` constructors; anything else keeps its
+%% original casing inside `Other`.
 method_from_gun(Method) ->
     Binary = inbound_text(Method),
-    case string:uppercase(Binary) of
+    case Binary of
         <<"GET">> -> get;
         <<"HEAD">> -> head;
         <<"POST">> -> post;

@@ -179,7 +179,8 @@ Trailing headers that end the response (HTTP/1.1 trailers or HTTP/2
 ##### `Push(stream: internal.Stream, method: http.Method, uri: String, headers: List(#(String, String)))`
 
 An HTTP/2 server push. The `stream` is a new stream the caller may
- await or cancel.
+ await or cancel. Method names are case-sensitive: `GET` becomes
+ `gleam/http.Get`, while `get` becomes `gleam/http.Other("get")`.
 
 ##### `Upgrade(protocols: List(String), headers: List(#(String, String)))`
 
