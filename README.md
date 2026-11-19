@@ -2,6 +2,7 @@
 
 [![Docs](https://img.shields.io/badge/docs-gluegun.tylerbutler.com-ffaff3)](https://gluegun.tylerbutler.com/)
 [![CI](https://github.com/tylerbutler/gluegun/actions/workflows/ci.yml/badge.svg)](https://github.com/tylerbutler/gluegun/actions/workflows/ci.yml)
+[![Hex version](https://img.shields.io/hexpm/v/gluegun)](https://hex.pm/packages/gluegun)
 
 A Gleam wrapper for the Erlang [Gun](https://ninenines.eu/docs/en/gun/) HTTP client.
 
@@ -9,8 +10,8 @@ Gun is an asynchronous HTTP client supporting HTTP/1.1, HTTP/2, and WebSocket ov
 
 ## Installation
 
-Gluegun [`1.0.0`](https://hex.pm/packages/gluegun/1.0.0) is the stable 1.0
-release on Hex. Add these dependencies to `gleam.toml`:
+Install Gluegun from [Hex](https://hex.pm/packages/gluegun).
+Add these dependencies to `gleam.toml`:
 
 ```toml
 [dependencies]
@@ -37,7 +38,7 @@ gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "v1.0.0" }
 Run `gleam deps download` after changing the dependency. For an unreleased
 revision, use `ref = "main"` or a commit SHA. Use a tag or commit SHA for
 reproducible builds. Use the [website API reference](https://gluegun.tylerbutler.com/reference/)
-or [versioned HexDocs](https://hexdocs.pm/gluegun/1.0.0/) for this release.
+or [HexDocs](https://hexdocs.pm/gluegun/) for API documentation.
 
 ## Compatibility
 
@@ -606,9 +607,8 @@ release PR. Track publication verification in
 [#55](https://github.com/tylerbutler/gluegun/issues/55). Configuration and dry-run
 checks do not establish that Hex accepted a package or that HexDocs serves it.
 
-The stable [`1.0.0` release](https://hex.pm/packages/gluegun/1.0.0) and its
-[versioned API documentation](https://hexdocs.pm/gluegun/1.0.0/) are
-publicly available.
+Find published releases on [Hex](https://hex.pm/packages/gluegun) and their
+API documentation on [HexDocs](https://hexdocs.pm/gluegun/).
 
 For each release:
 

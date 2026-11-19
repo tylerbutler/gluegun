@@ -3,7 +3,7 @@ title: Stability
 description: Semantic versioning and compatibility guarantees for Gluegun.
 ---
 
-Gluegun [`1.0.0`](https://hex.pm/packages/gluegun/1.0.0) is a stable release.
+Gluegun follows semantic versioning.
 The public API stability policy below applies to version 1.0 and later.
 The [API reference](/reference/) documents the stable API, and
 [Installation](/installation/) gives the Hex dependency range and

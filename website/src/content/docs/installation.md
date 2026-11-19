@@ -6,8 +6,8 @@ next:
   label: Send your first request
 ---
 
-Gluegun [`1.0.0`](https://hex.pm/packages/gluegun/1.0.0) is the stable 1.0
-release on Hex. Add these dependencies to `gleam.toml`:
+Install Gluegun from [Hex](https://hex.pm/packages/gluegun).
+Add these dependencies to `gleam.toml`:
 
 ```toml
 [dependencies]
@@ -72,6 +72,6 @@ The package controls these through its `gleam.toml`. Add
 `gleam_http = ">= 4.0.0 and < 5.0.0"` to your application's dependencies when
 you import standard HTTP modules, as the request examples do.
 Use the [website API reference](/reference/) or
-[versioned HexDocs](https://hexdocs.pm/gluegun/1.0.0/) for this release. See the
+[HexDocs](https://hexdocs.pm/gluegun/) for API documentation. See the
 [release setup instructions](https://github.com/tylerbutler/gluegun#hex-release-setup)
 for publication and verification checks.
