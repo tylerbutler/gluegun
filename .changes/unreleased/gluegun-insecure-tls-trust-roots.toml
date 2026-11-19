@@ -1,3 +1,10 @@
 package = "gluegun"
 kind = "Fixed"
-body = "Avoid system trust store reads for development-only TLS connections with explicit VerifyNone and no CA settings. Preserve explicit CA settings and secure defaults for verifying connections."
+body = """
+Avoid trust store reads when TLS verification is disabled.
+
+Connections with explicit `VerifyNone` and no CA settings no longer read the
+system trust store. This lets development connections work on hosts without
+a usable CA bundle. Explicit CA settings and secure defaults for verifying
+connections are unchanged. Use `tls.insecure()` only for development.
+"""

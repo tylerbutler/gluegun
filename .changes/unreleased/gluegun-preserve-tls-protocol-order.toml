@@ -1,3 +1,10 @@
 package = "gluegun"
 kind = "Fixed"
-body = "Preserve the requested HTTP protocol order in the TLS ClientHello. Explicit TLS protocol lists now advertise the first protocol first; TCP behavior and omitted protocol defaults are unchanged."
+body = """
+Preserve HTTP protocol preference order in TLS offers.
+
+The TLS ClientHello advertises explicit protocol lists in the requested
+order. Remove any list reversal used to work around the previous behavior.
+Servers can still select a protocol using their own preference order.
+TCP behavior and omitted protocol defaults are unchanged.
+"""
