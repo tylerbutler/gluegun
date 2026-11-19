@@ -1,8 +1,8 @@
 # Gluegun
 
+[![Hex version](https://img.shields.io/hexpm/v/gluegun)](https://hex.pm/packages/gluegun)
 [![Docs](https://img.shields.io/badge/docs-gluegun.tylerbutler.com-ffaff3)](https://gluegun.tylerbutler.com/)
 [![CI](https://github.com/tylerbutler/gluegun/actions/workflows/ci.yml/badge.svg)](https://github.com/tylerbutler/gluegun/actions/workflows/ci.yml)
-[![Hex version](https://img.shields.io/hexpm/v/gluegun)](https://hex.pm/packages/gluegun)
 
 A Gleam wrapper for the Erlang [Gun](https://ninenines.eu/docs/en/gun/) HTTP client.
 
