@@ -6,19 +6,17 @@ next:
   label: Send your first request
 ---
 
-Gluegun [`1.0.0-rc.1`](https://hex.pm/packages/gluegun/1.0.0-rc.1) is available
-on Hex. It is a release candidate for 1.0, not a stable 1.0 release.
-To select this candidate from Hex, add these dependencies to `gleam.toml`:
+Install Gluegun from [Hex](https://hex.pm/packages/gluegun).
+Add these dependencies to `gleam.toml`:
 
 ```toml
 [dependencies]
 gleam_http = ">= 4.0.0 and < 5.0.0"
-gluegun = "== 1.0.0-rc.1"
+gluegun = ">= 1.0.0 and < 2.0.0"
 ```
 
 Add `gleam_http` when you import standard HTTP modules, as the examples do.
-Use the exact TOML requirement for this prerelease; Gleam 1.19.2 rejects
-`gleam add gluegun@1.0.0-rc.1`.
+You can also add both dependencies with `gleam add gluegun@1 gleam_http@4`.
 
 <nav class="gg-lifecycle" aria-label="Request lifecycle">
   <ol>
@@ -41,7 +39,7 @@ For Git-based development, replace the Gluegun dependency with a release tag
 or an unreleased revision:
 
 ```toml
-gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "v1.0.0-rc.1" }
+gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "v1.0.0" }
 ```
 
 Run `gleam deps download` again. For an unreleased revision, use `ref = "main"`
@@ -74,6 +72,6 @@ The package controls these through its `gleam.toml`. Add
 `gleam_http = ">= 4.0.0 and < 5.0.0"` to your application's dependencies when
 you import standard HTTP modules, as the request examples do.
 Use the [website API reference](/reference/) or
-[versioned HexDocs](https://hexdocs.pm/gluegun/1.0.0-rc.1/) for this candidate. See the
+[HexDocs](https://hexdocs.pm/gluegun/) for API documentation. See the
 [release setup instructions](https://github.com/tylerbutler/gluegun#hex-release-setup)
 for publication and verification checks.
