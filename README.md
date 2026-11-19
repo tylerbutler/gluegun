@@ -9,14 +9,13 @@ Gun is an asynchronous HTTP client supporting HTTP/1.1, HTTP/2, and WebSocket ov
 
 ## Installation
 
-Gluegun [`1.0.0-rc.1`](https://hex.pm/packages/gluegun/1.0.0-rc.1) is available
-on Hex. It is a release candidate for 1.0, not a stable 1.0 release.
-To select this candidate from Hex, add these dependencies to `gleam.toml`:
+Gluegun [`1.0.0`](https://hex.pm/packages/gluegun/1.0.0) is the stable 1.0
+release on Hex. Add these dependencies to `gleam.toml`:
 
 ```toml
 [dependencies]
 gleam_http = ">= 4.0.0 and < 5.0.0"
-gluegun = "== 1.0.0-rc.1"
+gluegun = ">= 1.0.0 and < 2.0.0"
 ```
 
 Then download the dependencies:
@@ -26,20 +25,19 @@ gleam deps download
 ```
 
 Add `gleam_http` when you import standard HTTP modules, as the examples do.
-Use the exact TOML requirement for this prerelease; Gleam 1.19.2 rejects
-`gleam add gluegun@1.0.0-rc.1`.
+You can also add both dependencies with `gleam add gluegun@1 gleam_http@4`.
 
 For Git-based development, replace the Gluegun dependency with a release tag
 or an unreleased revision:
 
 ```toml
-gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "v1.0.0-rc.1" }
+gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "v1.0.0" }
 ```
 
 Run `gleam deps download` after changing the dependency. For an unreleased
 revision, use `ref = "main"` or a commit SHA. Use a tag or commit SHA for
 reproducible builds. Use the [website API reference](https://gluegun.tylerbutler.com/reference/)
-or [versioned HexDocs](https://hexdocs.pm/gluegun/1.0.0-rc.1/) for this candidate.
+or [versioned HexDocs](https://hexdocs.pm/gluegun/1.0.0/) for this release.
 
 ## Compatibility
 
@@ -477,7 +475,7 @@ fn safe_get(conn) {
 - TLS option surface is intentionally small at first. Advanced TLS options may require future typed additions.
 - Gun can leave HTTP/1.1 reads paused after cancellation with exhausted finite
   flow credit. Terminate and replace that connection, discarding its other
-  requests. This accepted upstream limitation does not block 1.0; see
+  requests. This accepted upstream limitation applies to 1.0; see
   [#78](https://github.com/tylerbutler/gluegun/issues/78) and related
   [ninenines/gun#56](https://github.com/ninenines/gun/issues/56).
 - Response header strings must be UTF-8. Invalid wire values return
@@ -592,8 +590,10 @@ just change --kind Added --body "Describe the change"
 ```
 
 Preview the next release with `just changelog-preview`. Trellis creates release
-pull requests from pending fragments on `main`. Before 1.0, `Breaking`
-fragments request a minor release in `gleam.toml`; change them to `major` at 1.0.
+pull requests from pending fragments on `main`. The `Breaking` fragment kind
+still requests a minor release in `gleam.toml`. Before preparing a breaking
+1.x release, change its bump to `major` to match the
+[API stability policy](https://gluegun.tylerbutler.com/advanced/stability/).
 Merge `release/pending` to create
 an exact `v{version}` tag and a GitHub release. Tag pushes run CI and package
 export, then publish to Hex and HexDocs if checks pass. This includes 0.x
@@ -606,13 +606,13 @@ release PR. Track publication verification in
 [#55](https://github.com/tylerbutler/gluegun/issues/55). Configuration and dry-run
 checks do not establish that Hex accepted a package or that HexDocs serves it.
 
-The [`1.0.0-rc.1` release](https://hex.pm/packages/gluegun/1.0.0-rc.1) and its
-[versioned API documentation](https://hexdocs.pm/gluegun/1.0.0-rc.1/) are
-publicly available. This candidate does not mark the stable 1.0 release.
+The stable [`1.0.0` release](https://hex.pm/packages/gluegun/1.0.0) and its
+[versioned API documentation](https://hexdocs.pm/gluegun/1.0.0/) are
+publicly available.
 
 For each release:
 
-1. Select the intended 1.0 candidate or stable version through the existing
+1. Select the intended candidate or stable version through the existing
    release process. Do not overwrite or duplicate `release/pending`.
 2. Before merging, review the release version and generated documentation.
    Merging the release PR creates the immutable `v{version}` tag and triggers
@@ -624,7 +624,7 @@ For each release:
    and its nested `contents.tar.gz`: include the licence, Gleam modules, and
    `src/gluegun_ffi.erl`; exclude test/compatibility helpers, build output,
    credentials, and development artifacts. Review production dependencies.
-   `trellis publish --dry-run --tag v1.0.0-rc.1` checks tag selection and dependency
+   `trellis publish --dry-run --tag v1.0.0` checks tag selection and dependency
    rewrites from the corresponding checkout; it does not replace the test suite.
 4. Confirm the repository's `HEXPM_API_KEY` Actions secret contains a scoped
    Hex key with package and documentation publishing access. Read secret names
@@ -654,7 +654,7 @@ version. After confirming the accepted package matches the approved tag,
 maintainers can dispatch another run on the same tag:
 
 ```sh
-gh workflow run publish.yml --repo tylerbutler/gluegun --ref v1.0.0-rc.1
+gh workflow run publish.yml --repo tylerbutler/gluegun --ref v1.0.0
 ```
 
 Do not dispatch it on a branch. Trellis skips
@@ -723,7 +723,7 @@ Run the **Trellis Release** workflow manually on `main` to change release mode:
 
 | Action | `pre` input | `version` input |
 | --- | --- | --- |
-| Start a candidate cycle | `rc` | Target stable version, for example `1.0.0` |
+| Start a candidate cycle | `rc` | Target stable version, for example `1.1.0` |
 | Prepare the next candidate | `rc` | Leave empty |
 | Promote the current candidate to stable | `none` | Leave empty |
 | Prepare a normal stable release | Leave empty | Leave empty, or set a target version |
@@ -749,7 +749,7 @@ candidate's version commit. Automatic pushes do not promote candidates.
 Preview candidates locally without changing files:
 
 ```sh
-just changelog-preview --set gluegun=1.0.0 --pre rc
+just changelog-preview --set gluegun=1.1.0 --pre rc
 just changelog-preview --pre rc
 just changelog-preview --pre none
 ```

@@ -3,14 +3,11 @@ title: Stability
 description: Semantic versioning and compatibility guarantees for Gluegun.
 ---
 
-Gluegun `1.0.0-rc.1` is a release candidate for 1.0. Stable 1.0 has not been
-released, so the API can still change before that release. The
-[API reference](/reference/) documents the current candidate, and
-[Installation](/installation/) gives the exact Hex requirement and
+Gluegun [`1.0.0`](https://hex.pm/packages/gluegun/1.0.0) is a stable release.
+The public API stability policy below applies to version 1.0 and later.
+The [API reference](/reference/) documents the stable API, and
+[Installation](/installation/) gives the Hex dependency range and
 Git-development options.
-
-The public API stability policy below is planned for version 1.0 and later.
-The supported version ranges describe the current package.
 
 ## Stable public API
 
@@ -81,4 +78,4 @@ it requires Gleam 1.11 and `gleam_stdlib` 0.53. Earlier Gluegun declarations
 of 1.7 and 0.48 did not form an installable minimum dependency set.
 
 See [limitations](/advanced/limitations/) for the accepted upstream
-HTTP/1.1 flow-paused cancellation defect that also applies to the planned 1.0 release.
+HTTP/1.1 flow-paused cancellation defect that applies to Gluegun 1.0.
