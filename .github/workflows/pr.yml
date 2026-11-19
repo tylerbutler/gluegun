@@ -60,7 +60,7 @@ jobs:
               "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
           )"
 
-          if printf '%s\n' "$changed_files" | grep -qE '^(src/|\.changes/|gleam\.toml$|manifest\.toml$)'; then
+          if printf '%s\n' "$changed_files" | grep -qE '^(src/|\.changes/unreleased/|gleam\.toml$|manifest\.toml$)'; then
             strictness="$(python3 -B scripts/changelog_strictness.py)"
             trellis changelog check \
               --strictness "$strictness" \
