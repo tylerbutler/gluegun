@@ -48,6 +48,9 @@ jobs:
         with:
           dependencies: "false"
 
+      - name: Test changelog policy
+        run: python3 -B -m unittest discover -s test -p changelog_strictness_test.py
+
       - name: Check changelog
         id: changelog
         continue-on-error: true
@@ -58,7 +61,9 @@ jobs:
           )"
 
           if printf '%s\n' "$changed_files" | grep -qE '^(src/|\.changes/|gleam\.toml$|manifest\.toml$)'; then
+            strictness="$(python3 -B scripts/changelog_strictness.py)"
             trellis changelog check \
+              --strictness "$strictness" \
               --base "${{ github.event.pull_request.base.sha }}" \
               --head "${{ github.event.pull_request.head.sha }}" \
               --format github >> "$GITHUB_OUTPUT"
