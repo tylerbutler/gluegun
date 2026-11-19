@@ -1,3 +1,12 @@
 package = "gluegun"
 kind = "Fixed"
-body = "Use the first protocol in an explicit preference list for plain TCP, including Auto resolved to TCP, without fallback. Reject an empty protocol list with InvalidOptions before starting Gun."
+body = """
+Use the first requested protocol for plain TCP connections.
+
+Plain TCP uses only the first protocol in an explicit preference list, with
+no fallback. This also applies when `Auto` selects TCP. Passing the full list
+to Gun could prevent the connection from reaching readiness.
+
+An empty protocol list returns `InvalidOptions` before Gun starts. Remove
+`with_protocols([])` to use Gun's default, or supply a nonempty list.
+"""

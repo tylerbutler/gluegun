@@ -1,3 +1,13 @@
 package = "gluegun"
 kind = "Fixed"
-body = "Reject explicit TLS cipher lists with no suite usable for the effective TLS versions before starting Gun, instead of allowing OTP to fall back to default suites. Omit the cipher list to keep OTP defaults."
+body = """
+Reject TLS cipher lists with no usable suite.
+
+An empty explicit cipher list, or one with no suite usable for the effective
+TLS versions and runtime crypto support, returns `InvalidOptions` before
+Gun starts. This prevents OTP from falling back to default suites outside
+the caller's policy.
+
+Include at least one usable suite, or omit `with_ciphers` to use OTP defaults.
+Mixed lists with a usable suite are unchanged.
+"""

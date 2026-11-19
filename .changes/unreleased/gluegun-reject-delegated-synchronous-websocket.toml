@@ -1,3 +1,14 @@
 package = "gluegun"
 kind = "Fixed"
-body = "Reject a different reply_to PID in websocket.connect and websocket.with_socket before opening a connection, so the caller cannot wait for a handshake sent to another process. Default and self receivers remain valid. For delegated reception, use upgrade, then await_upgrade and from_upgrade in the receiver."
+body = """
+Reject delegated receivers in synchronous WebSocket helpers.
+
+`websocket.connect` and `websocket.with_socket` return `InvalidOptions` for
+a `reply_to` PID other than the caller before opening a connection. This
+prevents the caller from waiting for a handshake sent to another process.
+Default and explicit-self receivers remain valid.
+
+For delegated reception, call `upgrade` in the connection owner, then
+`await_upgrade` and `from_upgrade` in the receiver. Keep the connection owner
+alive for the socket's lifetime.
+"""

@@ -1,3 +1,15 @@
 package = "gluegun"
 kind = "Fixed"
-body = "Apply WebSocket keepalive intervals when opening connections so Gun sends automatic pings. High-level connect and with_socket route with_keepalive to connection options, with explicit upgrade settings taking precedence. For low-level upgrades, use connection.with_websocket_keepalive before open; upgrade-only keepalive settings now return InvalidOptions instead of silently leaving the timer unchanged. The default remains no automatic pings."
+body = """
+Apply WebSocket keepalive intervals so automatic pings work.
+
+High-level `connect` and `with_socket` apply `with_keepalive` when opening
+the connection. An explicit upgrade setting takes precedence over
+`connection.with_websocket_keepalive`; an absent setting preserves the
+connection setting. The default remains no automatic pings.
+
+For low-level upgrades, set `connection.with_websocket_keepalive` before
+`connection.open`. Upgrade-only keepalive settings, including explicit
+`infinity()` values, return `InvalidOptions` instead of leaving the timer
+unchanged.
+"""

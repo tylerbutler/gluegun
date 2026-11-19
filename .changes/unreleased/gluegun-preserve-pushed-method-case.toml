@@ -1,3 +1,10 @@
 package = "gluegun"
 kind = "Fixed"
-body = "Preserve case-sensitive HTTP method names in server push messages. Only exact standard tokens map to standard Method variants; get now decodes as Other(\"get\") instead of Get. Outbound method encoding is unchanged."
+body = """
+Preserve HTTP method case in server push messages.
+
+Only exact standard method tokens map to standard `Method` variants.
+For example, `get` decodes as `Other("get")` instead of `Get`. Update
+receivers that treated lowercase pushed methods as standard variants to
+handle `Other` instead. Outbound method encoding is unchanged.
+"""
