@@ -15,6 +15,7 @@ FUNCTION = re.compile(r"^(?:pub )?fn ", re.MULTILINE)
 OWNED = {
     ("README.md", 0): "doc_basic",
     ("README.md", 3): "doc_facade",
+    ("README.md", 4): "doc_upload",
     ("README.md", 5): "doc_http2",
 }
 GUIDES = {

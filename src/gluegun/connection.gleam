@@ -89,6 +89,7 @@ pub type ConnectOption {
   AddressFamilyOption(AddressFamily)
   DomainLookupTimeoutOption(Timeout)
   TlsHandshakeTimeoutOption(Timeout)
+  WebsocketKeepaliveOption(Timeout)
   TlsOption(List(tls.TlsSetting))
 }
 
@@ -107,6 +108,7 @@ pub opaque type ConnectOptions {
     address_family: Option(AddressFamily),
     domain_lookup_timeout: Option(Timeout),
     tls_handshake_timeout: Option(Timeout),
+    websocket_keepalive: Option(Timeout),
   )
 }
 
@@ -121,6 +123,7 @@ pub fn options() -> ConnectOptions {
     address_family: None,
     domain_lookup_timeout: None,
     tls_handshake_timeout: None,
+    websocket_keepalive: None,
   )
 }
 
@@ -174,7 +177,13 @@ pub fn with_transport(
 
 /// Set HTTP protocol preference ordering for a connection.
 ///
-/// The list order is preserved when options are passed to Gun.
+/// TLS advertises the protocols in this order in the ALPN ClientHello.
+/// The server selects the protocol and can use its own preference order.
+/// With no explicit list, Gun's default protocols are unchanged.
+///
+/// Plain TCP uses only the first protocol, with no fallback.
+/// This also applies when `Auto` selects TCP.
+/// An empty list makes `open` return `InvalidOptions`.
 pub fn with_protocols(
   options: ConnectOptions,
   protocols protocols: List(Protocol),
@@ -231,6 +240,20 @@ pub fn with_tls_handshake_timeout(
   ConnectOptions(..options, tls_handshake_timeout: Some(timeout))
 }
 
+/// Set the interval between automatic WebSocket pings, in milliseconds.
+///
+/// Gun reads this setting from the original connection options, not the
+/// upgrade options. Set it before `open`, then upgrade with
+/// `websocket.upgrade_options()` without `websocket.with_keepalive`.
+/// Defaults to `infinity()` (no automatic pings). This does not change
+/// connection, upgrade, or frame receive timeouts.
+pub fn with_websocket_keepalive(
+  options: ConnectOptions,
+  interval interval: Timeout,
+) -> ConnectOptions {
+  ConnectOptions(..options, websocket_keepalive: Some(interval))
+}
+
 /// Set TLS options for TLS or auto-transport connections.
 ///
 /// Configuring TLS options on an `Auto`-transport connection is treated as
@@ -276,6 +299,12 @@ pub fn tls_options(options: ConnectOptions) -> Option(tls.TlsOptions) {
 
 /// Open a Gun connection to `host:port`.
 ///
+/// Accepts DNS names, IPv4 text, and IPv6 text with or without brackets.
+/// IP literals are passed to Gun as address tuples so IPv6 HTTP authorities
+/// have brackets. DNS lookup keeps the supplied name, including a final root
+/// dot. Derived TLS SNI omits that dot; explicit SNI settings are unchanged.
+/// TLS certificate identity checks remain enabled for DNS names and IPs.
+///
 /// Returns immediately with a `Connection` handle; the underlying TCP/TLS
 /// handshake completes asynchronously. Call `await_up` before sending any
 /// request or WebSocket upgrade.
@@ -290,7 +319,7 @@ pub fn tls_options(options: ConnectOptions) -> Option(tls.TlsOptions) {
 /// or a configured reply receiver; this does not change the owner.
 ///
 /// Errors:
-/// - `InvalidOptions` — Gun rejected the converted options.
+/// - `InvalidOptions` — the protocol list is empty or Gun rejected the options.
 /// - `ErlangError` — Gun could not spawn the connection process.
 pub fn open(
   options: ConnectOptions,
@@ -421,6 +450,10 @@ pub fn options_to_ffi(options: ConnectOptions) -> List(ConnectOption) {
     Some(timeout) -> [TlsHandshakeTimeoutOption(timeout)]
     None -> []
   }
+  let websocket_options = case options.websocket_keepalive {
+    Some(interval) -> [WebsocketKeepaliveOption(interval)]
+    None -> []
+  }
 
   list.flatten([
     [
@@ -433,6 +466,7 @@ pub fn options_to_ffi(options: ConnectOptions) -> List(ConnectOption) {
     family_options,
     lookup_options,
     handshake_options,
+    websocket_options,
   ])
 }
 

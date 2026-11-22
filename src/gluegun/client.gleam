@@ -123,6 +123,8 @@ pub fn with_body(request: Request, body body: BitArray) -> Request {
 ///
 /// Informational responses and body chunks do not restart the budget.
 /// `Infinity` has no limit. Collection still keeps the complete body in memory.
+/// An expired budget returns `Timeout` before dispatch. A later timeout cannot
+/// undo a request that was already sent.
 pub fn with_timeout(request: Request, timeout timeout: Timeout) -> Request {
   Request(..request, timeout: timeout)
 }
@@ -334,6 +336,10 @@ pub fn request_with(
     Result(Message, error.GluegunError),
 ) -> Result(Response(BitArray), error.GluegunError) {
   let deadline = connection.deadline(timeout)
+  use _ <- result.try(case connection.expired(deadline) {
+    True -> Error(error.Timeout)
+    False -> Ok(Nil)
+  })
   use stream <- result.try(request_fn(
     connection,
     method,

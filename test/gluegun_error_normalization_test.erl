@@ -28,11 +28,13 @@ dead_connection() ->
 tunneled_stream_ref() ->
     [make_ref(), make_ref()].
 
-%% Duplicate protocols pass Gluegun's typed encoding but Gun rejects them
-%% before creating a connection. Negative retry is rejected before Gun.
+%% TLS preserves duplicate protocols so Gun rejects them before creating a
+%% connection. TCP deliberately selects only the first entry. Disable peer
+%% verification here to keep this option-validation fixture trust-independent.
 invalid_open_options() ->
     gluegun_ffi:open(<<"localhost">>, 80, [
-        {transport_option, tcp},
+        {transport_option, tls},
+        {tls_option, [{verify_setting, verify_none}]},
         {protocols_option, [http1, http1]}
     ]).
 

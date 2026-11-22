@@ -1,22 +1,25 @@
 # Gluegun
 
+[![Hex version](https://img.shields.io/hexpm/v/gluegun)](https://hex.pm/packages/gluegun)
 [![Docs](https://img.shields.io/badge/docs-gluegun.tylerbutler.com-ffaff3)](https://gluegun.tylerbutler.com/)
 [![CI](https://github.com/tylerbutler/gluegun/actions/workflows/ci.yml/badge.svg)](https://github.com/tylerbutler/gluegun/actions/workflows/ci.yml)
 
-A Gleam wrapper for the Erlang [Gun](https://ninenines.eu/docs/en/gun/) HTTP client.
-
-Gun is an asynchronous HTTP client supporting HTTP/1.1, HTTP/2, and WebSocket over HTTP/1.1. Gluegun gives Gleam callers typed connection, request, response, message, and WebSocket helpers while preserving access to Gun's stream-oriented model. Because Gun is Erlang-only, Gluegun targets the Erlang runtime.
+Gluegun lets Gleam programs use [Gun](https://ninenines.eu/docs/en/gun/), the
+Erlang HTTP client, through typed functions. Gun speaks HTTP/1.1, HTTP/2, and
+WebSocket over HTTP/1.1, and it delivers each response as a series of
+asynchronous messages. Gluegun keeps that stream model but gives each part a
+Gleam type: connections, requests, responses, messages, and WebSocket frames.
+Because Gun runs only on the BEAM, Gluegun supports only the Erlang target.
 
 ## Installation
 
-Gluegun [`1.0.0-rc.1`](https://hex.pm/packages/gluegun/1.0.0-rc.1) is available
-on Hex. It is a release candidate for 1.0, not a stable 1.0 release.
-To select this candidate from Hex, add these dependencies to `gleam.toml`:
+Add Gluegun and `gleam_http` to `gleam.toml`. The examples below use standard
+HTTP types such as `http.Get` from `gleam_http`, so most projects need both:
 
 ```toml
 [dependencies]
 gleam_http = ">= 4.0.0 and < 5.0.0"
-gluegun = "== 1.0.0-rc.1"
+gluegun = ">= 1.0.0 and < 2.0.0"
 ```
 
 Then download the dependencies:
@@ -25,64 +28,28 @@ Then download the dependencies:
 gleam deps download
 ```
 
-Add `gleam_http` when you import standard HTTP modules, as the examples do.
-Use the exact TOML requirement for this prerelease; Gleam 1.19.2 rejects
-`gleam add gluegun@1.0.0-rc.1`.
+`gleam add gluegun@1 gleam_http@4` does both steps in one command.
 
-For Git-based development, replace the Gluegun dependency with a release tag
-or an unreleased revision:
+To use unreleased work, point the dependency at the Git repository instead.
+A tag or commit SHA gives a build that you can repeat; `ref = "main"` follows
+the latest revision:
 
 ```toml
-gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "v1.0.0-rc.1" }
+gluegun = { git = "https://github.com/tylerbutler/gluegun.git", ref = "v1.0.0" }
 ```
 
-Run `gleam deps download` after changing the dependency. For an unreleased
-revision, use `ref = "main"` or a commit SHA. Use a tag or commit SHA for
-reproducible builds. Use the [website API reference](https://gluegun.tylerbutler.com/reference/)
-or [versioned HexDocs](https://hexdocs.pm/gluegun/1.0.0-rc.1/) for this candidate.
+Run `gleam deps download` again after you change the dependency.
 
-## Compatibility
+Gluegun supports Gleam `>= 1.11.0`, Erlang/OTP 27 or later, and Gun
+`>= 2.1.0 and < 3.0.0`. The API documentation is on the
+[website](https://gluegun.tylerbutler.com/reference/) and on
+[HexDocs](https://hexdocs.pm/gluegun/).
 
-- Erlang target only; Gluegun wraps the Erlang Gun client and does not support the JavaScript target.
-- Supports Gleam `>= 1.11.0` and Gun `>= 2.1.0 and < 3.0.0`.
+## Send a GET request
 
-Request methods use `gleam/http.Method`, including `Other` for extension
-methods. Gluegun keeps its own path-only request builder and response so callers
-can access trailers and informational responses without URL parsing.
-
-Connection options default to **zero retries**. Opt in with `with_retry` when
-you need HTTP reconnection. After an `await_up` error, call
-`connection.terminate` to release any process that remains alive, including
-when you selected retries or setup has not finished.
-
-Numeric options reject invalid input with `InvalidOptions`; they do not clamp.
-Finite timeouts accept 0 through 4_294_967_295 milliseconds, inclusive, as
-supported by OTP 27. Use `connection.infinity()` for no limit. Retry counts
-must be non-negative, flow credit must be positive, TLS depth accepts 0 through
-255, and ports accept 0 through 65535. Timeout construction returns `Result`
-for literals and configuration values alike.
-
-## Security
-
-Gluegun is **secure by default** for TLS. Whenever a connection uses TLS
-(`connection.Tls`, or `connection.Auto` resolving to TLS), Gluegun applies a
-secure baseline at connection time: peer and hostname verification, system CA
-certificates, TLS 1.2/1.3, SNI for DNS hosts, and HTTPS hostname matching.
-
-With `connection.Auto`, connections without TLS options use TLS on port 443
-and plain TCP on all other ports. Plain TCP does not load TLS trust roots.
-If you configure TLS options under Auto, the connection uses TLS on each
-port. TLS setup failures return errors without a fallback to plaintext.
-
-The minimal HTTPS setup is just `connection.options() |> connection.with_transport(transport: connection.Tls)`. Override individual fields with the `tls.with_*` builders; user-supplied values always win.
-
-For development against self-signed endpoints, use `tls.insecure()`, which disables verification and SNI. Do not ship it.
-
-See the [TLS guide](https://gluegun.tylerbutler.com/guides/tls/) for the canonical default list, full details, and overrides.
-
-## Basic GET
-
-Open a Gun connection, wait for it to be ready, send a GET, and collect the full response in memory.
+Each Gluegun exchange has the same shape. You open a connection to a host and
+port, wait for Gun to negotiate a protocol, send requests on that connection,
+and then release it. This example does each step once:
 
 ```gleam
 import gleam/http
@@ -120,14 +87,27 @@ pub fn main() {
   Ok(Nil)
 }
 ```
+The example creates `cleanup` before it examines either result, so the
+connection is released even when the exchange fails. `terminate` also stops a
+connection whose setup failed or stalled. If both steps fail, the exchange
+error takes precedence. If only cleanup fails, its error is returned.
 
-Cleanup runs before either result is returned. An exchange error takes
-precedence over a cleanup error. If the exchange succeeds, a cleanup error is
-returned. `terminate` also stops failed or stalled connection setup.
+A lost connection stays lost unless you ask for more: connection options
+default to zero retries. Call `connection.with_retry` to opt in to HTTP
+reconnection. Even with retries, call `connection.terminate` after an
+`await_up` error to release a process that is still alive.
 
-## One-shot helper on an existing connection
+## Send requests on an open connection
 
-`gluegun/client` helpers are one-shot per request: they send one request on an existing connection and collect that response. Gluegun does not parse URLs; pass the host and port to `connection.open`, then pass a path to request helpers. If your input is a full URL, parse it first with the standard `gleam/uri` module and pass the parsed `host`, `port`, `path`, and `query` pieces into Gluegun.
+In that example, the connection holds the host and port, and the request holds
+only a path. Gluegun does not parse URLs. If you start with a full URL, parse
+it with the standard `gleam/uri` module. Give the host and port to
+`connection.open`, and give the path and query to the request. Gluegun sends
+the request target as you give it, so encode it first, for example
+`/items?tag=a%2Fb&tag=c`.
+
+The `client` builder adds headers and a timeout to that path, then sends one
+request and collects its response:
 
 ```gleam
 import gleam/http
@@ -140,24 +120,18 @@ fn fetch_json(conn, path, timeout) {
   |> client.send(connection: conn)
 }
 ```
+`client.with_timeout` sets one budget for the full exchange, from dispatch to
+the last body chunk. Informational responses and body chunks do not restart
+it, and `Infinity` has no limit. If the budget has already expired, including
+a budget of zero, the call returns `Timeout` and sends nothing. A timeout that
+expires later cannot undo a request that Gun has already sent. Request bodies
+are byte-aligned `BitArray` values and need not be UTF-8.
 
-`client.with_timeout` sets one total budget for dispatch and response
-collection. Informational messages and body chunks do not restart it.
-`Infinity` remains unlimited; a zero budget returns `Timeout`.
-
-When collection fails, `client` helpers attempt to cancel that stream and drain its queued messages. They also cancel and drain each promised stream found in a rejected or queued push. They return the original error and keep other streams and the shared connection open. Cleanup failures produce a warning. Cancellation is asynchronous, so messages in transit can arrive after the drain. The high-level helpers do not return the failed stream handle; use the low-level API in a separate receiving process if you need strict mailbox isolation.
-
-## Standard HTTP types
-
-HTTP APIs use `gleam/http.Method`. Requests remain connection-bound: the
-connection determines the scheme, host, and port. Pass an encoded request target
-such as `/items?tag=a%2Fb&tag=c`; Gluegun does not encode paths or queries.
-Request bodies are byte-aligned `BitArray` values and need not be UTF-8.
-`client.with_timeout` sets one total budget for dispatch and response collection.
-
-`client.send` returns `gluegun/response.Response(BitArray)`. Its `response` field
-is a standard `gleam/http/response.Response(BitArray)`. Trailers and ordered
-informational responses remain in separate fields:
+`client.send` returns a `gluegun/response.Response(BitArray)`. Its `response`
+field is a standard `gleam/http/response.Response(BitArray)`, so the usual
+header and body helpers work on it. The outer value also keeps the trailers
+and the ordered `1xx` informational responses. To decode the body without
+losing that metadata, map the inner response and rebuild the outer value:
 
 ```gleam
 import gleam/bit_array
@@ -172,32 +146,20 @@ fn decode_body(collected: response.Response(BitArray)) {
   Ok(response.Response(..collected, response: decoded))
 }
 ```
+Collection can fail, for example when the timeout expires. The client then
+tries to cancel that stream and drain its queued messages, and it does the
+same for any stream that the server pushed with it. It returns the original
+error and keeps the connection and its other streams open; a cleanup failure
+only produces a warning. Cancellation is asynchronous, so a message in transit
+can arrive after the drain. If you need strict mailbox isolation, use the
+low-level API in a separate receiving process.
 
-Use standard header and body helpers on `collected.response`. Keep the outer
-value when you need trailers or informational responses; selecting only the
-standard response excludes that metadata.
+## Use the root module for short programs
 
-### Migration
-
-Replace `request.Get`, `request.Post`, and other method constructors with
-`http.Get`, `http.Post`, and the corresponding `gleam/http` constructors.
-Replace `request.Custom` with `http.Other` and `request.Method` with
-`http.Method`.
-
-Add a body parameter to collected-response type annotations:
-`response.Response` becomes `response.Response(BitArray)`. Existing Gluegun
-status, header, body, and text accessors still work. Informational responses
-now use standard `gleam/http/response.Response(Nil)` values instead of
-`response.Informational` constructors.
-
-Standard request converters remain deferred. Gun-specific handles, stream
-events, validated options, and lifecycle APIs retain their custom types.
-
-## Small HTTP facade
-
-The root `gluegun` module provides options, timeout construction, open/await,
-request/send, body text, and close/shutdown/terminate. Use `client` for header
-and body customization, or the named streaming and WebSocket modules.
+For a short program, the root `gluegun` module puts the common steps behind
+one import: options, timeouts, open and await, request and send, body text,
+and close, shutdown, or terminate. When you need custom headers, streaming,
+or WebSockets, use the named modules.
 
 ```gleam
 import gleam/http
@@ -222,14 +184,21 @@ pub fn fetch() {
   Ok(text)
 }
 ```
+## Stream a request body
 
-## Streaming a request body
+The client collects the full response in memory. When you must produce a body
+in pieces, or read a response as it arrives, use `gluegun/request` and
+`gluegun/message`. Start the request with `request.start_stream`, send zero
+or more chunks marked `fin.NoFin`, and mark the last chunk `fin.Fin`. Gun then
+delivers the response as separate messages: zero or more informational
+responses, then the final headers, then the body.
 
-Use `gluegun/request` when the request body is produced in chunks. Start with `request.start_stream`, send zero or more chunks with `fin.NoFin`, and complete the body with `fin.Fin`. Response headers and body are separate asynchronous Gun stream messages; use `gluegun/message` helpers or your own receive loop for advanced flows.
+Do not set `Content-Length` on a streamed upload. Supported Gun versions can
+crash on fixed-length chunk sequences, so Gluegun rejects the header before it
+sends anything. If you know the length, send the complete body in one request.
 
-Do not set `Content-Length` on a streamed upload. Gluegun rejects it before
-sending headers because supported Gun versions can crash on fixed-length
-chunk sequences. Use chunked uploads or send the complete body in one request.
+This example skips informational responses such as `103 Early Hints`, then
+collects the body:
 
 ```gleam
 import gleam/http
@@ -240,7 +209,9 @@ import gluegun/message
 import gluegun/request
 import gleam/result
 
-pub fn upload_chunks(conn) {
+pub fn upload_chunks(
+  conn: connection.Connection,
+) -> Result(BitArray, error.GluegunError) {
   use timeout <- result.try(connection.milliseconds(5000))
 
   use stream <- result.try(
@@ -256,8 +227,7 @@ pub fn upload_chunks(conn) {
   use _ <- result.try(request.data(conn, stream, fin.NoFin, <<"first ":utf8>>))
   use _ <- result.try(request.data(conn, stream, fin.Fin, <<"last":utf8>>))
 
-  // Await response headers, then consume the response body.
-  use response <- result.try(message.await(conn, stream, timeout))
+  use response <- result.try(await_final_response(conn, stream, timeout))
 
   case response {
     message.Response(fin.NoFin, _status, _headers) ->
@@ -266,32 +236,48 @@ pub fn upload_chunks(conn) {
     _ -> Error(error.InvalidMessage("expected a final response message"))
   }
 }
+
+fn await_final_response(
+  conn: connection.Connection,
+  stream: request.Stream,
+  timeout: connection.Timeout,
+) -> Result(message.Message, error.GluegunError) {
+  case message.await(conn, stream, timeout) {
+    Ok(message.Inform(_status, _headers)) ->
+      await_final_response(conn, stream, timeout)
+    other -> other
+  }
+}
 ```
+To process response chunks or trailers as they arrive, replace
+`message.await_body` with a loop over `message.await` that handles
+`message.Data` and `message.Trailers`.
 
-If you need response chunks or trailers as they arrive, continue awaiting
-`message.Data` and `message.Trailers` with `message.await` instead of collecting
-the full body with `message.await_body`.
+Such a loop can also bound memory. Set `request.with_initial_flow(options, 1)`
+before you send the request, so that Gun delivers one data message at a time.
+Check the status and `Content-Length`, count the bytes of each `message.Data`
+chunk before you keep it, then grant the next message with
+`request.update_flow(conn, stream, 1)`. Credit counts messages, not bytes or
+allocations, so your loop must enforce the byte limit.
 
-For bounded response streaming, set `request.with_initial_flow(options, 1)`
-before you send the request. Check status and `Content-Length`, then count each
-`message.Data` chunk's bytes before retaining it. Grant one more data-message
-credit with `request.update_flow(conn, stream, 1)` after each check. Credit is
-not a byte or allocation limit.
+A bounded download also needs a bounded setup.
+`with_domain_lookup_timeout`, `with_connect_timeout`, and
+`with_tls_handshake_timeout` limit each setup stage, and
+`connection.with_address_family` selects IPv4 or IPv6 without fallback. None
+of them changes the TLS verification defaults. Stage limits are not a total
+deadline, so measure one monotonic deadline across setup and every receive.
+When it expires, `connection.terminate` stops the connection, waits for it to
+exit, and flushes its messages from your mailbox.
 
-Use `connection.with_address_family` to select IPv4 or IPv6 without fallback.
-Set `with_domain_lookup_timeout`, `with_connect_timeout`, and
-`with_tls_handshake_timeout` to bound separate setup stages. These settings preserve the TLS verification defaults.
-Use a monotonic total deadline across setup and response receives.
-`connection.terminate` stops a stalled connection, waits for exit, and flushes
-its messages from the caller's mailbox.
-
-See `examples/streaming_download` and the
-[streaming guide](https://gluegun.tylerbutler.com/guides/streaming/) for a
-bounded receive loop and the limits of Gun flow control.
+`examples/streaming_download` and the
+[streaming guide](https://gluegun.tylerbutler.com/guides/streaming/) show the
+complete receive loop and the limits of Gun flow control.
 
 ## Prefer HTTP/2
 
-Use TLS and put `Http2` before `Http1` to prefer HTTP/2 while allowing Gun to fall back to HTTP/1.1 when needed.
+HTTP/2 needs TLS, because the server selects the protocol during the TLS
+handshake (ALPN). Put `Http2` before `Http1` to offer HTTP/2 first and let Gun
+fall back to HTTP/1.1:
 
 ```gleam
 import gleam/result
@@ -319,15 +305,33 @@ pub fn get_over_http2() {
   Ok(res)
 }
 ```
+## TLS is secure by default
 
-## WebSocket echo
+The HTTP/2 example sets only the transport, and that is sufficient. Whenever a
+connection uses TLS (`connection.Tls`, or `connection.Auto` resolving to TLS),
+Gluegun applies a secure baseline: peer and hostname verification, system CA
+certificates, TLS 1.2 and 1.3, SNI for DNS hosts, and HTTPS hostname matching.
+Values that you set with the `tls.with_*` builders replace individual
+defaults.
 
-Gun supports WebSocket over HTTP/1.1 only. `websocket.connect` forces HTTP/1.1
-and zero retries after applying your connection options, including TLS
-settings. A dropped connection returns `ConnectionDown`; automatic HTTP
-reconnection cannot restore a WebSocket upgrade.
+The default `connection.Auto` transport uses TLS on port 443 and plain TCP on
+other ports. Plain TCP does not load TLS trust roots. If you configure TLS
+options, Auto uses TLS on every port. A TLS setup failure returns an error;
+Gluegun never falls back to plaintext.
 
-Use the reusable `Socket` API when you want explicit lifecycle control.
+For development against a self-signed server, `tls.insecure()` disables
+verification and SNI. Do not ship it. The
+[TLS guide](https://gluegun.tylerbutler.com/guides/tls/) lists each default
+and override.
+
+## Talk over WebSocket
+
+WebSocket brings back HTTP/1.1, because Gun supports WebSocket only over
+HTTP/1.1. `websocket.connect` applies your connection options, including TLS
+settings, then forces HTTP/1.1 and zero retries. Reconnection cannot restore
+an upgrade, so a dropped connection returns `ConnectionDown`.
+
+A reusable `Socket` gives you explicit control of its lifecycle:
 
 ```gleam
 import gleam/io
@@ -363,10 +367,17 @@ pub fn ws_echo() {
   cleanup
 }
 ```
+As with an HTTP connection, the example creates its cleanup before it examines
+the result. Call `websocket.close(socket)` from the receiving process, even
+after an exchange fails. It releases the Gun process and flushes its queued
+messages. It waits for the peer for the socket timeout, or five seconds when
+the timeout is `Infinity`, and a timeout or handshake error still tears the
+socket down. A second close succeeds after the process exits. In contrast,
+`send_close_frame` only sends a frame.
 
-Call `websocket.close(socket)` from the receiver to release the Gun process and flush its queued messages, including after an exchange fails. It waits for the peer within the socket timeout, or five seconds for `Infinity`. A timeout or handshake error still triggers teardown. Repeated close succeeds after the process exits. `send_close_frame` only sends a frame.
-
-For shorter one-shot flows, `with_socket` opens the socket, runs a callback, then closes the WebSocket and connection.
+For a short exchange, `with_socket` does this teardown for you. It opens the
+socket, runs your callback, then closes the WebSocket and its connection. A
+callback error takes precedence over a cleanup error.
 
 ```gleam
 import gleam/io
@@ -398,12 +409,19 @@ pub fn echo_once() {
   }
 }
 ```
+To upgrade a connection that you already opened, call `websocket.upgrade`
+with the negotiated protocol and upgrade options, then `await_upgrade`, then
+`from_upgrade`. The resulting `Socket` uses the same frame and close
+operations.
 
-`Socket` is reusable and you control its lifecycle. `with_socket` uses the
-same teardown and gives callback errors precedence over cleanup errors.
-To upgrade an existing connection, use `websocket.upgrade` with its negotiated
-protocol and upgrade options, then `await_upgrade` and `from_upgrade`. Use
-the same Socket frame and close operations after adoption.
+Keepalive pings are off by default (`infinity()`). For `connect` and
+`with_socket`, set `websocket.with_keepalive` on the upgrade options that you
+give to `websocket.with_upgrade_options`; that setting overrides
+`connection.with_websocket_keepalive`. For a low-level upgrade, set
+`connection.with_websocket_keepalive` before `connection.open` instead. Gun
+cannot change its connection timer through upgrade options, so
+`websocket.upgrade` rejects `websocket.with_keepalive` with `InvalidOptions`,
+even for `infinity()`. Keepalive does not change your receive timeout.
 
 See `examples/websocket_echo` for a fuller WebSocket example.
 
@@ -413,9 +431,12 @@ init, and pass each WebSocket envelope to `websocket.record_frame` before
 handling it. See the [actor guide](https://gluegun.tylerbutler.com/guides/actors/)
 and `examples/websocket_actor`. No caller Erlang FFI is needed.
 
-## Error handling
+## Handle errors
 
-Effectful operations return `Result(_, error.GluegunError)`. Pattern match on variants that matter to your application and keep a fallback for unexpected Erlang or decode errors. Pure builders and accessors return plain values.
+Each example above returns a `Result`. Effectful operations return
+`Result(_, error.GluegunError)`, and pure builders and accessors return plain
+values. Match the variants that are important to your application, and keep a
+fallback for unexpected Erlang or decode errors:
 
 ```gleam
 import gleam/io
@@ -444,25 +465,55 @@ fn safe_get(conn) {
   }
 }
 ```
+Options follow the same rule. A numeric option with an invalid value returns
+`InvalidOptions` instead of a clamped value. That is why even a literal
+timeout, such as `connection.milliseconds(5000)`, returns a `Result`. The
+[error handling guide](https://gluegun.tylerbutler.com/advanced/error-handling/)
+lists the accepted ranges.
 
 ## Limitations
 
-- Erlang target only. Gluegun wraps Erlang Gun and is not available on the JavaScript target.
-- Gun process ownership matters. Requests and WebSocket frames are asynchronous messages sent to the process that owns or awaits the Gun stream unless request options redirect replies.
-- `client` helpers collect full response bodies in memory. Use low-level `request` and `message` APIs for streaming or advanced Gun flows.
-- WebSocket over HTTP/2 is unsupported by Gun. Gluegun rejects it in `websocket.upgrade`.
-- TLS option surface is intentionally small at first. Advanced TLS options may require future typed additions.
-- Gun can leave HTTP/1.1 reads paused after cancellation with exhausted finite
-  flow credit. Terminate and replace that connection, discarding its other
-  requests. This accepted upstream limitation does not block 1.0; see
-  [#78](https://github.com/tylerbutler/gluegun/issues/78) and related
+- Gluegun runs only on the Erlang target, because it wraps Erlang Gun.
+- Process ownership matters. Gun sends stream and WebSocket messages to the
+  process that owns or awaits the stream, unless request options redirect
+  replies.
+- `client` helpers collect full response bodies in memory. Use the low-level
+  `request` and `message` APIs to stream.
+- Gun does not support WebSocket over HTTP/2, so `websocket.upgrade` rejects it.
+- The typed TLS options cover a small set at first. Advanced TLS options can
+  need future typed additions.
+- After cancellation with exhausted finite flow credit, Gun can leave HTTP/1.1
+  reads paused. Terminate and replace that connection, which discards its
+  other requests. This upstream limitation applies to 1.0; see
+  [#78](https://github.com/tylerbutler/gluegun/issues/78) and
   [ninenines/gun#56](https://github.com/ninenines/gun/issues/56).
 - Response header strings must be UTF-8. Invalid wire values return
-  `DecodeError` rather than invalid Gleam strings or silently changed bytes.
+  `DecodeError` instead of invalid Gleam strings or changed bytes.
 
 ## Examples
 
-Examples under `examples/` are standalone Erlang-target Gleam packages. To run one:
+Each directory under `examples/` is a standalone Gleam package for the Erlang
+target. They follow the same path as this README, from a first request to a
+complete command-line tool:
+
+- `basic_request`: open a connection, send a GET, print the negotiated
+  protocol, and collect a text response.
+- `json_post`: send a JSON body with headers through the client builder.
+- `http2_preferred`: prefer HTTP/2 over TLS and allow HTTP/1.1 fallback.
+- `chunked_upload`: start a streamed request with `request.start_stream` and
+  send body chunks with `request.data`, `fin.NoFin`, and `fin.Fin`.
+- `streaming_download`: process response chunks and trailers as message
+  values arrive.
+- `websocket_echo`: connect to a local WebSocket echo server and exchange one
+  text frame.
+- `websocket_actor`: own a WebSocket in an OTP actor and receive frames plus
+  application commands.
+- `websocket_chat`: use the scoped WebSocket helpers for a text and binary
+  conversation.
+- `webprobe`: a command-line HTTP diagnostics tool built with `clip`, `argv`,
+  `gleescript`, and Gluegun.
+
+To run one:
 
 ```sh
 cd examples/basic_request
@@ -471,273 +522,13 @@ gleam build
 gleam run
 ```
 
-Available examples:
+The networked examples need public endpoints or local servers, so run them by
+hand with `gleam run`.
 
-- `basic_request`: open a connection, send a GET, print negotiated protocol, collect text response.
-- `json_post`: send JSON request body with headers using high-level client builder.
-- `http2_preferred`: prefer HTTP/2 over TLS while allowing HTTP/1.1 fallback.
-- `chunked_upload`: stream request body with `request.headers`, `request.data`, `fin.NoFin`, `fin.Fin`.
-- `streaming_download`: process response chunks and trailers as low-level message values arrive.
-- `websocket_echo`: connect to local WebSocket echo server and exchange one text frame.
-- `websocket_actor`: own a WebSocket in an OTP actor and receive frames plus application commands.
-- `websocket_chat`: use scoped WebSocket lifecycle helpers for text and binary frame conversation.
-- `webprobe`: standalone CLI demo using `clip` and `argv` for argument parsing, `gleescript` for escript packaging, and Gluegun for HTTP diagnostics.
+## Contributing
 
-Root maintenance commands cover all standalone example packages:
-
-```sh
-just examples-deps
-just examples-format-check
-just examples-build
-```
-
-Just uses `trellis exec --serial` to run these tasks across the workspace.
-Trellis 1.5 accepts package names, not path selectors, so each command checks
-its package path and skips work outside `examples/`. Tasks stop after a
-failure. Serial execution avoids concurrent writes to the pinned compiler's
-shared Hex cache. `examples-test` runs only in packages with a `test/`
-directory; `examples-build` also packages escripts when `gleescript` appears
-in the package manifest or lockfile. The examples keep the `workspace`
-release lifecycle, so release commands do not version, tag, or publish them.
-
-Networked examples and WebSocket examples are intended for manual `gleam run` because they depend on public endpoints or local servers.
-
-## Development
-
-Install the build tools pinned in `.mise.toml` with `mise install` and activate
-mise in your shell. CI installs the same tools with `jdx/mise-action`. For website
-tasks, run `corepack enable` to use the pnpm version in `website/package.json`.
-
-```sh
-just deps         # Download dependencies
-just build        # Build project
-just test         # Run tests
-just format       # Format src/ and test/
-just format-check # Check formatting
-just check        # Type check
-just docs         # Build documentation
-just ci           # Run all CI checks
-just ci-library   # Validate the library and documentation examples
-just ci-examples  # Validate and package standalone examples
-just main         # Run CI checks and build docs
-just td           # Validate the Trellis workspace
-```
-
-### Dependency audits
-
-mise installs the self-contained `licence_audit` v1.0.0-rc.2 release. It does
-not add a Gleam dependency, because the audit tool itself depends on Gluegun.
-Run `just audit-licences` for a licence report and `just audit-vulns` for an
-OSV vulnerability report. These commands use the root `manifest.toml`,
-including development dependencies. They do not audit website npm dependencies
-or the separate example lockfiles. Licence reports cover Hex packages;
-vulnerability reports cover Hex and GitHub dependencies and report skipped
-sources. OSV checks require network access.
-
-The policy in `gleam.toml` allows Apache-2.0, MIT, ISC, and BSD-3-Clause.
-Run `just audit-check` to enforce it and check vulnerabilities with
-`licence_audit check --vulns`. Other licences and high or critical severity
-advisories fail the check. Unknown severity does not fail the check by
-default. Input, configuration, or network errors also fail the check.
-The report tasks do not enforce these rules.
-
-`just ci-library` runs `audit-check`, so an audit failure fails the Library
-job and the required Test check. To change the licence policy, run
-`licence_audit update` in an interactive terminal and review the changes
-to `gleam.toml`.
-
-### CI checks
-
-CI runs library and standalone example checks on separate runners. Each
-runner keeps package operations serial. Example tests run before packaging
-so Webprobe can reuse its test build. The existing required Test check
-requires both the Library and Examples jobs to succeed. Dependency caches
-contain downloaded packages and compiled Hex dependencies, but no workspace source, tests,
-generated documentation, or escripts. Cache keys include the job, runner image,
-active compiler/runtime, rebar3, and root/example dependency manifests.
-
-On pull requests, CI checks workspace metadata but omits code and website
-work when changes affect only agent skills/commands or changelog files.
-Other changes run the full checks, including README and guide edits.
-Failed check selection fails the existing job checks. Main and tag workflows
-run the full checks. Compatibility commands use explicit `mise exec`
-versions and verify the compiler and exact OTP version before compilation.
-
-Add an unreleased change with:
-
-```sh
-just change --kind Added --body "Describe the change"
-```
-
-Preview the next release with `just changelog-preview`. Trellis creates release
-pull requests from pending fragments on `main`. Before 1.0, `Breaking`
-fragments request a minor release in `gleam.toml`; change them to `major` at 1.0.
-Merge `release/pending` to create
-an exact `v{version}` tag and a GitHub release. Tag pushes run CI and package
-export, then publish to Hex and HexDocs if checks pass. This includes 0.x
-versions and release candidates. Trellis uses the `hex` lifecycle.
-
-### Hex release setup
-
-Maintainers authorize automatic Hex publication by merging the reviewed
-release PR. Track publication verification in
-[#55](https://github.com/tylerbutler/gluegun/issues/55). Configuration and dry-run
-checks do not establish that Hex accepted a package or that HexDocs serves it.
-
-The [`1.0.0-rc.1` release](https://hex.pm/packages/gluegun/1.0.0-rc.1) and its
-[versioned API documentation](https://hexdocs.pm/gluegun/1.0.0-rc.1/) are
-publicly available. This candidate does not mark the stable 1.0 release.
-
-For each release:
-
-1. Select the intended 1.0 candidate or stable version through the existing
-   release process. Do not overwrite or duplicate `release/pending`.
-2. Before merging, review the release version and generated documentation.
-   Merging the release PR creates the immutable `v{version}` tag and triggers
-   publication for all release versions. The **Hex release** workflow checks
-   the tag against `gleam.toml` and ancestry on `main`, and exports the package.
-   It requires CI, compatibility, examples, documentation, and reference
-   freshness checks before publication.
-3. Build and inspect with `gleam export hex-tarball`. Check `metadata.config`
-   and its nested `contents.tar.gz`: include the licence, Gleam modules, and
-   `src/gluegun_ffi.erl`; exclude test/compatibility helpers, build output,
-   credentials, and development artifacts. Review production dependencies.
-   `trellis publish --dry-run --tag v1.0.0-rc.1` checks tag selection and dependency
-   rewrites from the corresponding checkout; it does not replace the test suite.
-4. Confirm the repository's `HEXPM_API_KEY` Actions secret contains a scoped
-   Hex key with package and documentation publishing access. Read secret names
-   with `gh secret list --repo tylerbutler/gluegun`; do not print secret values.
-   The required secret names were present during setup, but this check cannot
-   establish key validity, scope, or package ownership. Existing
-   `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` support GitHub release
-   operations, not Hex publication. Report missing credentials or access to
-   maintainers; configuration work does not authorize secret/settings changes.
-5. After merging, monitor the **Hex release** run triggered by the tag push.
-   The workflow checks the tagged source,
-   runs `trellis publish --tag "$RELEASE_TAG"` with `HEXPM_API_KEY`, then
-   runs `gleam docs publish` for that same version. Trellis calls
-   `gleam publish --yes`, which uploads the package and API documentation.
-   The explicit docs step also completes documentation after a partial upload
-   where Trellis skips an existing Hex version.
-   Both commands use the compiler in the tagged `.mise.toml`. New release tags
-   use Gleam 1.19.2 to avoid conflicting upload Content-Type headers.
-6. Confirm the exact version at `https://hex.pm/packages/gluegun/<version>`
-   and test the documented dependency in a consumer. Check its API reference
-   at `https://hexdocs.pm/gluegun/<version>/` before adding a HexDocs link.
-   A successful workflow alone does not confirm public availability.
-
-If publication fails, retain the approved tag and inspect whether Hex
-accepted the version before retrying. Do not retag or overwrite a published
-version. After confirming the accepted package matches the approved tag,
-maintainers can dispatch another run on the same tag:
-
-```sh
-gh workflow run publish.yml --repo tylerbutler/gluegun --ref v1.0.0-rc.1
-```
-
-Do not dispatch it on a branch. Trellis skips
-existing Hex versions; the docs step uploads documentation for that version.
-Do not use `--replace` as a recovery shortcut.
-
-A retry or dispatch on an existing tag uses that tag's workflow, setup action,
-and tool pins. A pin change on `main` does not change the tagged publisher.
-For a tag with a broken publisher, obtain approval for a new candidate that
-includes the fix, or for a separate recovery from the unchanged tagged source
-with a verified corrected compiler. The existing workflow has no compiler
-override input.
-
-### Website reference builds
-
-Commit the generated API pages under `website/src/content/docs/reference/`
-and `website/reference-state.json` with changes to source files, `gleam.toml`,
-`manifest.toml`, the reference generator, or `.mise.toml`.
-
-Install the tools listed in `.mise.toml` and enable Corepack for the pnpm
-version in `website/package.json`. Reference generation requires Gleam, Erlang,
-and rebar3. Linux tool locks use the Ubuntu 24.04 OTP build. The rebar3 pin
-uses the official GitHub release, not a local mise plugin.
-Use these commands from the repository root:
-
-```sh
-just site-deps             # Install website dependencies
-just site-reference        # Build current Gleam metadata and regenerate pages
-just site-reference-check  # Compare committed pages with current metadata
-just site-check            # Check freshness and Astro content
-just site-build            # Check freshness and build website/dist
-just site-dev              # Check freshness and start the dev server
-just site-preview          # Check freshness and serve the last site build
-```
-
-`just site-reference` uses `website/scripts/generate-reference.mjs` to render
-`build/dev/docs/gluegun/package-interface.json`. Run it after you edit source
-documentation or a public API, then commit its output. It also records hashes
-of the source inputs and reference pages. Do not edit generated pages or the
-state record by hand. Repeat generation after a merge that changes these inputs.
-When a dev server is running, regenerate references after source edits.
-The fingerprint supports `.mise.toml` and `.tool-versions` and detects adding,
-removing, or migrating these files. It hashes the full files, so any tool
-configuration change requires regeneration. Keep at least one supported pin
-file; missing tool configuration or required source inputs stop the build.
-
-From `website/`, use `pnpm generate:reference` to regenerate or
-`pnpm check:reference` to compare committed pages with fresh metadata.
-The comparison does not change committed pages. CI runs this comparison and
-the reference tests before it checks and builds the website.
-
-Cloudflare Workers Builds uses `website/` as the build root, runs `pnpm build`,
-and deploys the static assets in `dist`. See [website deployment](website/README.md)
-for the build and preview configuration.
-Production and deploy-preview builds need Node and pnpm only. The build checks
-the committed source and page hashes before Astro runs and stops if output is
-stale or missing. Local `astro`, `build`, `check:astro`, `dev`, `start`, and `preview`
-scripts use the same check. Keep Cloudflare's build watch paths at `*` so source,
-package manifests, and build configuration trigger production and preview builds.
-Run `just site-build`
-before `just site-preview` to serve a current build.
-
-### Release candidates
-
-Run the **Trellis Release** workflow manually on `main` to change release mode:
-
-| Action | `pre` input | `version` input |
-| --- | --- | --- |
-| Start a candidate cycle | `rc` | Target stable version, for example `1.0.0` |
-| Prepare the next candidate | `rc` | Leave empty |
-| Promote the current candidate to stable | `none` | Leave empty |
-| Prepare a normal stable release | Leave empty | Leave empty, or set a target version |
-
-A new cycle starts at `rc.0`. Merge each candidate PR before preparing the next
-candidate. Trellis archives each candidate's changelog fragments under
-`.changes/gluegun/` and removes them from `unreleased/`. Stable promotion
-includes the archived entries from the candidate cycle. Candidate GitHub
-releases are marked as prereleases.
-
-Release preparation uses Trellis 1.5.0's `--prepare-command` to run
-`node website/scripts/generate-reference.mjs` after the version changes.
-The release commit includes the generated API pages and
-`website/reference-state.json` before the first branch push. Generation failure
-stops preparation before the push. The existing reference freshness checks
-remain enabled for candidate and stable releases.
-
-Automatic pushes to `main` preserve the mode and target of an open release PR.
-If no release PR is open and the current version is a candidate, a push prepares
-another candidate only when the unreleased fragments have changed since that
-candidate's version commit. Automatic pushes do not promote candidates.
-
-Preview candidates locally without changing files:
-
-```sh
-just changelog-preview --set gluegun=1.0.0 --pre rc
-just changelog-preview --pre rc
-just changelog-preview --pre none
-```
-
-The last two commands require a candidate version in the local manifest.
-The **Auto-tag release** workflow also supports a manual run on `main` to recover
-missing tags or GitHub releases. Release preparation requires the
-`RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` Actions secrets. Those workflows
-do not use the Hex key; the separate **Hex release** publish job uses
-`HEXPM_API_KEY`.
+[CONTRIBUTING.md](CONTRIBUTING.md) explains the build tools, CI checks,
+dependency audits, website reference builds, and release process.
 
 ## License
 

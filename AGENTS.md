@@ -43,7 +43,7 @@ Gluegun is a typed Gleam wrapper around the Erlang Gun HTTP client. The package 
 
 The public API is split by concern:
 
-- `src/gluegun.gleam` is a root facade that re-exports the most common connection, request, response, HTTP helper, and WebSocket functions.
+- `src/gluegun.gleam` is a root facade that re-exports the most common connection, request, response, and HTTP helper functions. Import WebSocket helpers from `gluegun/websocket`.
 - `gluegun/connection.gleam` owns connection options, transport/protocol/timeout conversion, `open`, `await_up`, `close`, and `shutdown`.
 - `gluegun/request.gleam` is the low-level stream API for requests, chunked bodies, cancellation, flow control, and flushing.
 - `gluegun/message.gleam` decodes asynchronous Gun stream messages into typed Gleam `Message` and `Frame` values.
@@ -100,7 +100,7 @@ uses a loopback peer to check repeated-call cleanup and error precedence.
 - Give each foreign Erlang value its own external type (connection process, stream reference, raw Gun message, protocol handler options) so unrelated handles cannot be mixed.
 - Normalize HTTP header names before crossing or decoding the Gun boundary; preserve header values.
 - Use `client` helpers only for regular HTTP responses collected in memory. Streaming bodies, HTTP/2 push, upgrades, WebSocket messages, cancellation, and flow-control updates belong in `request`/`message`.
-- WebSocket support is HTTP/1.1 only. Prefer `websocket.upgrade_with_protocol` after `connection.await_up`; it rejects `Http2` before calling Gun. After a successful HTTP/1.1 upgrade, treat that connection as exclusively WebSocket.
+- WebSocket support is HTTP/1.1 only. Pass the protocol returned by `connection.await_up` to `websocket.upgrade`. It rejects `Http2` before calling Gun. After a successful HTTP/1.1 upgrade, treat that connection as exclusively WebSocket.
 - Erlang FFI helpers should build Gleam values directly (messages, frames, errors), convert iodata to binaries where needed, lowercase header names, and validate WebSocket text frames as UTF-8.
 - Tests use Unitest with public zero-argument functions ending in `_test` under `test/`, native Gleam `assert` and `let assert`, and a `unitest.main()` entry point. Each case, including each generated payload combination, has its own test function. Raw FFI shape and WebSocket frame tests use Erlang helper modules in `test/*.erl`, which expose typed constructors (Gun handles, raw Gun messages and frames, typed projections of Gun option maps) rather than untyped terms.
 - `@internal` Gleam helpers are intentionally exposed for deterministic unit tests; avoid expanding the public API surface unless the README/docs need to expose the behavior.

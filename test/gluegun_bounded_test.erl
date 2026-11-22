@@ -3,7 +3,9 @@
 -include_lib("public_key/include/public_key.hrl").
 
 -export([capture_flow/1, project_setup/1, invalid_options/0, run_scenario/3, cleanup/0,
-    verify_tls/1, init/2, domain_lookup_start/2, domain_lookup_end/2, connect_start/2]).
+    verify_tls/1, init/2, domain_lookup_start/2, domain_lookup_end/2, connect_start/2,
+    with_host_peer/3, peer_request/1, tls_identity/1,
+    await_identity_failure/1, with_client_hello/1, client_hello_sni/1]).
 
 capture_flow(Options) ->
     checked(fun() ->
@@ -321,14 +323,7 @@ cleanup() ->
 
 verify_tls(Options0) ->
     checked(fun() ->
-        Certificate = public_key:pkix_test_data(#{
-            root => [{digest, sha256}, {key, {rsa, 2048, 65537}}],
-            intermediates => [],
-            peer => [{digest, sha256}, {key, {rsa, 2048, 65537}}, {extensions, [
-                #'Extension'{extnID = ?'id-ce-subjectAltName',
-                    extnValue = [{dNSName, "localhost"}], critical = false}
-            ]}]
-        }),
+        Certificate = certificate([{dNSName, "localhost"}]),
         CAs = proplists:get_value(cacerts, Certificate),
         {address_family_option, Family} = lists:keyfind(address_family_option, 1, Options0),
         {TcpFamily, Ip} = case Family of
@@ -377,6 +372,152 @@ verify_tls(Options0) ->
         ]),
         {ok, nil}
     end).
+
+certificate(Names) ->
+    public_key:pkix_test_data(#{
+        root => [{digest, sha256}, {key, {rsa, 2048, 65537}}],
+        intermediates => [],
+        peer => [{digest, sha256}, {key, {rsa, 2048, 65537}}, {extensions, [
+            #'Extension'{extnID = ?'id-ce-subjectAltName',
+                extnValue = Names, critical = false}
+        ]}]
+    }).
+
+%% Reuse the local CA fixture without changing global trust or resolver state.
+%% The callback owns its Gun connection; this scope owns the listener and peer.
+with_host_peer(Family, Matching, Callback) ->
+    {TcpFamily, Ip, Address} = case {Family, Matching} of
+        {ipv4, true} -> {inet, {127,0,0,1}, <<127,0,0,1>>};
+        {ipv4, false} -> {inet, {127,0,0,1}, <<127,0,0,2>>};
+        {ipv6, true} -> {inet6, {0,0,0,0,0,0,0,1}, <<0:120,1:8>>};
+        {ipv6, false} -> {inet6, {0,0,0,0,0,0,0,1}, <<0:120,2:8>>}
+    end,
+    Certificate = certificate([{iPAddress, Address}, {dNSName, "localhost"},
+        {dNSName, "override.localhost."}]),
+    {ok, Listener} = ssl:listen(0, [TcpFamily, binary, {ip, Ip},
+        {active, false}, {reuseaddr, true} | Certificate]),
+    {ok, {_, Port}} = ssl:sockname(Listener),
+    Parent = self(),
+    {Server, Monitor} = spawn_monitor(fun() ->
+        {ok, Socket} = ssl:transport_accept(Listener, 3000),
+        case ssl:handshake(Socket, 3000) of
+            {ok, Secure} ->
+                try
+                    {ok, Info} = ssl:connection_information(Secure, [sni_hostname]),
+                    Headers = tls_headers(Secure, <<>>),
+                    [Host] = [Value || <<"host: ", Value/binary>> <-
+                        binary:split(Headers, <<"\r\n">>, [global])],
+                    Parent ! {host_request, self(),
+                        {Host, optional_name(proplists:get_value(sni_hostname, Info))}},
+                    ok = ssl:send(Secure,
+                        <<"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n">>),
+                    receive stop -> ok after 3000 -> error(peer_not_stopped) end
+                after ssl:close(Secure)
+                end;
+            {error, _} -> ok
+        end
+    end),
+    try
+        Callback(Port, proplists:get_value(cacerts, Certificate), {Server, Monitor})
+    after
+        ssl:close(Listener),
+        exit(Server, kill),
+        receive {'DOWN', Monitor, process, Server, _} -> ok end,
+        receive {host_request, Server, _} -> ok after 0 -> ok end
+    end.
+
+tls_headers(Socket, Acc) ->
+    {ok, Bytes} = ssl:recv(Socket, 0, 3000),
+    Next = <<Acc/binary, Bytes/binary>>,
+    case binary:match(Next, <<"\r\n\r\n">>) of
+        nomatch -> tls_headers(Socket, Next);
+        _ -> Next
+    end.
+
+peer_request({Server, Monitor}) ->
+    receive
+        {host_request, Server, Request} -> {ok, Request};
+        {'DOWN', Monitor, process, Server, Reason} ->
+            %% Keep cleanup's monitor message available.
+            self() ! {'DOWN', Monitor, process, Server, Reason},
+            {error, gleam@string:inspect({peer_failed, Reason})}
+    after 3000 ->
+        {error, <<"peer request timeout">>}
+    end.
+
+%% Read the live Gun origin and OTP's effective options, after Gun has added
+%% its defaults and OTP has interpreted them, not our intermediate option map.
+tls_identity(Conn) ->
+    #{origin_host := Host, socket := Socket} = gun:info(Conn),
+    {ok, Info} = ssl:connection_information(Socket,
+        [verify, server_name_indication, customize_hostname_check]),
+    IsIp = is_tuple(Host),
+    HostText = case IsIp of true -> inet:ntoa(Host); false -> Host end,
+    Check = proplists:get_value(customize_hostname_check, Info),
+    {unicode:characters_to_binary(HostText), IsIp,
+        optional_name(proplists:get_value(server_name_indication, Info)),
+        proplists:get_value(verify, Info) =:= verify_peer
+            andalso is_function(proplists:get_value(match_fun, Check), 2)}.
+
+optional_name(undefined) -> {error, nil};
+optional_name(Name) when is_list(Name) -> {ok, unicode:characters_to_binary(Name)}.
+
+await_identity_failure(Conn) ->
+    case gun:await_up(Conn, 2000) of
+        {error, {down, {shutdown, {tls_alert, {handshake_failure, Text}}}}} ->
+            case string:find(Text, "hostname_check_failed") of
+                nomatch -> {error, unicode:characters_to_binary(Text)};
+                _ -> {ok, nil}
+            end;
+        Other -> {error, gleam@string:inspect(Other)}
+    end.
+
+%% OTP's TLS server rejects trailing-dot SNI before certificate selection.
+%% A passive TCP peer inspects the actual ClientHello for explicit overrides,
+%% without weakening verification or pretending this handshake can succeed.
+with_client_hello(Callback) ->
+    {ok, Listener} = gen_tcp:listen(0, [binary, {active, false},
+        {ip, {127,0,0,1}}, {reuseaddr, true}]),
+    {ok, {_, Port}} = inet:sockname(Listener),
+    Parent = self(),
+    {Server, Monitor} = spawn_monitor(fun() ->
+        {ok, Socket} = gen_tcp:accept(Listener, 3000),
+        try
+            {ok, <<22, _Major, _Minor, Length:16>>} = gen_tcp:recv(Socket, 5, 3000),
+            {ok, Record} = gen_tcp:recv(Socket, Length, 3000),
+            <<1, HelloLength:24, Hello:HelloLength/binary>> = Record,
+            <<_Version:16, _Random:32/binary, SessionLength,
+                _Session:SessionLength/binary, CipherLength:16,
+                _Ciphers:CipherLength/binary, CompressionLength,
+                _Compression:CompressionLength/binary,
+                ExtensionLength:16, Extensions:ExtensionLength/binary>> = Hello,
+            Parent ! {hello_sni, self(), hello_sni(Extensions)},
+            receive stop -> ok after 3000 -> error(peer_not_stopped) end
+        after gen_tcp:close(Socket)
+        end
+    end),
+    try Callback(Port, {Server, Monitor})
+    after
+        gen_tcp:close(Listener),
+        exit(Server, kill),
+        receive {'DOWN', Monitor, process, Server, _} -> ok end,
+        receive {hello_sni, Server, _} -> ok after 0 -> ok end
+    end.
+
+hello_sni(<<0:16, Length:16, Extension:Length/binary, _/binary>>) ->
+    <<_ListLength:16, 0, NameLength:16, Name:NameLength/binary>> = Extension,
+    Name;
+hello_sni(<<_Type:16, Length:16, _Extension:Length/binary, Rest/binary>>) ->
+    hello_sni(Rest).
+
+client_hello_sni({Server, Monitor}) ->
+    receive
+        {hello_sni, Server, Name} -> {ok, Name};
+        {'DOWN', Monitor, process, Server, Reason} ->
+            self() ! {'DOWN', Monitor, process, Server, Reason},
+            {error, gleam@string:inspect({peer_failed, Reason})}
+    after 3000 -> {error, <<"ClientHello timeout">>}
+    end.
 
 init(_Event, State) -> State.
 

@@ -1,4 +1,4 @@
-"""Check the direct source imports used by the source-backed guides."""
+"""Check source-backed guide wiring and extracted README upload coverage."""
 
 import importlib.util
 from pathlib import Path
@@ -15,6 +15,17 @@ SPEC.loader.exec_module(documentation)
 
 
 class GuideWiringTests(unittest.TestCase):
+    def test_upload_module_comes_from_readme(self):
+        uploads = [
+            (relative, source)
+            for name, relative, source in documentation.examples()
+            if name == "doc_upload"
+        ]
+        self.assertEqual(len(uploads), 1)
+        relative, source = uploads[0]
+        self.assertEqual(relative, "README.md")
+        self.assertIn("pub fn upload_chunks(", source)
+
     def page(self, raw_import):
         return (
             "import { Code } from '@astrojs/starlight/components';\n"
