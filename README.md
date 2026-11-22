@@ -441,6 +441,12 @@ even for `infinity()`. Keepalive does not change your receive timeout.
 
 See `examples/websocket_echo` for a fuller WebSocket example.
 
+For an OTP actor, use `message.select` to receive source-identified Gun events
+and application commands in one selector. Open the connection inside actor
+init, and pass each WebSocket envelope to `websocket.record_frame` before
+handling it. See the [actor guide](https://gluegun.tylerbutler.com/guides/actors/)
+and `examples/websocket_actor`. No caller Erlang FFI is needed.
+
 ## Handle errors
 
 Each example above returns a `Result`. Effectful operations return
@@ -516,6 +522,8 @@ complete command-line tool:
   values arrive.
 - `websocket_echo`: connect to a local WebSocket echo server and exchange one
   text frame.
+- `websocket_actor`: own a WebSocket in an OTP actor and receive frames plus
+  application commands.
 - `websocket_chat`: use the scoped WebSocket helpers for a text and binary
   conversation.
 - `webprobe`: a command-line HTTP diagnostics tool built with `clip`, `argv`,

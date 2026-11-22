@@ -1,0 +1,14 @@
+name = "websocket_actor"
+version = "0.1.0"
+description = "An OTP actor receiving Gun events and application commands"
+licences = ["MIT"]
+target = "erlang"
+
+[dependencies]
+gleam_stdlib = ">= 0.53.0 and < 2.0.0"
+gleam_erlang = ">= 1.0.0 and < 2.0.0"
+gleam_otp = ">= 1.0.0 and < 2.0.0"
+gluegun = { path = "../.." }
+
+[dev-dependencies]
+unitest = ">= 1.6.1 and < 2.0.0"

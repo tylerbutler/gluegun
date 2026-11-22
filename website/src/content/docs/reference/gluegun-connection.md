@@ -190,6 +190,18 @@ Construct a finite timeout.
 pub fn milliseconds(Int) -> Result(Timeout, error.GluegunError)
 ```
 
+### `monitor`
+
+Monitor a Gun process from its receiver.
+
+ Compose `process.select_specific_monitor` with `message.select` to observe
+ unexpected process exits that emit no `gun_down`. Only this monitor's
+ `DOWN` is selected. Remove it with `process.demonitor_process` when closing.
+
+```gleam
+pub fn monitor(Connection) -> process.Monitor
+```
+
 ### `open`
 
 Open a Gun connection to `host:port`.

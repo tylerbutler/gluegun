@@ -4,6 +4,7 @@
 //// protocol preferences, then close or shut down the connection. Connections
 //// are Erlang process resources and are available on the Erlang target only.
 
+import gleam/erlang/process.{type Monitor}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gluegun/error
@@ -65,6 +66,14 @@ pub opaque type RetryCount {
 /// Opaque handle for an open Gun connection.
 pub type Connection =
   internal.Connection
+
+/// Monitor a Gun process from its receiver.
+///
+/// Compose `process.select_specific_monitor` with `message.select` to observe
+/// unexpected process exits that emit no `gun_down`. Only this monitor's
+/// `DOWN` is selected. Remove it with `process.demonitor_process` when closing.
+@external(erlang, "gluegun_ffi", "monitor_connection")
+pub fn monitor(connection: Connection) -> Monitor
 
 /// One Gun connection option, encoded for the Erlang FFI boundary.
 ///
