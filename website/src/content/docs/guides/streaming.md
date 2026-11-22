@@ -3,8 +3,12 @@ title: Streaming
 description: Send chunked request bodies and read asynchronous response messages.
 ---
 
-Use `gluegun/request` to send request bodies in chunks and `gluegun/message`
-to read response chunks as they arrive.
+The `client` functions wait for a complete response. Streaming removes that
+wait in both directions. Use `gluegun/request` to send a request body in
+chunks, and use `gluegun/message` to read response chunks as they arrive.
+This guide starts with an upload, then follows the response messages, and
+ends with the controls that keep a long stream inside your memory and time
+limits.
 
 ## Upload a chunked body and collect the response
 
@@ -86,7 +90,7 @@ arrive instead of collecting the full body.
 
 ## Stream control
 
-The streaming APIs also control the request:
+When you read messages yourself, you also decide what happens to the stream:
 
 - Use `request.cancel(conn, stream)` to cancel a request stream.
 - Use `request.update_flow(conn, stream, increment)` to add data-message credit. The increment must be positive.
@@ -95,7 +99,7 @@ The streaming APIs also control the request:
 
 ## Finite response credit
 
-Set credit before you start the request:
+Flow credit is how you slow a stream down. Set credit before you start the request:
 
 ```gleam
 import gleam/http

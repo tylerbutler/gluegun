@@ -3,7 +3,10 @@ title: TLS
 description: Secure TLS defaults, and how to change or disable them.
 ---
 
-Gluegun gives access to Erlang SSL client options through `gluegun/tls`.
+Each TLS connection in Gluegun starts from a secure baseline. You can
+connect to most HTTPS servers without any TLS options. When a server needs
+something different, `gluegun/tls` gives typed access to the Erlang SSL client
+options, and each option that you set replaces one part of the baseline.
 
 ## Secure by default
 
@@ -20,7 +23,8 @@ connection:
 | `server_name_indication` | The DNS host without its final root dot (not set for IP literals) |
 | `customize_hostname_check` | HTTPS match function from `public_key:pkix_verify_hostname_match_fun(https)` |
 
-Thus the minimum HTTPS setup is:
+Because the baseline covers verification, trust, and identity, the minimum
+HTTPS setup only selects the transport:
 
 ```gleam
 import gluegun/connection
@@ -35,20 +39,27 @@ pub fn open_secure() {
 Fields that you set on `tls.TlsOptions` always replace the defaults. The
 baseline fills each field that you do not set.
 
-`connection.open` accepts IPv4 text and IPv6 text with or without brackets,
+### Server identity
+
+The baseline verifies the host that you give to `connection.open`, so the
+form of that host matters. `connection.open` accepts IPv4 text and IPv6 text
+with or without brackets,
 such as `127.0.0.1`, `::1`, and `[::1]`. Gluegun passes these as address tuples
 to Gun. IPv6 HTTP authorities then use brackets, such as `[::1]:8443`.
 IP connections keep certificate chain and IP identity verification; they do
 not disable SNI to bypass verification. The certificate must identify the
 target IP unless you set an explicit DNS identity with `ServerName`.
 
-An absolute DNS name such as `service.example.` keeps its final root dot for
+DNS names work in a similar way. An absolute DNS name such as `service.example.` keeps its final root dot for
 DNS lookup. Only the derived SNI removes that dot: `service.example`.
 An explicit `ServerName` is passed through unchanged and selects the TLS
 certificate identity as well as SNI.
 
-`public_key:cacerts_get/0` is available on OTP 25 and newer. Gluegun
-currently pins OTP 27 in CI. If no system trust store is available (for
+### System trust store
+
+The baseline also needs a trust store. `public_key:cacerts_get/0` is
+available on OTP 25 and newer, and Gluegun pins OTP 27 in CI. If no system
+trust store is available (for
 example, in a minimal container), `connection.open` returns an
 `InvalidOptions` TLS error. The reason includes `no_system_cacerts`. In that
 case, supply your own CA bundle with `tls.with_cacertfile` or
@@ -56,7 +67,8 @@ case, supply your own CA bundle with `tls.with_cacertfile` or
 
 ## Auto transport keeps configured TLS options
 
-`connection.Auto` (the default transport) uses TLS on port 443 and plain
+The baseline applies only when the connection uses TLS. With the default
+transport, `connection.Auto`, the port usually decides. `connection.Auto` uses TLS on port 443 and plain
 TCP on all other ports when you do not configure TLS options. Gluegun
 resolves this transport before it applies TLS defaults. Plain TCP does
 not load CA certificates or apply other TLS defaults.
@@ -109,17 +121,18 @@ pub fn secure_options() {
 `10`. The other fields keep the secure defaults (peer verification, SNI from
 the host, hostname match function).
 
-`with_depth` returns `Result` and accepts 0 through 255. Numeric builders
+Of these builders, only `with_depth` can fail. It returns `Result` and accepts 0 through 255. Numeric builders
 reject out-of-range values; they do not clamp them. Handle the error when the
 depth comes from configuration.
 
-Gluegun rejects disabled SNI with `VerifyPeer`, including the default verifying
-mode. OTP disables hostname verification along with SNI, so this combination
+Some changes cannot keep the baseline's promise, so Gluegun rejects them.
+Disabled SNI with `VerifyPeer`, including the default verifying mode, is one
+of them. OTP disables hostname verification along with SNI, so this combination
 cannot meet the verifying contract. Leave SNI unset for the target identity,
 or use a valid `ServerName` to select a DNS identity for verified TLS.
 `tls.insecure()` remains a development-only verification bypass.
 
-`with_ciphers` sets an explicit list of permitted cipher suite names. At least
+Cipher lists have a similar check. `with_ciphers` sets an explicit list of permitted cipher suite names. At least
 one suite must be usable with the effective TLS versions. Gluegun returns
 `InvalidOptions` before it starts Gun if the list is empty or has no usable
 suite. You can combine suites for different versions in one list if at least
@@ -157,7 +170,8 @@ let tls_options =
 
 ## Insecure mode for development only
 
-For tests against self-signed endpoints, use `tls.insecure()`:
+Sometimes you must turn the baseline off, for example in a test against a
+self-signed endpoint. Use `tls.insecure()` only for that purpose:
 
 ```gleam
 connection.options()

@@ -1,7 +1,8 @@
 # webprobe
 
-`webprobe` is a small HTTP diagnostics CLI that demonstrates using Gluegun from
-a real Gleam command-line application.
+`webprobe` is the last example: a small HTTP diagnostics CLI that shows
+Gluegun inside a real Gleam command-line application. Unlike the other
+examples, it accepts full URLs, so it parses each URL before it calls Gluegun.
 
 It opens a Gun connection with Gluegun, waits for protocol negotiation, sends one
 HTTP request, collects the response, and prints the negotiated protocol, status,

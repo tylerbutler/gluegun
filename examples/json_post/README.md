@@ -1,6 +1,10 @@
 # json_post
 
-A buildable Gluegun example that opens `http://httpbingo.org`, negotiates a protocol, sends a JSON `POST` request to `/post`, and prints the negotiated protocol, response status, response header count, and UTF-8 response body.
+This example builds on `basic_request` by sending data. It opens
+`http://httpbingo.org`, waits for protocol negotiation, and sends a JSON
+`POST` to `/post` with the `client` builder. It prints the negotiated
+protocol, the response status, the number of response headers, and the UTF-8
+response body.
 
 ## Running
 
@@ -17,3 +21,7 @@ gleam run
 - `client.send` collects the full response body in memory. Use `gluegun/request` and `gluegun/message` for streaming or advanced flows.
 - Gluegun does not parse URLs. Open the connection with a host and port, then request a path. If your input is a full URL, parse it first with `gleam/uri`.
 - Gun is Erlang-only, so this example targets Erlang.
+
+## Next
+
+[`http2_preferred`](../http2_preferred/README.md) changes the protocol instead of the request.
