@@ -1,6 +1,148 @@
 -module(gluegun_ws_control_test).
 -export([with_echo_connection/1, with_incoming_controls/3,
-    with_incoming_controls_default/2]).
+    with_incoming_controls_default/2, start_idle_peer/0, await_ping/2,
+    stop_idle_peer/1, with_keepalive_peer/1]).
+
+%% Gleam: () -> #(process.Pid, Int).
+%% The peer owns both sockets; the caller must stop it (or use with_keepalive_peer).
+start_idle_peer() ->
+    Owner = self(),
+    Ready = make_ref(),
+    {Peer, Monitor} = spawn_monitor(fun() ->
+        OwnerMonitor = erlang:monitor(process, Owner),
+        {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {packet, raw},
+            {ip, {127, 0, 0, 1}}, {send_timeout, 1000}, {send_timeout_close, true}]),
+        try
+            {ok, {_, Port}} = inet:sockname(Listen),
+            Owner ! {Ready, self(), Port},
+            {ok, Socket} = gen_tcp:accept(Listen, 5000),
+            try
+                handshake(Socket),
+                ok = inet:setopts(Socket, [{active, once}]),
+                idle_frames(Socket, Owner, OwnerMonitor, <<>>, false, deadline())
+            after
+                gen_tcp:close(Socket)
+            end
+        after
+            gen_tcp:close(Listen)
+        end
+    end),
+    receive
+        {Ready, Peer, Port} ->
+            erlang:demonitor(Monitor, [flush]),
+            {Peer, Port};
+        {'DOWN', Monitor, process, Peer, Reason} ->
+            error({idle_peer_start_failed, Reason})
+    after 5000 ->
+        stop_idle_peer(Peer),
+        erlang:demonitor(Monitor, [flush]),
+        receive {Ready, Peer, _} -> ok after 0 -> ok end,
+        error(idle_peer_start_timeout)
+    end.
+
+%% Gleam: (process.Pid, Int) -> Result(Bool, GluegunError).
+%% Observe the first ping ONCE, including a ping received before this call.
+%% Only that first notification is queued, so a fast timer cannot flood mail.
+await_ping(Peer, Milliseconds)
+    when is_pid(Peer), is_integer(Milliseconds), Milliseconds >= 0,
+         Milliseconds =< 4294967295 ->
+    Monitor = erlang:monitor(process, Peer),
+    try
+        receive
+            {idle_peer_ping, Peer} -> {ok, true};
+            {'DOWN', Monitor, process, Peer, Reason} ->
+                {error, {erlang_error, iolist_to_binary(
+                    io_lib:format("idle WebSocket peer stopped: ~p", [Reason]))}}
+        after Milliseconds ->
+            {ok, false}
+        end
+    after
+        erlang:demonitor(Monitor, [flush])
+    end.
+
+%% Gleam: (process.Pid) -> Nil. Safe even if no connection was established.
+stop_idle_peer(Peer) ->
+    Monitor = erlang:monitor(process, Peer),
+    Peer ! stop,
+    try
+        receive
+            {'DOWN', Monitor, process, Peer, _} -> ok
+        after 100 ->
+            %% Interrupt a bounded accept/handshake, closing owned sockets.
+            exit(Peer, kill),
+            receive
+                {'DOWN', Monitor, process, Peer, _} -> ok
+            after 1000 ->
+                error(idle_peer_did_not_stop)
+            end
+        end
+    after
+        erlang:demonitor(Monitor, [flush])
+    end,
+    receive {idle_peer_ping, Peer} -> ok after 0 -> ok end,
+    nil.
+
+%% Gleam: (fn(Int, process.Pid) -> Result(Nil, GluegunError))
+%%     -> Result(Nil, GluegunError).
+with_keepalive_peer(Callback) ->
+    {Peer, Port} = start_idle_peer(),
+    try Callback(Port, Peer)
+    after stop_idle_peer(Peer)
+    end.
+
+%% Only client control frames are expected. Active-once reads permit stop and
+%% owner-DOWN handling even while idle, without losing partial TCP frames.
+%% A single absolute deadline bounds the entire fixture, not each read.
+idle_frames(Socket, Owner, OwnerMonitor, Buffer, SeenPing, Deadline) ->
+    case remaining(Deadline) of
+        0 -> error(idle_peer_deadline);
+        Wait ->
+            idle_frames_wait(Socket, Owner, OwnerMonitor, Buffer, SeenPing, Deadline, Wait)
+    end.
+
+idle_frames_wait(Socket, Owner, OwnerMonitor, Buffer, SeenPing, Deadline, Wait) ->
+    receive
+        {tcp, Socket, Bytes} ->
+            case idle_frame_buffer(Socket, Owner, <<Buffer/binary, Bytes/binary>>, SeenPing) of
+                closed -> ok;
+                {Rest, Seen} ->
+                    ok = inet:setopts(Socket, [{active, once}]),
+                    idle_frames(Socket, Owner, OwnerMonitor, Rest, Seen, Deadline)
+            end;
+        {tcp_closed, Socket} -> ok;
+        {tcp_error, Socket, Reason} -> error({idle_peer_socket_error, Reason});
+        {'DOWN', OwnerMonitor, process, Owner, _} -> ok;
+        stop -> ok
+    after Wait ->
+        error(idle_peer_deadline)
+    end.
+
+idle_frame_buffer(_Socket, _Owner, Buffer, Seen) when byte_size(Buffer) < 2 ->
+    {Buffer, Seen};
+idle_frame_buffer(Socket, Owner,
+    <<1:1, 0:3, Opcode:4, 1:1, Length:7, Rest/binary>> = Buffer, Seen)
+    when Length =< 125, (Opcode =:= 8 orelse Opcode =:= 9 orelse Opcode =:= 10) ->
+    case Rest of
+        <<Mask:4/binary, Masked:Length/binary, Tail/binary>> ->
+            Payload = unmask(Masked, Mask, 0, []),
+            case Opcode of
+                8 ->
+                    ok = gen_tcp:send(Socket, server_frame(8, Payload)),
+                    closed;
+                9 ->
+                    ok = gen_tcp:send(Socket, server_frame(10, Payload)),
+                    case Seen of
+                        false -> Owner ! {idle_peer_ping, self()};
+                        true -> ok
+                    end,
+                    idle_frame_buffer(Socket, Owner, Tail, true);
+                10 ->
+                    idle_frame_buffer(Socket, Owner, Tail, Seen)
+            end;
+        _ -> {Buffer, Seen}
+    end;
+idle_frame_buffer(_Socket, _Owner, _Buffer, _Seen) ->
+    error(idle_peer_invalid_control_frame).
 
 %% A loopback peer for control-frame tests. No external server or fixed port.
 with_echo_connection(Callback) ->
@@ -97,9 +239,10 @@ serve(Listen, ServeFrames) ->
     end.
 
 handshake(Socket) ->
+    Deadline = deadline(),
     ok = inet:setopts(Socket, [{packet, http_bin}]),
-    {ok, {http_request, 'GET', _, _}} = gen_tcp:recv(Socket, 0, 5000),
-    Key = handshake_headers(Socket, undefined),
+    {ok, {http_request, 'GET', _, _}} = recv_handshake(Socket, Deadline),
+    Key = handshake_headers(Socket, undefined, Deadline),
     true = is_binary(Key),
     Accept = base64:encode(crypto:hash(sha,
         <<Key/binary, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11">>)),
@@ -110,15 +253,21 @@ handshake(Socket) ->
     ]),
     ok = inet:setopts(Socket, [{packet, raw}]).
 
-handshake_headers(Socket, Key) ->
-    case gen_tcp:recv(Socket, 0, 5000) of
+handshake_headers(Socket, Key, Deadline) ->
+    case recv_handshake(Socket, Deadline) of
         {ok, http_eoh} -> Key;
         {ok, {http_header, _, Name, _, Value}} ->
             case string:lowercase(header_name(Name)) of
-                <<"sec-websocket-key">> -> handshake_headers(Socket, Value);
-                _ -> handshake_headers(Socket, Key)
+                <<"sec-websocket-key">> -> handshake_headers(Socket, Value, Deadline);
+                _ -> handshake_headers(Socket, Key, Deadline)
             end;
         Other -> error({invalid_handshake, Other})
+    end.
+
+recv_handshake(Socket, Deadline) ->
+    case remaining(Deadline) of
+        0 -> {error, timeout};
+        Timeout -> gen_tcp:recv(Socket, 0, Timeout)
     end.
 
 header_name(Name) when is_atom(Name) -> atom_to_binary(Name);

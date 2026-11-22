@@ -3,6 +3,11 @@ title: Troubleshooting
 description: Common Gluegun problems and where to look first.
 ---
 
+Most Gluegun problems have one of three causes: the process that owns a
+connection, the path-only request model, or the cleanup rules. The sections
+below follow a connection from setup, through requests and WebSockets, to
+cleanup, so start at the first step that fails.
+
 ## Connection does not become ready
 
 Call `connection.await_up` in the process that opened the connection.
@@ -19,10 +24,6 @@ opener exits. Open the connection in a process that stays alive for its
 full lifetime. Returning the handle from a short-lived task does not
 transfer ownership to the recipient.
 
-## WebSocket upgrade fails
-
-WebSocket works only on HTTP/1.1. Use the default WebSocket options. Or, before you use the low-level upgrade functions, make sure that the negotiated protocol is `Http1`.
-
 ## Request fails with an unexpected path or host problem
 
 Gluegun does not parse full URLs. Open the connection with the host and port. Then give only a path such as `/`, `/api/items`, or `/ws` to the HTTP and WebSocket functions. If your caller supplies full URLs, first parse them with `gleam/uri`. Then give the parsed host, port, path, and query to Gluegun.
@@ -30,6 +31,18 @@ Gluegun does not parse full URLs. Open the connection with the host and port. Th
 ## High-level client gets an unexpected message
 
 Use `gluegun/client` only for HTTP responses that you can collect in memory. The client functions reject HTTP/2 server push, protocol upgrades, and WebSocket frames with `InvalidMessage`. Use `gluegun/request`, `gluegun/message`, or `gluegun/websocket` for streamed bodies, trailers as they arrive, HTTP/2 push, upgrades, and WebSocket frames.
+
+## Streamed response does not complete
+
+Continue to wait for messages on the same stream until you get a final response, data, or trailers state. If the full response fits in memory and you do not need to control each chunk, use the `client` functions.
+
+## Response body is not UTF-8
+
+`response.body_text` returns an error when the collected body is not valid UTF-8. Use the raw binary body when the server returns binary data.
+
+## WebSocket upgrade fails
+
+WebSocket works only on HTTP/1.1. Use the default WebSocket options. Or, before you use the low-level upgrade functions, make sure that the negotiated protocol is `Http1`.
 
 ## WebSocket receive fails immediately after upgrade
 
@@ -62,14 +75,6 @@ queued Erlang `DOWN` messages for every caller monitor reference to the
 connection. This includes your application's monitors. `websocket.close`
 uses the same termination cleanup. Do not wait for those discarded
 notifications. See [Message Flow](/advanced/message-flow/#flush-and-monitor-notifications).
-
-## Response body is not UTF-8
-
-`response.body_text` returns an error when the collected body is not valid UTF-8. Use the raw binary body when the server returns binary data.
-
-## Streamed response does not complete
-
-Continue to wait for messages on the same stream until you get a final response, data, or trailers state. If the full response fits in memory and you do not need to control each chunk, use the `client` functions.
 
 ## Unexpected Erlang error
 

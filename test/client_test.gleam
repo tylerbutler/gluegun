@@ -55,8 +55,10 @@ pub fn infinite_collection_budget_stays_unlimited_test() -> Nil {
   Nil
 }
 
-pub fn zero_collection_budget_does_not_receive_queued_messages_test() -> Nil {
-  let request_fn = fn(_, _, _, _, _, _) { Ok(stream_ref()) }
+pub fn zero_collection_budget_does_not_dispatch_or_receive_test() -> Nil {
+  let request_fn = fn(_, _, _, _, _, _) {
+    panic as "expired budget reached request"
+  }
   let await_fn = fn(_, _, _) { panic as "expired budget reached await" }
   let assert True =
     client.get_with(
@@ -68,6 +70,11 @@ pub fn zero_collection_budget_does_not_receive_queued_messages_test() -> Nil {
       await_fn,
     )
     == Error(error.Timeout)
+  Nil
+}
+
+pub fn zero_collection_budget_post_does_not_send_request_bytes_test() -> Nil {
+  let assert Ok(Nil) = zero_budget_post()
   Nil
 }
 
@@ -557,6 +564,9 @@ fn late_after_drain() -> Result(Nil, String)
 
 @external(erlang, "gluegun_client_test", "delayed_response")
 fn delayed_response(body_delay: Bool) -> Result(Nil, String)
+
+@external(erlang, "gluegun_client_test", "zero_budget_post")
+fn zero_budget_post() -> Result(Nil, String)
 
 @external(erlang, "gluegun_client_test", "local_failure")
 fn local_failure(receive_failure: Bool) -> Result(Nil, String)

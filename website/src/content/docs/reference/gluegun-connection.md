@@ -143,7 +143,7 @@ Wait until a Gun connection is up and return the negotiated protocol.
 
 ```gleam
 pub fn await_up(
-  internal.Connection,
+  Connection,
   Timeout
 ) -> Result(Protocol, error.GluegunError)
 ```
@@ -158,7 +158,7 @@ Stop a Gun connection through its supervisor.
  connection or deadline cleanup.
 
 ```gleam
-pub fn close(internal.Connection) -> Result(Nil, error.GluegunError)
+pub fn close(Connection) -> Result(Nil, error.GluegunError)
 ```
 
 ### `infinity`
@@ -185,6 +185,12 @@ pub fn milliseconds(Int) -> Result(Timeout, error.GluegunError)
 
 Open a Gun connection to `host:port`.
 
+ Accepts DNS names, IPv4 text, and IPv6 text with or without brackets.
+ IP literals are passed to Gun as address tuples so IPv6 HTTP authorities
+ have brackets. DNS lookup keeps the supplied name, including a final root
+ dot. Derived TLS SNI omits that dot; explicit SNI settings are unchanged.
+ TLS certificate identity checks remain enabled for DNS names and IPs.
+
  Returns immediately with a `Connection` handle; the underlying TCP/TLS
  handshake completes asynchronously. Call `await_up` before sending any
  request or WebSocket upgrade.
@@ -199,7 +205,7 @@ Open a Gun connection to `host:port`.
  or a configured reply receiver; this does not change the owner.
 
  Errors:
- - `InvalidOptions` — Gun rejected the converted options.
+ - `InvalidOptions` — the protocol list is empty or Gun rejected the options.
  - `ErlangError` — Gun could not spawn the connection process.
 
 ```gleam
@@ -207,7 +213,7 @@ pub fn open(
   ConnectOptions,
   host: String,
   port: Int
-) -> Result(internal.Connection, error.GluegunError)
+) -> Result(Connection, error.GluegunError)
 ```
 
 ### `options`
@@ -234,7 +240,7 @@ Request graceful shutdown of a Gun connection.
  exits; this call does not wait for exit and cannot interrupt blocked setup.
 
 ```gleam
-pub fn shutdown(internal.Connection) -> Result(Nil, error.GluegunError)
+pub fn shutdown(Connection) -> Result(Nil, error.GluegunError)
 ```
 
 ### `terminate`
@@ -253,7 +259,7 @@ Force termination, wait for process exit, then flush its Gun messages.
  this call; they are not preserved for separate lifecycle handling.
 
 ```gleam
-pub fn terminate(internal.Connection) -> Result(Nil, error.GluegunError)
+pub fn terminate(Connection) -> Result(Nil, error.GluegunError)
 ```
 
 ### `with_address_family`
@@ -299,7 +305,13 @@ pub fn with_domain_lookup_timeout(
 
 Set HTTP protocol preference ordering for a connection.
 
- The list order is preserved when options are passed to Gun.
+ TLS advertises the protocols in this order in the ALPN ClientHello.
+ The server selects the protocol and can use its own preference order.
+ With no explicit list, Gun's default protocols are unchanged.
+
+ Plain TCP uses only the first protocol, with no fallback.
+ This also applies when `Auto` selects TCP.
+ An empty list makes `open` return `InvalidOptions`.
 
 ```gleam
 pub fn with_protocols(
@@ -357,5 +369,22 @@ Set the transport Gun should use for a connection.
 pub fn with_transport(
   ConnectOptions,
   transport: Transport
+) -> ConnectOptions
+```
+
+### `with_websocket_keepalive`
+
+Set the interval between automatic WebSocket pings, in milliseconds.
+
+ Gun reads this setting from the original connection options, not the
+ upgrade options. Set it before `open`, then upgrade with
+ `websocket.upgrade_options()` without `websocket.with_keepalive`.
+ Defaults to `infinity()` (no automatic pings). This does not change
+ connection, upgrade, or frame receive timeouts.
+
+```gleam
+pub fn with_websocket_keepalive(
+  ConnectOptions,
+  interval: Timeout
 ) -> ConnectOptions
 ```

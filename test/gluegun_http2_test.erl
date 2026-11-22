@@ -1,7 +1,141 @@
 -module(gluegun_http2_test).
 -include_lib("public_key/include/public_key.hrl").
 
--export([run/3, with_tls_cancel_server/1, http2_push_cleanup/1]).
+-export([run/3, with_tls_cancel_server/1, http2_push_cleanup/1, capture_alpn/1,
+    with_protocol_server/2]).
+
+%% List(connection.ConnectOption) -> Result(List(String), GluegunError).
+%% The caller owns the listener, accepted socket and Gun connection. No peer
+%% process or TLS server preference can obscure the actual ClientHello offer.
+capture_alpn(Options) ->
+    try
+        Listener = alpn_io(gen_tcp:listen(0, [inet, binary, {active, false},
+            {ip, {127, 0, 0, 1}}, {reuseaddr, true}])),
+        try
+            {_, Port} = alpn_io(inet:sockname(Listener)),
+            case gluegun_ffi:open(<<"127.0.0.1">>, Port, Options) of
+                {error, _} = Error -> Error;
+                {ok, Conn} ->
+                    Monitor = erlang:monitor(process, Conn),
+                    try
+                        Deadline = erlang:monotonic_time(millisecond) + 3000,
+                        Socket = alpn_io(gen_tcp:accept(Listener, tls_remaining(Deadline))),
+                        try
+                            {ok, client_hello_alpn(
+                                alpn_handshake(Socket, <<>>, Deadline, 64))}
+                        after gen_tcp:close(Socket)
+                        end
+                    after
+                        stop_alpn_connection(Conn, Monitor)
+                    end
+            end
+        after gen_tcp:close(Listener)
+        end
+    catch
+        throw:{alpn_capture_error, ErrorReason} -> {error, ErrorReason};
+        error:tls_peer_deadline -> {error, timeout}
+    end.
+
+alpn_io({ok, Value}) -> Value;
+alpn_io({error, timeout}) -> throw({alpn_capture_error, timeout});
+alpn_io({error, Reason}) ->
+    throw({alpn_capture_error, {erlang_error, gleam@string:inspect(Reason)}}).
+
+stop_alpn_connection(Conn, Monitor) ->
+    try
+        exit(Conn, kill),
+        receive {'DOWN', Monitor, process, Conn, _} -> gun:flush(Conn)
+        after 1000 -> error(alpn_connection_cleanup_timeout)
+        end
+    after erlang:demonitor(Monitor, [flush])
+    end.
+
+%% Reassemble a handshake split across TLS records, bounded in bytes, record
+%% count and elapsed time. The fixture never attempts to complete TLS.
+alpn_handshake(_Socket, <<1, Size:24, Body:Size/binary, _/binary>>, _Deadline, _Left) ->
+    Body;
+alpn_handshake(Socket, Buffer, Deadline, Left)
+        when byte_size(Buffer) =< 65536, Left > 0 ->
+    <<22, 3, _Minor, Size:16>> =
+        alpn_io(gen_tcp:recv(Socket, 5, tls_remaining(Deadline))),
+    true = Size > 0 andalso Size =< 18432,
+    Data = alpn_io(gen_tcp:recv(Socket, Size, tls_remaining(Deadline))),
+    alpn_handshake(Socket, <<Buffer/binary, Data/binary>>, Deadline, Left - 1).
+
+client_hello_alpn(<<_Version:16, _Random:32/binary,
+        SessionSize:8, _Session:SessionSize/binary,
+        CipherSize:16, _Ciphers:CipherSize/binary,
+        CompressionSize:8, _Compression:CompressionSize/binary,
+        ExtensionSize:16, Extensions:ExtensionSize/binary>>) ->
+    alpn_extension(Extensions).
+
+alpn_extension(<<16:16, Size:16, Data:Size/binary, _/binary>>) ->
+    <<ListSize:16, Names:ListSize/binary>> = Data,
+    alpn_names(Names);
+alpn_extension(<<_Type:16, Size:16, _Data:Size/binary, Rest/binary>>) ->
+    alpn_extension(Rest);
+alpn_extension(<<>>) -> [].
+
+alpn_names(<<Size:8, Name:Size/binary, Rest/binary>>) when Size > 0 ->
+    [Name | alpn_names(Rest)];
+alpn_names(<<>>) -> [].
+
+%% The callback owns the Gun connection and exercises only public Gleam APIs.
+%% The peer verifies the selected wire protocol and waits for client cleanup.
+with_protocol_server(Protocol, Callback) ->
+    {ok, Listener} = gen_tcp:listen(0, [binary, {active, false},
+        {ip, {127, 0, 0, 1}}, {reuseaddr, true}]),
+    {ok, {_, Port}} = inet:sockname(Listener),
+    {Server, Monitor} = spawn_monitor(fun() ->
+        {ok, Socket} = gen_tcp:accept(Listener, 2000),
+        try serve_protocol(Socket, Protocol)
+        after gen_tcp:close(Socket)
+        end
+    end),
+    try
+        Result = Callback(Port),
+        case Result of
+            {error, _} -> Result;
+            {ok, nil} ->
+                receive
+                    {'DOWN', Monitor, process, Server, normal} -> Result;
+                    {'DOWN', Monitor, process, Server, Reason} ->
+                        {error, {erlang_error, gleam@string:inspect({protocol_peer_failed, Reason})}}
+                after 2000 ->
+                    {error, {erlang_error, <<"Protocol peer completion timeout">>}}
+                end
+        end
+    after
+        gen_tcp:close(Listener),
+        stop_tls_peer(Server, Monitor)
+    end.
+
+serve_protocol(Socket, http1) ->
+    ok = inet:setopts(Socket, [{packet, http_bin}]),
+    {ok, {http_request, 'GET', {abs_path, <<"/">>}, {1, 1}}} =
+        gen_tcp:recv(Socket, 0, 2000),
+    protocol_http1_headers(Socket),
+    ok = inet:setopts(Socket, [{packet, raw}]),
+    ok = gen_tcp:send(Socket,
+        <<"HTTP/1.1 200 OK\r\nContent-Length: 8\r\n\r\nselected">>),
+    {error, closed} = gen_tcp:recv(Socket, 0, 2000);
+serve_protocol(Socket, http2) ->
+    {ok, <<"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n">>} =
+        gen_tcp:recv(Socket, 24, 2000),
+    ok = gen_tcp:send(Socket, cow_http2:settings(#{})),
+    {Stream, _, Rest} = request_headers(Socket, <<>>, 65535, 65535),
+    {Headers, _} = cow_hpack:encode([{<<":status">>, <<"200">>}]),
+    ok = gen_tcp:send(Socket, [
+        cow_http2:headers(Stream, nofin, Headers),
+        cow_http2:data(Stream, fin, <<"selected">>)]),
+    wait_closed(Socket, Rest).
+
+protocol_http1_headers(Socket) ->
+    case gen_tcp:recv(Socket, 0, 2000) of
+        {ok, http_eoh} -> ok;
+        {ok, {http_header, _, _, _, _}} -> protocol_http1_headers(Socket);
+        Other -> error({unexpected_http1_header, Other})
+    end.
 
 %% Result(Nil, String), called by the Gleam client regression entrypoints.
 http2_push_cleanup(Mode) ->
