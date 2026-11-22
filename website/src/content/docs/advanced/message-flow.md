@@ -46,7 +46,7 @@ Use `connection.terminate` when a deadline expires or setup stalls. It sends an 
 
 ## `Fin` and `NoFin`: HTTP is half-closed
 
-Gluegun shows the half-close model of Gun with `gluegun/fin.Fin` and `gluegun/fin.NoFin`.
+Inside a stream, each side tells the other when it has finished. Gluegun shows this half-close model of Gun with `gluegun/fin.Fin` and `gluegun/fin.NoFin`.
 
 On the request side, `request.data(conn, stream, fin.NoFin, chunk)` sends more bytes and tells Gun that the request body is not complete. `fin.Fin` on the last chunk tells Gun that there are no more request bytes. This final signal lets many servers start the response.
 
@@ -69,13 +69,13 @@ Do not wait for trailers after `Fin`.
 
 ## Cancellation
 
-`request.cancel(conn, stream)` sends an asynchronous cancellation for one stream. Queued messages and late arrivals can remain while Gun processes it. The connection stays open for other streams.
+Sometimes you must stop a stream before it reaches a terminal event. `request.cancel(conn, stream)` sends an asynchronous cancellation for one stream. Queued messages and late arrivals can remain while Gun processes it. The connection stays open for other streams.
 
 `request.flush(conn)` removes only messages queued at that instant. For terminal cleanup, cancel the stream if needed, then call `connection.terminate(conn)` from the receiver. Termination discards all streams on the connection.
 
 ### Flush and monitor notifications
 
-`request.flush` and `connection.terminate` call `gun:flush` with the connection
+Both cleanup calls flush the mailbox, and that flush reaches further than the connection's own stream messages. `request.flush` and `connection.terminate` call `gun:flush` with the connection
 handle. The flush removes queued messages for all streams on that connection
 in the caller's mailbox. It also removes queued Erlang
 `{'DOWN', monitor_ref, process, connection_pid, reason}` messages for every
@@ -92,13 +92,13 @@ its flush can consume the notification your own lifecycle code expected.
 
 ## Flow control
 
-Set finite credit with `request.with_initial_flow(options, credit)` before `request.request` or `request.start_stream`. Without it, Gun starts with unlimited credit; a later `update_flow` cannot change unlimited credit to finite credit.
+Cancellation stops a stream; flow control only slows it. Set finite credit with `request.with_initial_flow(options, credit)` before `request.request` or `request.start_stream`. Without it, Gun starts with unlimited credit; a later `update_flow` cannot change unlimited credit to finite credit.
 
 With Gun's default data handler, one credit permits one data message in both HTTP/1.1 and HTTP/2. Headers do not consume credit. `request.update_flow(conn, stream, increment)` adds credit in the same unit. HTTP/1.1 pauses socket reads when credit runs out. HTTP/2 stops replenishing the stream's byte window; it can still process frames already in that window or socket read. Credit is not the HTTP/2 byte window and does not impose a strict message-count or memory bound. See the [streaming guide](/guides/streaming/#finite-response-credit) for allocation limits.
 
 ## WebSocket frame model
 
-`message.WebSocket(frame)` holds typed WebSocket frames. Gluegun keeps text, binary, ping, pong, and close frames as different variants. It does not merge them into one shape.
+After a WebSocket upgrade, the stream carries frames instead of HTTP messages. `message.WebSocket(frame)` holds typed WebSocket frames. Gluegun keeps text, binary, ping, pong, and close frames as different variants. It does not merge them into one shape.
 
 Gun processes ping and pong automatically by default. `websocket.with_silence_pings` controls if automatic ping processing stays hidden, or if ping frames are visible to your code. `Ping` and `Pong` each hold a payload `BitArray`. An empty payload is valid. It means that no application data was attached.
 
@@ -106,7 +106,7 @@ Gun processes ping and pong automatically by default. `websocket.with_silence_pi
 
 ## Process ownership and `reply_to`
 
-The process that calls `connection.open` is the connection owner. Gun
+Each message on this page goes to a process, and the rules for which process explain many surprises. The process that calls `connection.open` is the connection owner. Gun
 monitors this process and stops the connection when it exits. Passing a
 `Connection` or `Socket` handle to another process does not transfer
 ownership. A short-lived task cannot open a connection, return its handle,

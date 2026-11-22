@@ -1,7 +1,8 @@
 # websocket_echo
 
-A buildable Gluegun example package that connects to a local WebSocket echo
-server, sends a text frame, receives the echoed reply, and closes the socket.
+The first WebSocket example. It connects to a local echo server, sends one
+text frame, receives the echoed reply, and closes the socket. Unlike the HTTP
+examples, it needs a server that you start yourself.
 
 ## Running
 
@@ -30,13 +31,20 @@ The example targets `ws://localhost:8080/echo`.
 
 ## API style
 
-The source example uses `websocket.connect` to create a reusable `Socket`, then
-`websocket.send_text`, `websocket.receive_app_frame`, and `websocket.close` for
-explicit WebSocket lifecycle steps. It calls close after a failed exchange too.
-Close waits for the peer within the socket timeout, then releases the Gun
-process even on a handshake error. `send_close_frame` only sends a frame.
-For scoped one-shot flows, use
-`websocket.with_socket` to run a callback and close the WebSocket and connection
-afterward. For an existing connection, use `upgrade` with the negotiated
-protocol, `await_upgrade`, then `from_upgrade`. The resulting Socket uses the
-same send, receive, and close functions.
+The example manages each lifecycle step itself. `websocket.connect` creates a
+reusable `Socket`, then `websocket.send_text` and `websocket.receive_app_frame`
+exchange one message. `websocket.close` runs last, even after a failed
+exchange. It waits for the peer within the socket timeout, then releases the
+Gun process even on a handshake error. In contrast, `send_close_frame` only
+sends a frame.
+
+Two other entry points lead to the same `Socket`. For a scoped one-shot flow,
+`websocket.with_socket` runs a callback, then closes the WebSocket and the
+connection. For a connection that you already opened, call `upgrade` with the
+negotiated protocol, then `await_upgrade` and `from_upgrade`. The resulting
+`Socket` uses the same send, receive, and close functions.
+
+## Next
+
+[`websocket_chat`](../websocket_chat/README.md) uses `with_socket` so that the
+helper handles the close.

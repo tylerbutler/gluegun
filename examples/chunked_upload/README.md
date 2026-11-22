@@ -1,6 +1,10 @@
 # chunked_upload
 
-A buildable low-level request-body streaming example for Gluegun. It opens `https://httpbin.org`, starts a `POST /post` request with headers only, streams the request body in multiple chunks, waits for the response, collects the response body when needed, prints the final status, and closes the connection.
+The earlier examples send a complete body. This one produces the body in
+pieces with the low-level API. It opens `https://httpbin.org`, starts a
+`POST /post` request with headers only, then streams the body in several
+chunks. After the last chunk, it waits for the response, collects the body
+when there is one, prints the final status, and closes the connection.
 
 ## Running
 
@@ -17,3 +21,7 @@ gleam run
 - This example uses `gluegun/request` and `gluegun/message` directly to demonstrate request-body streaming. Use `gluegun/client` for simple full-body requests.
 - Gluegun does not parse URLs. Open the connection with a host and port, then request a path. If your input is a full URL, parse it first with `gleam/uri`.
 - Gun is Erlang-only, so this example targets Erlang.
+
+## Next
+
+[`streaming_download`](../streaming_download/README.md) streams in the other direction.
