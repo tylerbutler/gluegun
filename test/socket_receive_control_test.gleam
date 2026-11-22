@@ -115,9 +115,11 @@ pub fn zero_application_override_preserves_a_queued_control_for_raw_zero_test() 
 pub fn finite_credit_pauses_and_replenishes_subsequent_traffic_test() -> Nil {
   let assert Ok(upgrade) = websocket.upgrade_options() |> websocket.with_flow(1)
   let assert Ok(Nil) =
-    with_server("flow_consumed", fn(port) {
+    with_server("normal", fn(port) {
       let assert Ok(socket) = connect(port, upgrade)
       let assert Ok(owner) = owned_connection()
+      // Request the first frame after upgrade so buffered data cannot bypass credit.
+      let assert Ok(Nil) = websocket.send_text(socket, "one")
       let assert Ok(message.Text("one")) =
         websocket.receive_frame_within(socket, timeout(500))
       let assert Ok(Nil) = websocket.send_text(socket, "two")
