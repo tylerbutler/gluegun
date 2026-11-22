@@ -21,6 +21,204 @@ type TlsSummary =
     Bool,
   )
 
+const tls12_cipher = "ECDHE-RSA-AES128-GCM-SHA256"
+
+const tls13_cipher = "TLS_AES_128_GCM_SHA256"
+
+pub fn explicit_empty_cipher_list_is_rejected_before_gun_test() -> Nil {
+  tls.options()
+  |> tls.with_ciphers([])
+  |> assert_no_usable_ciphers
+}
+
+pub fn tls13_rejects_tls12_only_cipher_list_before_gun_test() -> Nil {
+  tls.options()
+  |> tls.with_versions([tls.TlsV13])
+  |> tls.with_ciphers([tls12_cipher])
+  |> assert_no_usable_ciphers
+}
+
+pub fn tls12_rejects_tls13_only_cipher_list_before_gun_test() -> Nil {
+  tls.options()
+  |> tls.with_versions([tls.TlsV12])
+  |> tls.with_ciphers([tls13_cipher])
+  |> assert_no_usable_ciphers
+}
+
+pub fn empty_versions_have_no_usable_explicit_cipher_test() -> Nil {
+  tls.options()
+  |> tls.with_versions([])
+  |> tls.with_ciphers([tls13_cipher])
+  |> assert_no_usable_ciphers
+}
+
+pub fn tls13_accepts_compatible_cipher_test() -> Nil {
+  tls.options()
+  |> tls.with_versions([tls.TlsV13])
+  |> assert_prepared_ciphers([tls13_cipher], Some(["tlsv1.3"]))
+}
+
+pub fn tls12_accepts_compatible_openssl_cipher_name_test() -> Nil {
+  tls.options()
+  |> tls.with_versions([tls.TlsV12])
+  |> assert_prepared_ciphers([tls12_cipher], Some(["tlsv1.2"]))
+}
+
+pub fn tls12_accepts_compatible_rfc_cipher_name_test() -> Nil {
+  tls.options()
+  |> tls.with_versions([tls.TlsV12])
+  |> assert_prepared_ciphers(
+    ["TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"],
+    Some(["tlsv1.2"]),
+  )
+}
+
+pub fn tls12_accepts_suites_introduced_before_tls12_test() -> Nil {
+  tls.options()
+  |> tls.with_versions([tls.TlsV12])
+  |> assert_prepared_ciphers(["AES128-SHA"], Some(["tlsv1.2"]))
+}
+
+pub fn tls13_accepts_mixed_cipher_list_unchanged_test() -> Nil {
+  tls.options()
+  |> tls.with_versions([tls.TlsV13])
+  |> assert_prepared_ciphers([tls12_cipher, tls13_cipher], Some(["tlsv1.3"]))
+}
+
+pub fn tls12_accepts_mixed_cipher_list_unchanged_test() -> Nil {
+  tls.options()
+  |> tls.with_versions([tls.TlsV12])
+  |> assert_prepared_ciphers([tls13_cipher, tls12_cipher], Some(["tlsv1.2"]))
+}
+
+pub fn secure_default_versions_accept_tls12_cipher_test() -> Nil {
+  tls.options()
+  |> assert_prepared_ciphers([tls12_cipher], default_versions())
+}
+
+pub fn secure_default_versions_accept_tls13_cipher_test() -> Nil {
+  tls.options()
+  |> assert_prepared_ciphers([tls13_cipher], default_versions())
+}
+
+pub fn omitted_secure_ciphers_preserve_otp_defaults_test() -> Nil {
+  let assert Ok(#(None, Some(["tlsv1.3", "tlsv1.2"]))) =
+    prepare_tls_ciphers(tls.options())
+  Nil
+}
+
+pub fn omitted_insecure_ciphers_and_versions_preserve_otp_defaults_test() -> Nil {
+  let assert Ok(#(None, None)) = prepare_tls_ciphers(tls.insecure())
+  Nil
+}
+
+pub fn insecure_empty_cipher_list_is_rejected_before_gun_test() -> Nil {
+  tls.insecure()
+  |> tls.with_ciphers([])
+  |> assert_no_usable_ciphers
+}
+
+pub fn public_open_reports_unusable_ciphers_as_invalid_options_test() -> Nil {
+  let actual =
+    connection.options()
+    |> connection.with_tls_options(
+      tls.insecure()
+      |> tls.with_versions([tls.TlsV13])
+      |> tls.with_ciphers([tls12_cipher]),
+    )
+    |> connection.open(host: "127.0.0.1", port: 443)
+  let assert Error(error.InvalidOptions("Tls(NoUsableCiphers)")) = actual
+  Nil
+}
+
+pub fn unknown_cipher_name_is_rejected_before_gun_test() -> Nil {
+  let assert Error(error.InvalidOptions(_)) =
+    tls.options()
+    |> tls.with_ciphers(["not-a-cipher"])
+    |> prepare_tls_ciphers
+  Nil
+}
+
+pub fn insecure_runtime_tls12_rejects_tls13_only_ciphers_test() -> Nil {
+  use <- with_runtime_tls_versions([tls.TlsV12])
+  tls.insecure()
+  |> tls.with_ciphers([tls13_cipher])
+  |> assert_no_usable_ciphers
+}
+
+pub fn insecure_runtime_tls13_rejects_tls12_only_ciphers_test() -> Nil {
+  use <- with_runtime_tls_versions([tls.TlsV13])
+  tls.insecure()
+  |> tls.with_ciphers([tls12_cipher])
+  |> assert_no_usable_ciphers
+}
+
+pub fn insecure_runtime_tls12_accepts_mixed_ciphers_test() -> Nil {
+  use <- with_runtime_tls_versions([tls.TlsV12])
+  tls.insecure()
+  |> assert_prepared_ciphers([tls13_cipher, tls12_cipher], None)
+}
+
+pub fn insecure_runtime_tls13_accepts_compatible_cipher_test() -> Nil {
+  use <- with_runtime_tls_versions([tls.TlsV13])
+  tls.insecure()
+  |> assert_prepared_ciphers([tls13_cipher], None)
+}
+
+pub fn insecure_explicit_versions_override_runtime_versions_test() -> Nil {
+  use <- with_runtime_tls_versions([tls.TlsV12])
+  tls.insecure()
+  |> tls.with_versions([tls.TlsV13])
+  |> assert_prepared_ciphers([tls13_cipher], Some(["tlsv1.3"]))
+}
+
+pub fn secure_default_versions_override_runtime_versions_test() -> Nil {
+  use <- with_runtime_tls_versions([tls.TlsV12])
+  tls.options()
+  |> assert_prepared_ciphers([tls13_cipher], default_versions())
+}
+
+fn assert_no_usable_ciphers(options: tls.TlsOptions) -> Nil {
+  let actual = prepare_tls_ciphers(options)
+  let expected = Error(error.InvalidOptions("Tls(NoUsableCiphers)"))
+  let assert #(True, _, _) = #(actual == expected, actual, expected)
+  Nil
+}
+
+fn assert_prepared_ciphers(
+  options: tls.TlsOptions,
+  ciphers: List(String),
+  versions: Option(List(String)),
+) -> Nil {
+  let actual =
+    options
+    |> tls.with_ciphers(ciphers)
+    |> prepare_tls_ciphers
+  let expected = Ok(#(Some(ciphers), versions))
+  let assert #(True, _, _) = #(actual == expected, actual, expected)
+  Nil
+}
+
+fn prepare_tls_ciphers(
+  options: tls.TlsOptions,
+) -> Result(#(Option(List(String)), Option(List(String))), error.GluegunError) {
+  connection.options()
+  |> connection.with_tls_options(options)
+  |> connection.options_to_ffi
+  |> prepared_tls_cipher_summary
+}
+
+@external(erlang, "gluegun_ffi_test", "prepared_tls_cipher_summary")
+fn prepared_tls_cipher_summary(
+  options: List(connection.ConnectOption),
+) -> Result(#(Option(List(String)), Option(List(String))), error.GluegunError)
+
+@external(erlang, "gluegun_ffi_test", "with_runtime_tls_versions")
+fn with_runtime_tls_versions(
+  versions: List(tls.TlsVersion),
+  callback: fn() -> Nil,
+) -> Nil
+
 pub fn depth_accepts_zero_test() -> Nil {
   let assert Ok(_) = tls.with_depth(tls.options(), 0)
   Nil
@@ -253,6 +451,79 @@ pub fn tls_insecure_suppresses_the_secure_baseline_test() -> Nil {
   let assert #(True, _, _) = #(actual_11 == expected_11, actual_11, expected_11)
   Nil
 }
+
+pub fn insecure_effective_gun_options_skip_system_roots_test() -> Nil {
+  assert_effective_ca_options(tls.insecure(), Some([]), None)
+}
+
+pub fn verify_none_effective_gun_options_skip_system_roots_test() -> Nil {
+  assert_effective_ca_options(
+    tls.options() |> tls.with_verify(tls.VerifyNone),
+    Some([]),
+    None,
+  )
+}
+
+pub fn verify_none_preserves_effective_explicit_cacerts_test() -> Nil {
+  let certificates = [<<"fixture-ca":utf8>>]
+  assert_effective_ca_options(
+    tls.insecure() |> tls.with_cacerts(certificates),
+    Some(certificates),
+    None,
+  )
+}
+
+pub fn verify_none_preserves_effective_explicit_empty_cacerts_test() -> Nil {
+  assert_effective_ca_options(
+    tls.insecure() |> tls.with_cacerts([]),
+    Some([]),
+    None,
+  )
+}
+
+pub fn verify_none_preserves_effective_explicit_cacertfile_test() -> Nil {
+  assert_effective_ca_options(
+    tls.insecure() |> tls.with_cacertfile("/fixture/ca.pem"),
+    None,
+    Some("/fixture/ca.pem"),
+  )
+}
+
+pub fn verify_none_preserves_effective_both_ca_sources_test() -> Nil {
+  let certificates = [<<"fixture-ca":utf8>>]
+  assert_effective_ca_options(
+    tls.insecure()
+      |> tls.with_cacerts(certificates)
+      |> tls.with_cacertfile("/fixture/ca.pem"),
+    Some(certificates),
+    Some("/fixture/ca.pem"),
+  )
+}
+
+fn assert_effective_ca_options(
+  options: tls.TlsOptions,
+  certificates: Option(List(BitArray)),
+  file: Option(String),
+) -> Nil {
+  let actual =
+    connection.options()
+    |> connection.with_transport(connection.Tls)
+    |> connection.with_tls_options(options)
+    |> connection.options_to_ffi
+    |> effective_ca_options(certificates, file)
+  // Exact effective values plus unchanged CA options prove Gun did not fill
+  // absent roots; the count independently checks Gluegun's injected loader.
+  let expected = #(True, True, 0)
+  let assert #(True, _, _) = #(actual == expected, actual, expected)
+  Nil
+}
+
+@external(erlang, "gluegun_tls_options_test", "effective_ca_options")
+fn effective_ca_options(
+  options: List(connection.ConnectOption),
+  certificates: Option(List(BitArray)),
+  file: Option(String),
+) -> #(Bool, Bool, Int)
 
 pub fn skips_sni_when_host_is_an_ip_literal_test() -> Nil {
   let options =
@@ -591,7 +862,7 @@ fn insecure_tls_summary() -> TlsSummary {
     versions: None,
     depth: None,
     server_name_indication: Some("disable"),
-    has_cacerts: False,
+    has_cacerts: True,
     has_hostname_check: False,
   )
 }

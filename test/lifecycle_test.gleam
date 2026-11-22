@@ -156,6 +156,24 @@ pub fn common_client_drains_after_dispatch_failure_test() -> Nil {
   common_client(True, False)
 }
 
+pub fn expired_client_budget_drains_lifecycle_without_dispatch_or_receive_test() -> Nil {
+  with_mailbox([Up(connection.Http1), Down], fn(conn) {
+    let assert Error(error.Timeout) =
+      client.request_with(
+        conn,
+        http.Get,
+        "/",
+        [],
+        <<>>,
+        request.options(),
+        timeout(0),
+        fn(_, _, _, _, _, _) { panic as "expired budget reached request" },
+        fn(_, _, _) { panic as "expired budget reached await" },
+      )
+    Nil
+  })
+}
+
 pub fn common_client_drains_after_collection_failure_cleanup_test() -> Nil {
   common_client(False, True)
 }

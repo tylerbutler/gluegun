@@ -389,7 +389,7 @@ ws_upgrade(ConnPid, Path, Headers, WsOptions) ->
     try
         GunOpts = ws_options_to_gun(WsOptions),
         PathBin = validate_request_path(Path),
-        HeadersOut = validate_request_headers(Headers),
+        HeadersOut = validate_request_headers(Headers, websocket),
         with_normalize(stream_erlang, fun() ->
             try
                 case gun:ws_upgrade(ConnPid, PathBin, HeadersOut, GunOpts) of
@@ -415,6 +415,7 @@ ws_upgrade(ConnPid, Path, Headers, WsOptions) ->
 ws_send(ConnPid, StreamRef, Frames) ->
     try
         GunFrames = [gleam_frame_to_gun(Frame) || Frame <- Frames],
+        validate_ws_frame_order(GunFrames),
         with_normalize(stream_erlang, fun() ->
             gun:ws_send(ConnPid, StreamRef, GunFrames)
         end)
@@ -425,6 +426,15 @@ ws_send(ConnPid, StreamRef, Frames) ->
             {error, gleam_error({invalid_message, {invalid_frame, Reason}})};
         Class:Reason:_Stack -> {error, gleam_error({erlang_error, {Class, Reason}})}
     end.
+
+validate_ws_frame_order([]) -> ok;
+validate_ws_frame_order([_]) -> ok;
+validate_ws_frame_order([close | _]) ->
+    error({invalid_frame, close_not_last});
+validate_ws_frame_order([{close, _, _} | _]) ->
+    error({invalid_frame, close_not_last});
+validate_ws_frame_order([_ | Rest]) ->
+    validate_ws_frame_order(Rest).
 
 %% Forward a value unchanged. Used to build the opaque `HandlerOptions` term
 %% Gun passes to a WebSocket protocol handler module as `user_opts`.
@@ -646,7 +656,15 @@ validate_utf8(IoData) ->
         {incomplete, _Encoded, _Rest} -> {error, invalid_utf8}
     end.
 
-normalize_host(Host) when is_binary(Host) -> unicode:characters_to_list(Host);
+normalize_host(Host) when is_binary(Host) ->
+    normalize_host(unicode:characters_to_list(Host));
+normalize_host(Host) when is_list(Host) ->
+    %% Gun recognizes IP origins by their tuple representation. Leaving text
+    %% here would reintroduce numeric SNI and leave IPv6 authorities unbracketed.
+    case inet:parse_address(strip_ipv6_brackets(Host)) of
+        {ok, Address} -> Address;
+        {error, _} -> Host
+    end;
 normalize_host(Host) -> Host.
 
 %% --- Connection options -----------------------------------------------------
@@ -670,7 +688,26 @@ prepare_connect_options(Host, Port, Options, Deps) ->
         false when Port =:= 443 -> GunOptions#{transport => tls};
         false -> GunOptions#{transport => tcp}
     end,
-    apply_secure_tls_defaults(Host, Resolved, Deps).
+    Prepared = case {maps:get(transport, Resolved), maps:find(protocols, Resolved)} of
+        {_, {ok, []}} ->
+            error({invalid_options, {protocols, []}});
+        {tcp, {ok, [First | _]}} ->
+            %% TCP has no negotiation: Gun requires exactly one protocol.
+            %% Keep omission intact so Gun retains its default HTTP/1 path.
+            Resolved#{protocols => [First]};
+        _ ->
+            %% TLS needs the complete preference list for negotiation.
+            Resolved
+    end,
+    apply_secure_tls_defaults(Host, preserve_tls_protocol_order(Prepared), Deps).
+
+%% Gun 2.1 through the locked 2.8 builds ALPN with a prepending fold in
+%% ensure_tls_opts/3. Compensate only for explicit lists after resolving TLS:
+%% TCP protocol selection and Gun's omitted-protocol defaults stay untouched.
+preserve_tls_protocol_order(#{transport := tls, protocols := Protocols} = GunOptions) ->
+    GunOptions#{protocols => lists:reverse(Protocols)};
+preserve_tls_protocol_order(GunOptions) ->
+    GunOptions.
 
 %% Option-only conversion leaves Auto (`transport_option, auto`) unresolved.
 %% Port-aware preparation then selects TLS on 443 and TCP elsewhere, matching
@@ -708,6 +745,11 @@ connect_option_to_gun({domain_lookup_timeout_option, Timeout}, GunOptions) ->
     GunOptions#{domain_lookup_timeout => timeout_to_gun(Timeout)};
 connect_option_to_gun({tls_handshake_timeout_option, Timeout}, GunOptions) ->
     GunOptions#{tls_handshake_timeout => timeout_to_gun(Timeout)};
+connect_option_to_gun({websocket_keepalive_option, Timeout}, GunOptions) ->
+    %% Gun starts protocol timers from the original connection options, not
+    %% the map passed to ws_upgrade. Preserve any other WebSocket defaults.
+    WsOptions = maps:get(ws_opts, GunOptions, #{}),
+    GunOptions#{ws_opts => WsOptions#{keepalive => timeout_to_gun(Timeout)}};
 connect_option_to_gun({tls_option, TlsSettings}, GunOptions) ->
     GunOptions#{tls_opts => tls_settings_to_gun(TlsSettings)}.
 
@@ -759,7 +801,7 @@ server_name_indication_to_gun({server_name, Hostname}) -> unicode_value_to_list(
 %%
 %% User-supplied `tls_opts` always win — the merge is "add only missing
 %% keys". If the caller explicitly sets `verify => verify_none` we skip the
-%% rest of the baseline (no cacerts, no hostname checks).
+%% rest of the baseline (no system roots, no hostname checks).
 
 apply_secure_tls_defaults(Host, GunOptions) ->
     apply_secure_tls_defaults(Host, GunOptions, #{}).
@@ -772,8 +814,48 @@ apply_secure_tls_defaults(Host, GunOptions, Deps) ->
         true ->
             TlsOpts0 = maps:get(tls_opts, GunOptions, []),
             TlsOpts = merge_secure_tls_defaults(Host, TlsOpts0, Deps),
+            validate_tls_ciphers(TlsOpts),
             GunOptions#{tls_opts => TlsOpts}
     end.
+
+%% OTP can silently replace an empty compatible cipher set with its defaults.
+%% Validate explicit lists before Gun starts, but preserve the caller's list:
+%% only one suite needs to be usable with one of the effective versions.
+validate_tls_ciphers(TlsOpts) ->
+    case proplists:lookup(ciphers, TlsOpts) of
+        none -> ok;
+        {ciphers, []} ->
+            error({invalid_options, {tls, no_usable_ciphers}});
+        {ciphers, Ciphers} ->
+            Suites = [tls_cipher_suite(Name) || Name <- Ciphers],
+            VersionInfo = ssl:versions(),
+            Versions = proplists:get_value(
+                versions, TlsOpts, proplists:get_value(supported, VersionInfo)
+            ),
+            Available = proplists:get_value(available, VersionInfo),
+            Permitted = lists:append([
+                tls_version_cipher_suites(Version)
+                || Version <- Versions, lists:member(Version, Available)
+            ]),
+            Usable = ssl:filter_cipher_suites(Permitted, []),
+            case lists:any(fun(Suite) -> lists:member(Suite, Usable) end, Suites) of
+                true -> ok;
+                false -> error({invalid_options, {tls, no_usable_ciphers}})
+            end
+    end.
+
+tls_cipher_suite(Name) ->
+    case ssl:str_to_suite(Name) of
+        Suite when is_map(Suite) -> Suite;
+        {error, Reason} -> error({invalid_options, {tls, {cipher, Reason}}})
+    end.
+
+%% `all` is inclusive of earlier versions, which is correct before TLS 1.3.
+%% TLS 1.3 has a disjoint suite set, so its list must be exclusive.
+tls_version_cipher_suites('tlsv1.3') ->
+    ssl:cipher_suites(exclusive, 'tlsv1.3');
+tls_version_cipher_suites(Version) ->
+    ssl:cipher_suites(all, Version) ++ ssl:cipher_suites(anonymous, Version).
 
 tls_defaults_apply_to_transport(GunOptions) ->
     case maps:get(transport, GunOptions, undefined) of
@@ -785,6 +867,12 @@ merge_secure_tls_defaults(Host, TlsOpts, Deps) when is_list(TlsOpts) ->
     case proplists:get_value(verify, TlsOpts) of
         undefined -> add_verify_peer_defaults(Host, [{verify, verify_peer} | TlsOpts], Deps);
         verify_peer -> add_verify_peer_defaults(Host, TlsOpts, Deps);
+        verify_none ->
+            %% Gun fills absent CA sources even with verification disabled.
+            case proplists:is_defined(cacerts, TlsOpts) orelse proplists:is_defined(cacertfile, TlsOpts) of
+                true -> TlsOpts;
+                false -> [{cacerts, []} | TlsOpts]
+            end;
         _ -> TlsOpts
     end.
 
@@ -858,7 +946,13 @@ sni_for_host(Host) ->
         _ ->
             case inet:parse_address(strip_ipv6_brackets(HostStr)) of
                 {ok, _IP} -> skip;
-                {error, _} -> {ok, HostStr}
+                {error, _} ->
+                    %% Preserve the DNS lookup spelling; only derived SNI
+                    %% omits the terminal root dot. Explicit SNI bypasses this.
+                    case lists:reverse(HostStr) of
+                        [$. | Rest] -> {ok, lists:reverse(Rest)};
+                        _ -> {ok, HostStr}
+                    end
             end
     end.
 
@@ -907,13 +1001,22 @@ unicode_value_to_list(Value) -> Value.
 ws_options_to_gun(WsOptions) when is_list(WsOptions) ->
     %% Preflight the complete list before callback-module conversion or cast.
     lists:foreach(fun
+        ({keepalive, _Timeout}) ->
+            error({invalid_options,
+                <<"WebSocket keepalive must be set when opening the connection; "
+                  "use connection.with_websocket_keepalive">>});
         ({protocols, Protocols}) ->
             lists:foreach(fun({Protocol, _}) ->
                 case is_valid_token(to_binary(Protocol)) of
                     true -> ok;
                     false -> error({invalid_options, {ws, invalid_subprotocol}})
                 end
-            end, Protocols);
+            end, Protocols),
+            Names = [to_binary(Protocol) || {Protocol, _} <- Protocols],
+            case length(Names) =:= length(lists:usort(Names)) of
+                true -> ok;
+                false -> error({invalid_options, {ws, duplicate_subprotocol}})
+            end;
         (_) -> ok
     end, WsOptions),
     maps:from_list([ws_option_to_gun(Option) || Option <- WsOptions]).
@@ -923,7 +1026,6 @@ ws_option_to_gun({compress, Compress}) -> {compress, Compress};
 ws_option_to_gun({default_protocol, Module}) -> {default_protocol, module_name_to_atom(Module)};
 ws_option_to_gun({flow, Flow}) when is_integer(Flow), Flow > 0 -> {flow, Flow};
 ws_option_to_gun({flow, Flow}) -> error({invalid_options, {ws, {flow, Flow}}});
-ws_option_to_gun({keepalive, Timeout}) -> {keepalive, timeout_to_gun(Timeout)};
 ws_option_to_gun({protocols, Protocols}) ->
     {protocols, [ws_protocol_to_gun(Protocol) || Protocol <- Protocols]};
 ws_option_to_gun({reply_to, ReplyTo}) -> {reply_to, ReplyTo};
@@ -1122,12 +1224,12 @@ frame_from_gun({pong, Data}) -> {pong, inbound_bytes(Data)};
 frame_from_gun(close) -> close;
 frame_from_gun(Other) -> error({invalid_message, {ws, Other}}).
 
-%% Gun reports pushed request methods as binaries. Known methods map onto the
-%% `gleam/http.Method` constructors; anything else keeps its original
-%% casing inside `Other`.
+%% Gun reports pushed request methods as binaries. Exact, case-sensitive matches
+%% map onto the `gleam/http.Method` constructors; anything else keeps its
+%% original casing inside `Other`.
 method_from_gun(Method) ->
     Binary = inbound_text(Method),
-    case string:uppercase(Binary) of
+    case Binary of
         <<"GET">> -> get;
         <<"HEAD">> -> head;
         <<"POST">> -> post;
@@ -1231,6 +1333,20 @@ validate_request_headers(Headers) ->
     ],
     reject_transfer_encoding(Normalized),
     validate_content_length(Normalized),
+    Normalized.
+
+%% Upgrades have no request body. Check validated decimal bytes rather than
+%% converting to an integer, so arbitrarily long lengths remain safe to inspect.
+validate_request_headers(Headers, websocket) ->
+    Normalized = validate_request_headers(Headers),
+    case lists:keyfind(<<"content-length">>, 1, Normalized) of
+        false -> ok;
+        {_, Value} ->
+            case lists:all(fun(Byte) -> Byte =:= $0 end, binary_to_list(Value)) of
+                true -> ok;
+                false -> error({invalid_options, {request, websocket_content_length}})
+            end
+    end,
     Normalized.
 
 validate_header_name(Name) ->

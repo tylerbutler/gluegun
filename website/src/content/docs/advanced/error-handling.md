@@ -3,9 +3,9 @@ title: Error Handling
 description: Use the GluegunError values that public operations return.
 ---
 
-Effectful operations open connections, send requests, wait for messages, or send WebSocket frames. They return `Result(_, error.GluegunError)`. Pure builders and accessors return plain values. Only `response.body_text` decodes the body (UTF-8). `response.body` always returns the raw bytes.
+Gluegun does not throw. Each operation that has an effect, such as opening a connection, sending a request, waiting for a message, or sending a WebSocket frame, returns `Result(_, error.GluegunError)`. Pure builders and accessors return plain values. Only `response.body_text` decodes the body (as UTF-8); `response.body` always returns the raw bytes.
 
-Pattern match on the variants that are important to your application. Keep a fallback for unexpected Erlang or decode errors.
+To handle a failure, pattern match on the variants that are important to your application, and keep a fallback for unexpected Erlang or decode errors:
 
 ```gleam
 import gleam/io
@@ -35,7 +35,7 @@ fn safe_get(conn) {
 }
 ```
 
-Gluegun normalizes FFI errors at the API boundary. Erlang failures become `GluegunError` values. Raw Erlang terms do not leak.
+The fallback is safe because each error has a Gleam type. Gluegun normalizes FFI errors at the API boundary, so Erlang failures become `GluegunError` values and raw Erlang terms do not leak.
 
 Match the variant, not the reason string. Maintainers keep variants and
 payload types stable; diagnostic text can change. Incoming data that cannot
@@ -43,7 +43,7 @@ form valid Gleam values returns `DecodeError`. Invalid outgoing frames or a
 message sequence that does not match the operation returns `InvalidMessage`.
 Unexpected runtime failures remain `ErlangError`.
 
-Finite timeouts accept 0 through 4_294_967_295 milliseconds, inclusive, as
+Errors can also come before any network activity. Finite timeouts accept 0 through 4_294_967_295 milliseconds, inclusive, as
 supported by OTP 27. Use `connection.infinity()` for no limit. Retry counts
 must be non-negative. Flow credit must be positive; TLS depth accepts 0 through
 255 and ports accept 0 through 65535. Numeric builders return `InvalidOptions`
@@ -52,7 +52,7 @@ configuration and literal values follow one rule.
 
 ## HTTP collection cleanup
 
-Once a high-level `client` helper gets a stream, it owns failure cleanup. On a collection error, it attempts to cancel the stream and drains queued messages for that stream, even if cancellation fails. It returns the original collection error. Cleanup failures produce a warning instead of replacing that error.
+A returned error does not always mean that Gun is finished. Once a high-level `client` helper gets a stream, it owns failure cleanup. On a collection error, it attempts to cancel the stream and drains queued messages for that stream, even if cancellation fails. It returns the original collection error. Cleanup failures produce a warning instead of replacing that error.
 
 When the helper rejects a push, it also cancels and drains the promised stream. Cleanup does the same for each push still queued for the failed stream.
 

@@ -49,9 +49,14 @@
     capture_update_flow/1,
     gun_transport/1,
     gun_protocols/1,
+    resolved_protocols/2,
+    prepared_protocol_options/3,
     gun_retry/1,
     gun_connect_timeout/1,
+    gun_websocket_keepalive/1,
     gun_tls_opts/1,
+    prepared_tls_cipher_summary/1,
+    with_runtime_tls_versions/2,
     secure_tls_opts_summary/3,
     secure_tls_opts_with_empty_cacerts/3,
     prepared_options_with_empty_cacerts/3,
@@ -235,11 +240,59 @@ gun_transport(Options) ->
 gun_protocols(Options) ->
     [render(Protocol) || Protocol <- maps:get(protocols, gluegun_ffi:connect_options_to_gun(Options), [])].
 
+%% (Int, List(connection.ConnectOption)) -> List(String).
+%% Exercise actual port-aware preparation without consulting the OS trust store.
+%% Missing protocols project to [] rather than materializing Gun defaults.
+resolved_protocols(Port, Options) ->
+    CacheKey = make_ref(),
+    try
+        Gun = gluegun_ffi:prepare_connect_options(<<"localhost">>, Port, Options, #{
+            cacerts_fun => fun() -> [<<"fake-der-ca">>] end,
+            cacerts_cache_key => CacheKey
+        }),
+        [render(Protocol) || Protocol <- maps:get(protocols, Gun, [])]
+    after persistent_term:erase(CacheKey)
+    end.
+
+%% Result({Transport, Option(List(Protocol))}, GluegunError). Keep omission
+%% distinct from an explicit list, and translate Gun's `http` to Gleam's Http1.
+%% Isolate TLS defaults from the machine's trust roots and shared cache.
+prepared_protocol_options(Host, Port, Options) ->
+    CacheKey = make_ref(),
+    try
+        Gun = gluegun_ffi:prepare_connect_options(Host, Port, Options, #{
+            cacerts_fun => fun() -> [<<"fake-der-ca">>] end,
+            cacerts_cache_key => CacheKey
+        }),
+        Protocols = case maps:find(protocols, Gun) of
+            error -> none;
+            {ok, Values} -> {some, [begin
+                {ok, Protocol} = gluegun_ffi:protocol_result(Value),
+                Protocol
+            end || Value <- Values]}
+        end,
+        {ok, {maps:get(transport, Gun), Protocols}}
+    catch
+        error:{invalid_options, Reason} ->
+            {error, {invalid_options, gleam@string:inspect(Reason)}}
+    after
+        persistent_term:erase(CacheKey)
+    end.
+
 gun_retry(Options) ->
     render(maps:get(retry, gluegun_ffi:connect_options_to_gun(Options), undefined)).
 
 gun_connect_timeout(Options) ->
     render(maps:get(connect_timeout, gluegun_ffi:connect_options_to_gun(Options), undefined)).
+
+%% Gleam: (List(ConnectOption)) -> Option(String).
+%% Projects the ORIGINAL connection options, not the upgrade cast.
+gun_websocket_keepalive(Options) ->
+    GunOptions = gluegun_ffi:connect_options_to_gun(Options),
+    case maps:find(keepalive, maps:get(ws_opts, GunOptions, #{})) of
+        error -> none;
+        {ok, Value} -> {some, render(Value)}
+    end.
 
 %% Project Gun `tls_opts` to `[{Key, [Value]}]` with every value rendered as a
 %% binary, so Gleam can assert on them without inspecting Erlang terms.
@@ -261,6 +314,45 @@ render(Value) when is_integer(Value) -> integer_to_binary(Value);
 render(Value) when is_list(Value) -> unicode:characters_to_binary(Value).
 
 %% --- Secure TLS defaults ----------------------------------------------------
+
+%% Result({Option(List(String)), Option(List(String))}, GluegunError).
+%% Preparation only: no Gun process, DNS lookup, or socket is started.
+prepared_tls_cipher_summary(Options) ->
+    CacheKey = make_ref(),
+    try
+        Gun = gluegun_ffi:prepare_connect_options(<<"example.com">>, 443, Options, #{
+            cacerts_fun => fun() -> [<<"fake-der-ca">>] end,
+            cacerts_cache_key => CacheKey
+        }),
+        TlsOpts = maps:get(tls_opts, Gun, []),
+        Project = fun(Key) ->
+            case proplists:lookup(Key, TlsOpts) of
+                none -> none;
+                {Key, Values} -> {some, [render(Value) || Value <- Values]}
+            end
+        end,
+        {ok, {Project(ciphers), Project(versions)}}
+    catch
+        error:{invalid_options, Reason}:_Stack -> {error, {invalid_options, inspect(Reason)}}
+    after
+        persistent_term:erase(CacheKey)
+    end.
+
+%% Unitest's sequential execution is required while changing this SSL setting.
+with_runtime_tls_versions(Versions, Callback) ->
+    Previous = application:get_env(ssl, protocol_version),
+    RuntimeVersions = [case Version of
+        tls_v12 -> 'tlsv1.2';
+        tls_v13 -> 'tlsv1.3'
+    end || Version <- Versions],
+    ok = application:set_env(ssl, protocol_version, RuntimeVersions),
+    try Callback()
+    after
+        case Previous of
+            undefined -> application:unset_env(ssl, protocol_version);
+            {ok, Value} -> application:set_env(ssl, protocol_version, Value)
+        end
+    end.
 
 %% Apply secure defaults and project the resulting tls_opts to a Gleam tuple of
 %% `{Verify, Versions, Depth, Sni, HasCACerts, HasHostnameCheck}`, where the
@@ -369,10 +461,7 @@ summarize_secure_tls_opts(Gun) ->
         undefined -> none;
         DepthValue -> {some, DepthValue}
     end,
-    HasCACerts = case Get(cacerts) of
-        List when is_list(List), List =/= [] -> true;
-        _ -> false
-    end,
+    HasCACerts = proplists:is_defined(cacerts, TlsOpts),
     HasHostnameCheck = Get(customize_hostname_check) =/= undefined,
     {Verify, Versions, Depth, Sni, HasCACerts, HasHostnameCheck}.
 

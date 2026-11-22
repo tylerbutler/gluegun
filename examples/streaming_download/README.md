@@ -1,6 +1,9 @@
 # streaming_download
 
-A buildable low-level response streaming example for Gluegun. It opens `https://httpbin.org`, sends `GET /stream/5`, waits for the initial response, then consumes response data messages as they arrive and prints each chunk size before closing the connection.
+`chunked_upload` streams a request; this example streams a response. It opens
+`https://httpbin.org` and sends `GET /stream/5`. After the response headers
+arrive, it reads each data message as it arrives and prints its size, then
+closes the connection.
 
 ## Running
 
@@ -17,3 +20,7 @@ gleam run
 - This example uses `gluegun/request` and `gluegun/message` directly to demonstrate response-body streaming. Use `gluegun/client` for simple full-body requests.
 - Gluegun does not parse URLs. Open the connection with a host and port, then request a path. If your input is a full URL, parse it first with `gleam/uri`.
 - Gun is Erlang-only, so this example targets Erlang.
+
+## Next
+
+[`websocket_echo`](../websocket_echo/README.md) moves from HTTP streams to WebSocket frames.

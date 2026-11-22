@@ -56,8 +56,8 @@ Cancel an in-flight request stream.
 
 ```gleam
 pub fn cancel(
-  internal.Connection,
-  internal.Stream
+  connection.Connection,
+  Stream
 ) -> Result(Nil, error.GluegunError)
 ```
 
@@ -75,8 +75,8 @@ Send a chunk of request body data on an open stream.
 
 ```gleam
 pub fn data(
-  internal.Connection,
-  internal.Stream,
+  connection.Connection,
+  Stream,
   fin.Fin,
   BitArray
 ) -> Result(Nil, error.GluegunError)
@@ -100,7 +100,7 @@ Discard buffered Gun messages currently queued for the calling process.
  flushing can discard its delivered `DOWN`, which cannot be received later.
 
 ```gleam
-pub fn flush(internal.Connection) -> Result(Nil, error.GluegunError)
+pub fn flush(connection.Connection) -> Result(Nil, error.GluegunError)
 ```
 
 ### `options`
@@ -136,13 +136,13 @@ Send a low-level HTTP request on an open Gun connection.
 
 ```gleam
 pub fn request(
-  internal.Connection,
+  connection.Connection,
   http.Method,
   String,
   List(#(String, String)),
   BitArray,
   RequestOptions
-) -> Result(internal.Stream, error.GluegunError)
+) -> Result(Stream, error.GluegunError)
 ```
 
 ### `start_stream`
@@ -168,12 +168,12 @@ Start a low-level HTTP request whose body will be streamed in chunks.
 
 ```gleam
 pub fn start_stream(
-  internal.Connection,
+  connection.Connection,
   http.Method,
   String,
   List(#(String, String)),
   RequestOptions
-) -> Result(internal.Stream, error.GluegunError)
+) -> Result(Stream, error.GluegunError)
 ```
 
 ### `update_flow`
@@ -189,8 +189,8 @@ Update HTTP/1.1 or HTTP/2 stream flow control by the given increment.
 
 ```gleam
 pub fn update_flow(
-  internal.Connection,
-  internal.Stream,
+  connection.Connection,
+  Stream,
   Int
 ) -> Result(Nil, error.GluegunError)
 ```

@@ -1,8 +1,7 @@
 # websocket_chat
 
-A buildable scoped WebSocket lifecycle example for Gluegun.
-
-The example opens `ws://localhost:8080/chat` with `websocket.with_socket`,
+`websocket_echo` closes its socket by hand. This example lets a scoped helper
+do it. It opens `ws://localhost:8080/chat` with `websocket.with_socket`,
 sends one text frame and one binary frame, receives one application frame after
 each send, prints frame summaries, and lets the scoped helper close the
 WebSocket and connection.
@@ -24,3 +23,8 @@ Do not run this example unless a suitable local server is available.
 
 Gun supports WebSocket over HTTP/1.1 only. `websocket.options()` constrains the
 connection to HTTP/1.1 for the WebSocket upgrade.
+
+## Next
+
+[`webprobe`](../webprobe/README.md) puts these pieces into a complete
+command-line tool.

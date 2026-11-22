@@ -38,9 +38,13 @@ main() ->
         90 = get(documentation_calls),
         lists:foreach(fun assert_finish/1, Canonical),
         98 = get(documentation_calls),
+        lists:foreach(fun(Mode) ->
+            iteration(doc_upload, upload_chunks, Mode, false, Baseline)
+        end, [success, early_hints, multiple_informational]),
+        101 = get(documentation_calls),
         assert_released(get(documentation_history), Baseline),
         io:format("Documentation lifecycle: 90 calls and 8 finish checks "
-            "(98 total) passed in one owner.~n"),
+            "plus 3 upload calls (101 total) passed in one owner.~n"),
         nil
     after
         erase(documentation_context),
@@ -170,6 +174,20 @@ invoke(Module, run, Mode, Port, Ref) ->
     after 2000 -> error(canonical_connection_not_observed)
     end,
     Result;
+invoke(doc_upload, upload_chunks, _Mode, _Port, _Ref) ->
+    %% The displayed upload helper borrows its connection. Its caller owns
+    %% readiness and cleanup; do not inject either into the Gleam source.
+    {ok, Connection} = open(gluegun@connection:options(), <<"127.0.0.1">>, 0),
+    {ok, Timeout} = gluegun@connection:milliseconds(200),
+    {ok, http1} = gluegun@connection:await_up(Connection, Timeout),
+    Result = call(doc_upload, upload_chunks, [Connection]),
+    {ok, <<"ok">>} = Result,
+    %% terminate flushes Gun messages, so assert consumption BEFORE cleanup.
+    true = is_process_alive(Connection),
+    {messages, Messages} = process_info(self(), messages),
+    [] = [Message || Message <- Messages, connection_message(Message, [Connection])],
+    {ok, nil} = terminate(Connection),
+    Result;
 invoke(Module, Function, _Mode, _Port, _Ref) ->
     call(Module, Function, []).
 
@@ -185,6 +203,8 @@ assert_canonical_result(Module, run, success, Result) ->
 assert_canonical_result(_, _, _, _) -> ok.
 
 assert_result(success, false, {ok, _}) -> ok;
+assert_result(early_hints, false, {ok, <<"ok">>}) -> ok;
+assert_result(multiple_informational, false, {ok, <<"ok">>}) -> ok;
 assert_result(success, true, Result) ->
     Expected = cleanup_error(),
     Expected = Result,
@@ -251,11 +271,21 @@ peer(Listener, Owner, Ref, Mode, Function, Baseline) ->
                 {ok, <<22, _/binary>>} = recv(Socket, Deadline),
                 observe_connection(Owner, Ref, Function, Baseline);
             _ ->
-                read_headers(Socket, <<>>, Deadline),
+                case Function of
+                    upload_chunks -> read_upload(Socket, Deadline);
+                    _ -> read_headers(Socket, <<>>, Deadline)
+                end,
                 observe_connection(Owner, Ref, Function, Baseline),
                 Response = case Mode of
                     success ->
                         <<"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok">>;
+                    early_hints ->
+                        <<"HTTP/1.1 103 Early Hints\r\n\r\n",
+                            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok">>;
+                    multiple_informational ->
+                        <<"HTTP/1.1 100 Continue\r\n\r\n",
+                            "HTTP/1.1 103 Early Hints\r\n\r\n",
+                            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok">>;
                     request_error ->
                         %% Invalid UTF-8 HEADER fails collection for every
                         %% snippet, even those which swallow body_text errors.
@@ -285,9 +315,31 @@ read_headers(Socket, Acc, Deadline) when byte_size(Acc) =< 16384 ->
         nomatch ->
             {ok, Data} = recv(Socket, Deadline),
             read_headers(Socket, <<Acc/binary, Data/binary>>, Deadline);
-        _ -> ok
+        {Position, 4} ->
+            Size = Position + 4,
+            <<Headers:Size/binary, Body/binary>> = Acc,
+            {Headers, Body}
     end;
 read_headers(_, _, _) -> error(request_headers_too_large).
+
+read_upload(Socket, Deadline) ->
+    {Headers, Body} = read_headers(Socket, <<>>, Deadline),
+    <<"POST /upload HTTP/1.1\r\n", _/binary>> = Headers,
+    {_, _} = binary:match(Headers, <<"transfer-encoding: chunked\r\n">>),
+    %% This is the actual README's two chunks, including the terminal chunk.
+    %% Preserve bytes already read with headers and wait for the full upload
+    %% before sending any response, rather than relying on timing or sleeps.
+    Expected = <<"6\r\nfirst \r\n4\r\nlast\r\n0\r\n\r\n">>,
+    read_upload_body(Socket, Body, Expected, Deadline).
+
+read_upload_body(_Socket, Expected, Expected, _Deadline) -> ok;
+read_upload_body(Socket, Body, Expected, Deadline)
+        when byte_size(Body) < byte_size(Expected) ->
+    Size = byte_size(Body),
+    <<Body:Size/binary, _/binary>> = Expected,
+    {ok, Data} = recv(Socket, Deadline),
+    read_upload_body(Socket, <<Body/binary, Data/binary>>, Expected, Deadline);
+read_upload_body(_, Body, _, _) -> error({unexpected_upload_body, Body}).
 
 recv(Socket, Deadline) ->
     Remaining = Deadline - erlang:monotonic_time(millisecond),

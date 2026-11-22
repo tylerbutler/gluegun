@@ -3,28 +3,23 @@ title: What is Gluegun?
 description: Learn what Gluegun does and when to use it.
 ---
 
-Gluegun gives Gleam applications typed access to [Gun](https://ninenines.eu/docs/en/gun/), an asynchronous Erlang HTTP client. You can collect a complete response or process individual stream messages, with typed functions for connections, requests, responses, and WebSockets.
+Gluegun gives Gleam applications typed access to [Gun](https://ninenines.eu/docs/en/gun/), an asynchronous Erlang HTTP client. Gun speaks HTTP/1.1, HTTP/2, and WebSockets over HTTP/1.1, and it delivers each response as a series of messages. Gluegun gives those connections, requests, responses, messages, and WebSocket frames Gleam types. Because Gun runs only on the BEAM, Gluegun runs only on the Erlang target.
 
-Gun supports HTTP/1.1, HTTP/2, and WebSockets over HTTP/1.1. Because Gun is Erlang only, Gluegun runs only on the Erlang target.
+That message model is the reason to choose Gluegun. If you only need HTTP/1.1 requests with complete responses, [`gleam_httpc`](https://hexdocs.pm/gleam_httpc/) has a smaller API. Choose Gluegun when you need HTTP/2, WebSockets, streaming, cancellation, flow control, or direct connection management. [Choose an HTTP client](/choosing-a-client/) compares the options in detail.
 
-If you only need HTTP/1.1 requests with complete responses, [`gleam_httpc`](https://hexdocs.pm/gleam_httpc/) has a smaller API. Choose Gluegun when you need HTTP/2, WebSockets, streaming, cancellation, flow control, or direct connection management. See [Choose an HTTP client](/choosing-a-client/) for a detailed comparison.
+## Two levels of control
 
-## What Gluegun gives you
+Most requests do not need the message model. The high-level `gluegun/client` functions send one request on an open connection and collect the full response: status, headers, body, trailers, and all `1xx` informational responses.
 
-- Typed connection options for transport, protocol preference, and timeouts.
-- Low-level request functions for headers, chunked bodies, cancellation, flow control, and flush.
-- Message decoders for asynchronous Gun stream messages.
-- High-level HTTP functions. These send one request on an open connection and collect the full response (status, headers, body, trailers, and all `1xx` informational responses).
-- WebSocket functions to connect, send, receive, and close.
-- `Result` error values. Gluegun does not throw exceptions.
+When the response is too large to collect, or arrives over time, use the low-level modules instead. `gluegun/request` sends headers and chunked bodies and controls cancellation, flow, and flush. `gluegun/message` decodes the asynchronous messages that Gun sends back, including HTTP/2 push and upgrades. `gluegun/websocket` connects, sends, receives, and closes WebSockets.
 
-## What Gluegun does not do
+Both levels use the same typed connection options for transport, protocol preference, and timeouts. Both levels also report failure the same way: they return `Result` values and do not throw exceptions.
 
-Gluegun does not parse URLs. Open a connection with `connection.options() |> connection.open(host: "example.com", port: 443)`. Wait for protocol negotiation with `connection.await_up`. Then give request paths such as `/`, `/api/items`, or `/ws` to the HTTP or WebSocket functions.
+## Connections hold the destination
 
-If your application starts from full URLs, first parse them with the Gleam standard module `gleam/uri`. Use the parsed `host` and `port` for `connection.open`. Select the transport from the scheme. Give the parsed path and query string to the HTTP or WebSocket functions.
+Gluegun does not parse URLs, because a Gun connection already knows its host and port. Open a connection with `connection.options() |> connection.open(host: "example.com", port: 443)` and wait for protocol negotiation with `connection.await_up`. Then give request paths such as `/`, `/api/items`, or `/ws` to the HTTP or WebSocket functions.
 
-Gluegun keeps Gun's stream model available alongside the high-level client functions. Use the client functions when you can collect the full HTTP response in memory. For streamed bodies, HTTP/2 push, upgrades, WebSocket messages, cancellation, and flow-control updates, use `gluegun/request` and `gluegun/message`.
+If your application starts from full URLs, first parse them with the Gleam standard module `gleam/uri`. Use the parsed `host` and `port` for `connection.open`, and select the transport from the scheme. Then give the parsed path and query string to the HTTP or WebSocket functions.
 
 ## Module map
 

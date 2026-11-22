@@ -1,53 +1,91 @@
 ---
 title: Choose an HTTP client
-description: Decide when to use Gluegun instead of gleam_httpc.
+description: Compare Gluegun with gleam_httpc, gleam_hackney, gleam_fetch, and Collie.
 ---
 
-Gluegun and [`gleam_httpc`](https://hexdocs.pm/gleam_httpc/) serve different needs. `gleam_httpc` provides a small request-and-response API over Erlang/OTP's built-in HTTP client. Gluegun provides typed access to Gun connections, streams, HTTP/2, and WebSockets.
+Choose a client for your target runtime and the part of the request lifecycle
+your application must control. This comparison covers Gluegun 1.0 and the
+linked package versions. It compares their public Gleam APIs, not every
+feature of their underlying engines.
 
-| Need | `gleam_httpc` | Gluegun |
+| Client | Runtime | Public API and fit |
 | --- | --- | --- |
-| Send an HTTP request and collect one response | Yes | Yes, with `gluegun/client` |
-| Use an HTTP client included with Erlang/OTP | Yes | No; Gluegun depends on Gun |
-| Follow redirects through a configuration option | Yes | Handle redirects in application code |
-| Use HTTP/2 | No | Yes |
-| Open a WebSocket | No | Yes, over HTTP/1.1 |
-| Stream request or response bodies | The Gleam package does not expose streaming | Yes |
-| Cancel one request stream | No | Yes |
-| Control flow and backpressure | No | Yes |
-| Receive trailers, `1xx` responses, or HTTP/2 push | No | Yes |
-| Manage a persistent connection directly | No | Yes |
+| [Gluegun](/reference/) | Erlang/BEAM | Gun connections and streams: HTTP/1.1, HTTP/2, and WebSockets over HTTP/1.1. Collect responses or control individual stream events. |
+| [`gleam_httpc` 5.0](https://hexdocs.pm/gleam_httpc/5.0.0/gleam/httpc.html) | Erlang/BEAM | Complete HTTP/1.1 requests and responses through OTP's built-in client. A small API for ordinary HTTP calls. |
+| [`gleam_hackney` 1.4](https://hexdocs.pm/gleam_hackney/1.4.0/gleam/hackney.html) | Erlang/BEAM | Complete HTTP requests and responses through Hackney. Its package docs recommend `gleam_httpc` for most uses. |
+| [`gleam_fetch` 1.4.1](https://hexdocs.pm/gleam_fetch/1.4.1/gleam/fetch.html) | JavaScript | HTTP through Fetch in browsers and compatible runtimes. Collect bodies or read response chunks; the runtime manages connections and protocol selection. |
+| [Collie 3.0](https://hexdocs.pm/collie/3.0.0/collie.html) | Erlang/BEAM | WebSocket-only actor client with stateful callbacks, custom messages and selectors, supervision helpers, and frame/message size limits. |
 
-## Use `gleam_httpc` for simple requests
-
-Choose `gleam_httpc` when your application sends REST or JSON requests over HTTP/1.1 and can keep the full response body in memory. Its API accepts a complete URL and returns a complete response. OTP manages the underlying client service.
-
-This model works well for scripts, webhooks, and service-to-service requests that do not need protocol-level control.
+[`websocks`](https://hexdocs.pm/websocks/4.0.1/) provides WebSocket protocol
+utilities for building clients and servers. It is not a complete HTTP client.
 
 ## Use Gluegun for connections and streams
 
-Choose Gluegun when your application needs one or more of these features:
+Among these clients, Gluegun combines explicit BEAM connection and HTTP stream
+handles with HTTP/2 and WebSockets. Choose it when your application needs to
+control the exchange after dispatch:
 
-- HTTP/2 protocol negotiation and concurrent streams.
-- WebSocket connections.
-- Incremental request or response bodies.
-- Stream cancellation or flow-control updates.
-- Long-lived connections to one origin.
-- Explicit handling of trailers, informational responses, pushes, or upgrades.
+- Keep a connection to one origin and reuse it across requests. You open it,
+  await readiness, and choose when to shut it down or terminate it. Keep the
+  opening process alive; passing a handle does not transfer ownership.
+  See [connection ownership](/advanced/message-flow/#process-ownership-and-reply_to).
+- Produce an upload in chunks with `request.start_stream` and `request.data`,
+  or process download chunks with `message.await`. This suits generated uploads
+  and downloads that you write to disk instead of collecting in memory.
+  Streamed uploads do not accept `Content-Length`.
+  See [Streaming](/guides/streaming/).
+- Set finite response credit with `request.with_initial_flow`, then add credit
+  with `request.update_flow` as your consumer processes data. You can inspect
+  headers before retaining body data and cancel a stream you no longer need.
+  Credit counts data messages, not bytes, and is not a strict memory cap.
+  See [flow control](/guides/streaming/#finite-response-credit).
+- Offer HTTP/2 through TLS ALPN, inspect the negotiated protocol, and start
+  concurrent streams on that connection. With the low-level API, you can
+  await or cancel a server-pushed stream.
+  See [HTTP/2](/guides/http2/) and the [request API](/reference/gluegun-request/).
+- Handle typed `Inform`, `Response`, `Data`, and `Trailers` events, or test a
+  WebSocket upgrade and frame exchange from a BEAM application.
+  See [Message Flow](/advanced/message-flow/) and [WebSockets](/guides/websockets/).
 
-Gluegun requires more lifecycle code. You open a connection, wait for protocol negotiation, start a request or upgrade, and close the connection when you finish. Use the high-level [`gluegun/client`](/reference/gluegun-client/) API to collect a complete HTTP response, or the lower-level request and message APIs to process Gun's stream events.
+For a custom mailbox loop, [`message.decode`](/reference/gluegun-message/#decode)
+preserves each event's connection and stream identity. Receiving raw Gun
+messages this way requires your own Erlang FFI; Gluegun does not supply an HTTP
+selector adapter. Collie provides custom selector integration for its
+WebSocket actor, so this is not a reason to prefer Gluegun for WebSockets alone.
+
+These controls require lifecycle and cleanup code. For ordinary responses,
+[`gluegun/client`](/reference/gluegun-client/) collects the body, trailers, and
+informational responses on an existing connection. For streaming, you own the
+receive loop, byte limits, and cleanup. Read the
+[limitations](/advanced/limitations/), including the HTTP/1.1 connection-reuse
+restriction after cancellation with exhausted flow credit.
+
+## Use a simpler client or a WebSocket actor
+
+For scripts, webhooks, or REST calls that fit in memory, choose `gleam_httpc`
+unless you need these lower-level controls. Its Gleam API has timeout and
+redirect settings but no stream handles or streaming body API. OTP manages
+connections. With Gluegun, you also handle redirects in application code.
+The [`gleam_hackney` package docs](https://hexdocs.pm/gleam_hackney/1.4.0/)
+recommend `gleam_httpc` for most uses; its wrapper exposes full-response
+`send` and `send_bits`, not Hackney's full engine API.
+
+For JavaScript, choose `gleam_fetch`. Its `stream_body` and `read_chunk`
+functions support streamed downloads, so response streaming is not unique
+to Gluegun. In a browser, requests follow
+[Fetch's CORS rules](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#making_cross-origin_requests).
+Gluegun does not run on JavaScript.
+
+For a stateful WebSocket session, choose Collie if you want an actor with
+callbacks and custom process messages. Choose Gluegun if you need HTTP
+streams as well, or want to manage Gun connections and frame receives yourself.
 
 ## Shared HTTP methods
 
 Gluegun uses `gleam/http.Method`, including `Other` for extension methods,
 so callers do not need to convert a second method enum. It keeps its own
 request builder because Gun accepts paths on an existing connection, not full
-URLs. Its collected response also retains trailers and informational responses.
-Gluegun does not provide full `gleam/http/request.Request` conversion,
-and it is outside the planned 1.0 API.
-
-## Test WebSocket servers
-
-An HTTP request client cannot test a WebSocket session. End-to-end tests need a client that can perform the HTTP upgrade and then send and receive WebSocket frames. Gluegun can test the upgrade, application messages, control frames, and disconnect flow without a browser or a Node.js process.
-
-See [WebSockets](/guides/websockets/) for the Gluegun client API and [Basic Requests](/guides/basic-requests/) for collected HTTP responses.
+URLs. Gluegun does not accept `gleam/http/request.Request` records.
+Its collected response wraps a standard `gleam/http/response.Response(BitArray)`
+and retains trailers and informational responses alongside it.
+See [Basic Requests](/guides/basic-requests/).
