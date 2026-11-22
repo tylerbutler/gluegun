@@ -213,6 +213,76 @@ pub fn websocket_upgrade_preserves_normalized_headers_and_values_test() -> Nil {
   assert_upgrade(stream)
 }
 
+pub fn websocket_upgrade_rejects_positive_content_length_before_cast_test() -> Nil {
+  reject_upgrade_content_length("1")
+}
+
+pub fn websocket_upgrade_rejects_padded_positive_content_length_test() -> Nil {
+  reject_upgrade_content_length("0001")
+}
+
+pub fn websocket_upgrade_rejects_large_positive_content_length_test() -> Nil {
+  reject_upgrade_content_length("9999999999999999999999999999999999999999")
+}
+
+fn reject_upgrade_content_length(value: String) -> Nil {
+  let actual =
+    websocket.upgrade(
+      current_connection(),
+      connection.Http1,
+      "/ws",
+      [#("CoNtEnT-LeNgTh", value)],
+      websocket.upgrade_options(),
+    )
+  let cast = has_outgoing_cast()
+  let expected = Error(error.InvalidOptions("Request(WebsocketContentLength)"))
+  let assert #(True, _, _) = #(actual == expected, actual, expected)
+  let assert False = cast
+  Nil
+}
+
+pub fn websocket_upgrade_accepts_zero_content_length_test() -> Nil {
+  accept_upgrade_zero_content_length("0")
+}
+
+pub fn websocket_upgrade_accepts_padded_zero_content_length_test() -> Nil {
+  accept_upgrade_zero_content_length("000")
+}
+
+fn accept_upgrade_zero_content_length(value: String) -> Nil {
+  let assert Ok(stream) =
+    websocket.upgrade(
+      current_connection(),
+      connection.Http1,
+      "/ws",
+      [#("CoNtEnT-LeNgTh", value)],
+      websocket.upgrade_options(),
+    )
+  let actual = capture_ws_upgrade(stream)
+  let expected = Ok(#("/ws", [#("content-length", value)]))
+  let assert #(True, _, _) = #(actual == expected, actual, expected)
+  let assert False = has_outgoing_cast()
+  Nil
+}
+
+pub fn request_preserves_positive_content_length_and_body_test() -> Nil {
+  let body = <<"body":utf8>>
+  let assert Ok(stream) =
+    request.request(
+      current_connection(),
+      http.Post,
+      "/upload",
+      [#("Content-Length", "4")],
+      body,
+      request.options(),
+    )
+  let actual = capture_request(stream)
+  let expected = Ok(#("POST", "/upload", [#("content-length", "4")], body))
+  let assert #(True, _, _) = #(actual == expected, actual, expected)
+  let assert False = has_outgoing_cast()
+  Nil
+}
+
 fn assert_upgrade(stream: request.Stream) -> Nil {
   let actual = capture_ws_upgrade(stream)
   let expected = Ok(#("/ws?Case=Keep", expected_headers()))

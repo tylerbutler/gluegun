@@ -139,16 +139,26 @@ function renderTypeParameters(count) {
 // Mirrors gleamoire's render_type: omits the qualifier for prelude types
 // (module "gleam") and for types declared in the current module, and uses
 // the last segment otherwise, adding the parent for a current-module collision.
-function renderType(type, currentModule) {
+function renderType(type, currentModule, publicHandles = true) {
 	if (!type || typeof type !== "object") {
 		return "Unknown";
 	}
 
 	switch (type.kind) {
 		case "named": {
+			// Gleam expands these public aliases to their internal foreign types.
+			const moduleName =
+				publicHandles &&
+				type.package === "gluegun" &&
+				type.module === "gluegun/internal" &&
+				(type.name === "Connection" || type.name === "Stream")
+					? type.name === "Connection"
+						? "gluegun/connection"
+						: "gluegun/request"
+					: type.module;
 			let qualifier = "";
-			if (type.module && type.module !== "gleam" && type.module !== currentModule) {
-				const segments = type.module.split("/");
+			if (moduleName && moduleName !== "gleam" && moduleName !== currentModule) {
+				const segments = moduleName.split("/");
 				const name = segments[segments.length - 1];
 				qualifier = `${
 					name === currentModule.split("/").at(-1)
@@ -158,18 +168,18 @@ function renderType(type, currentModule) {
 			}
 			const parameters =
 				Array.isArray(type.parameters) && type.parameters.length > 0
-					? `(${type.parameters.map((t) => renderType(t, currentModule)).join(", ")})`
+					? `(${type.parameters.map((t) => renderType(t, currentModule, publicHandles)).join(", ")})`
 					: "";
 			return `${qualifier}${type.name}${parameters}`;
 		}
 		case "fn": {
 			const parameters = Array.isArray(type.parameters)
-				? type.parameters.map((t) => renderType(t, currentModule)).join(", ")
+				? type.parameters.map((t) => renderType(t, currentModule, publicHandles)).join(", ")
 				: "";
-			return `fn(${parameters}) -> ${renderType(type.return, currentModule)}`;
+			return `fn(${parameters}) -> ${renderType(type.return, currentModule, publicHandles)}`;
 		}
 		case "tuple":
-			return `#(${(type.elements || []).map((t) => renderType(t, currentModule)).join(", ")})`;
+			return `#(${(type.elements || []).map((t) => renderType(t, currentModule, publicHandles)).join(", ")})`;
 		case "variable":
 			return variableSymbol(type.id ?? 0);
 		default:
@@ -243,7 +253,8 @@ function renderTypeDefinition(name, typeDef, currentModule) {
 function renderAliasDefinition(name, alias, currentModule) {
 	const params = renderTypeParameters(alias.parameters || 0);
 	const aliasType = alias.alias ?? alias.type;
-	return `pub type ${name}${params} = ${renderType(aliasType, currentModule)}`;
+	// Keep the underlying type here rather than rendering a self-referencing alias.
+	return `pub type ${name}${params} = ${renderType(aliasType, currentModule, false)}`;
 }
 
 function renderConstantDefinition(name, constant, currentModule) {

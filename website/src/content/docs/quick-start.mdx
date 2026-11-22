@@ -12,9 +12,9 @@ import guideSource from '../../../../examples/basic_request/src/basic_request/gu
 To send your first GET request, open a Gun connection and wait until it is ready.
 Then send the request and collect the full response in memory.
 
-Before you start, [install the `1.0.0-rc.1` release candidate](/installation/)
+Before you start, [install Gluegun](/installation/)
 and confirm that the package target is `erlang`. The installation page includes
-the exact Hex requirement and Git-development options.
+the Hex dependency range and Git-development options.
 
 <nav class="gg-lifecycle" aria-label="Request lifecycle">
   <ol>
@@ -59,10 +59,14 @@ returning a result. This releases the connection after success, a failed
 exchange, or stalled connection setup. If both the exchange and cleanup fail,
 it returns the exchange error. If only cleanup fails, it returns the cleanup error.
 
-Use `connection.close` to stop a connection through Gun's supervisor. `connection.shutdown` requests graceful shutdown without waiting for exit. Use `connection.terminate` for a stuck connection or deadline cleanup; it forces exit and flushes the caller's Gun messages. See [Message Flow](/advanced/message-flow/#close-and-shutdown).
+`terminate` is the strongest of three ways to stop a connection. It forces exit and flushes the caller's Gun messages, so it suits a stuck connection or deadline cleanup. `connection.close` stops the connection through Gun's supervisor, and `connection.shutdown` requests a graceful shutdown without waiting for exit. See [Message Flow](/advanced/message-flow/#close-and-shutdown).
 
 ## Timeouts
 
-`connection.milliseconds(Int)` validates and returns a finite `Timeout`. Use `connection.infinity()` to wait without a limit. The same `Timeout` value applies to connection readiness, request bodies, and message receives.
+The example creates one `Timeout` with `connection.milliseconds(5000)` and
+uses it for readiness and for the request. `milliseconds` validates its input,
+so it returns a `Result` even for a literal value. Use `connection.infinity()`
+to wait without a limit. The same `Timeout` type applies to connection
+readiness, request bodies, and message receives.
 
 For full module, type, and function details, use the [API reference](/reference/).

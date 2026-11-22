@@ -60,7 +60,7 @@ Send DELETE on an open connection and collect the full response.
 
 ```gleam
 pub fn delete(
-  internal.Connection,
+  connection.Connection,
   path: String,
   headers: List(#(String, String)),
   timeout: connection.Timeout
@@ -73,7 +73,7 @@ Send GET on an open connection and collect the full response.
 
 ```gleam
 pub fn get(
-  internal.Connection,
+  connection.Connection,
   path: String,
   headers: List(#(String, String)),
   timeout: connection.Timeout
@@ -86,7 +86,7 @@ Send HEAD on an open connection and collect the full response.
 
 ```gleam
 pub fn head(
-  internal.Connection,
+  connection.Connection,
   path: String,
   headers: List(#(String, String)),
   timeout: connection.Timeout
@@ -110,7 +110,7 @@ Send OPTIONS on an open connection and collect the full response.
 
 ```gleam
 pub fn options(
-  internal.Connection,
+  connection.Connection,
   path: String,
   headers: List(#(String, String)),
   timeout: connection.Timeout
@@ -123,7 +123,7 @@ Send PATCH on an open connection and collect the full response.
 
 ```gleam
 pub fn patch(
-  internal.Connection,
+  connection.Connection,
   path: String,
   headers: List(#(String, String)),
   body: BitArray,
@@ -137,7 +137,7 @@ Send POST on an open connection and collect the full response.
 
 ```gleam
 pub fn post(
-  internal.Connection,
+  connection.Connection,
   path: String,
   headers: List(#(String, String)),
   body: BitArray,
@@ -151,7 +151,7 @@ Send PUT on an open connection and collect the full response.
 
 ```gleam
 pub fn put(
-  internal.Connection,
+  connection.Connection,
   path: String,
   headers: List(#(String, String)),
   body: BitArray,
@@ -166,7 +166,7 @@ Send a built `Request` on an open connection and collect the response.
 ```gleam
 pub fn send(
   Request,
-  connection: internal.Connection
+  connection: connection.Connection
 ) -> Result(response.Response(BitArray), error.GluegunError)
 ```
 
@@ -210,6 +210,8 @@ Set the total request budget, including dispatch and all response messages.
 
  Informational responses and body chunks do not restart the budget.
  `Infinity` has no limit. Collection still keeps the complete body in memory.
+ An expired budget returns `Timeout` before dispatch. A later timeout cannot
+ undo a request that was already sent.
 
 ```gleam
 pub fn with_timeout(
