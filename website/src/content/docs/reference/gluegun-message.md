@@ -39,6 +39,61 @@ pub type Envelope {
 }
 ```
 
+### `Event`
+
+A Gun mailbox event with its source identity.
+
+ `ConnectionDown` describes a disconnect, not necessarily a final exit:
+ Gun can reconnect when retry is enabled. Stream failures include malformed
+ payloads with valid source handles, so callers can route decode errors too.
+
+```gleam
+pub type Event {
+  StreamMessage(Envelope)
+  ConnectionUp(
+    connection: connection.Connection,
+    protocol: EventProtocol
+  )
+  ConnectionDown(
+    connection: connection.Connection,
+    protocol: EventProtocol,
+    error: error.GluegunError,
+    killed_streams: List(request.Stream)
+  )
+  TunnelUp(
+    connection: connection.Connection,
+    stream: request.Stream,
+    protocol: EventProtocol
+  )
+  StreamFailure(
+    connection: connection.Connection,
+    stream: request.Stream,
+    error: error.GluegunError
+  )
+  ConnectionFailure(
+    connection: connection.Connection,
+    error: error.GluegunError
+  )
+}
+```
+
+### `EventProtocol`
+
+Protocol names Gun reports in connection and tunnel lifecycle messages.
+
+ Separate from `connection.Protocol`: Gun can report `ws`, `raw`, or `socks`
+ after switching away from HTTP.
+
+```gleam
+pub type EventProtocol {
+  Http1
+  Http2
+  WebSocketProtocol
+  Raw
+  Socks
+}
+```
+
 ### `Frame`
 
 WebSocket frames delivered inside Gun stream messages.
@@ -92,9 +147,9 @@ A close control frame carrying a numeric close code and opaque reason
 A raw Gun stream message, exactly as Gun delivers it to the process that
  owns the stream.
 
- This external type has no Gleam constructors: values come from Gun itself
- (or from an Erlang FFI function of your own that receives them). Use
- `decode` to turn one into a typed `Message`.
+ This external type has no Gleam constructors. Use `select` to receive typed
+ events without caller FFI, or `decode` / `decode_event` when an Erlang
+ integration already supplies raw Gun messages.
 
 ```gleam
 pub type GunMessage
@@ -257,4 +312,37 @@ Decode a raw Erlang Gun mailbox message into a typed `Message`, paired
 
 ```gleam
 pub fn decode(GunMessage) -> Result(Envelope, error.GluegunError)
+```
+
+### `decode_event`
+
+Decode stream, lifecycle, and error mailbox tuples without losing source
+ identity. Reuses `decode` for stream payloads and the existing Gun error
+ conversion. Invalid source handles or lifecycle fields return `DecodeError`.
+ This does not change `decode` or add variants to `Message`.
+
+```gleam
+pub fn decode_event(GunMessage) -> Result(Event, error.GluegunError)
+```
+
+### `select`
+
+Add supported Gun mailbox tuples to an application selector.
+
+ Selects stream tuples plus `gun_up`, `gun_down`, `gun_tunnel_up`, and both
+ `gun_error` shapes by tag and arity, across this receiver's whole mailbox.
+ Route events by connection and stream; this cannot filter one connection.
+ Malformed supported tuples reach the mapping as typed errors. Other tags,
+ unsupported arities, application subjects, and external `DOWN` messages
+ remain for their own handlers. Register the Gun handlers once per selector.
+
+ The actor must open its connection in its own init function. For WebSocket
+ envelopes, call `websocket.record_frame` before handling the frame so close
+ can track peer-close and finite flow credit.
+
+```gleam
+pub fn select(
+  process.Selector(a),
+  fn(Result(Event, error.GluegunError)) -> a
+) -> process.Selector(a)
 ```
