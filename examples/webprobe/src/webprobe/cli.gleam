@@ -21,6 +21,11 @@ pub type Config {
   )
 }
 
+pub type Command {
+  Help
+  Probe(Config)
+}
+
 type ParsedFlags {
   ParsedFlags(
     method: http.Method,
@@ -31,10 +36,10 @@ type ParsedFlags {
   )
 }
 
-pub fn parse(arguments: List(String)) -> Result(Config, String) {
+pub fn parse(arguments: List(String)) -> Result(Command, String) {
   case arguments {
-    ["--help", ..] | ["-h", ..] -> Error(help_text())
-    _ -> parse_config(arguments)
+    ["--help", ..] | ["-h", ..] -> Ok(Help)
+    _ -> parse_config(arguments) |> result.map(Probe)
   }
 }
 
@@ -103,7 +108,9 @@ fn timeout_opt() -> opt.Opt(connection.Timeout) {
   |> opt.int
   |> opt.try_map(fn(milliseconds) {
     connection.milliseconds(milliseconds)
-    |> result.map_error(fn(_) { "Timeout must be zero or greater" })
+    |> result.map_error(fn(_) {
+      "Timeout must be between 0 and 4294967295 milliseconds, inclusive"
+    })
   })
   |> opt.default(default_timeout())
 }

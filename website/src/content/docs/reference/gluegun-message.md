@@ -32,8 +32,8 @@ A decoded `Message` paired with the connection and stream Gun says it
 ```gleam
 pub type Envelope {
   Envelope(
-    connection: internal.Connection,
-    stream: internal.Stream,
+    connection: connection.Connection,
+    stream: request.Stream,
     message: Message
   )
 }
@@ -104,11 +104,21 @@ pub type GunMessage
 
 Gun HTTP stream messages delivered by the Erlang Gun client.
 
- Sequencing for a normal HTTP response:
- zero or more `Inform` (1xx) → one `Response` → zero or more `Data` (until
- `Fin`) → optional `Trailers`. `Push` and `Upgrade` may appear for HTTP/2
- server push and protocol switching. `WebSocket` only appears after a
- successful upgrade.
+ A normal HTTP response starts with zero or more `Inform` (1xx) messages,
+ then follows one of three sequences:
+
+ - `Response(Fin, ...)`: headers only.
+ - `Response(NoFin, ...)`, zero or more `Data(NoFin, ...)`, then
+   `Data(Fin, ...)`: a body without trailers.
+ - `Response(NoFin, ...)`, zero or more `Data(NoFin, ...)`, then
+   `Trailers(...)`: a response with trailers.
+
+ Stop receiving for that response at `Response(Fin, ...)`, `Data(Fin, ...)`,
+ or `Trailers(...)`. Trailers do not follow `Fin`, and a response with
+ trailers has no `Data(Fin, ...)` message.
+
+ `Push` and `Upgrade` may appear for HTTP/2 server push and protocol
+ switching. `WebSocket` only appears after a successful upgrade.
 
  This type is closed; new variants are a breaking change. Pin to a major
  version.
@@ -130,7 +140,7 @@ pub type Message {
   )
   Trailers(headers: List(#(String, String)))
   Push(
-    stream: internal.Stream,
+    stream: request.Stream,
     method: http.Method,
     uri: String,
     headers: List(#(String, String))
@@ -152,21 +162,25 @@ A 1xx informational response. May appear multiple times before the
 
 ##### `Response(fin: fin.Fin, status: Int, headers: List(#(String, String)))`
 
-The final HTTP response headers. `fin` is `Fin` when there is no body.
+The final HTTP response headers. `Fin` ends the response with no body
+ or trailers. `NoFin` means body chunks or trailers follow.
 
 ##### `Data(fin: fin.Fin, data: BitArray)`
 
-A response body chunk. `fin` is `Fin` on the last chunk.
+A response body chunk. `Fin` ends the response without trailers.
+ With trailers, all body chunks use `NoFin`.
 
 ##### `Trailers(headers: List(#(String, String)))`
 
-Trailing headers delivered after the body (HTTP/1.1 trailers or HTTP/2
- trailer frames).
+Trailing headers that end the response (HTTP/1.1 trailers or HTTP/2
+ trailer frames). They follow `Response(NoFin, ...)` and zero or more
+ `Data(NoFin, ...)` messages, with no separate `Data(Fin, ...)`.
 
-##### `Push(stream: internal.Stream, method: http.Method, uri: String, headers: List(#(String, String)))`
+##### `Push(stream: request.Stream, method: http.Method, uri: String, headers: List(#(String, String)))`
 
 An HTTP/2 server push. The `stream` is a new stream the caller may
- await or cancel.
+ await or cancel. Method names are case-sensitive: `GET` becomes
+ `gleam/http.Get`, while `get` becomes `gleam/http.Other("get")`.
 
 ##### `Upgrade(protocols: List(String), headers: List(#(String, String)))`
 
@@ -185,17 +199,18 @@ Await the next Gun message for a stream.
 
  Blocks the calling process until a message arrives, the stream errors,
  or `timeout` elapses. Messages arrive in the order described on
- `Message`: `Inform`* → `Response` → `Data`* → `Trailers`?. Use this for
- streaming responses, server push, or any flow where you need messages as
- they arrive.
+ `Message`. For a normal HTTP response, stop at `Response(Fin, ...)`,
+ `Data(Fin, ...)`, or `Trailers(...)`; do not await another message for
+ that response. Use this for streaming responses, server push, or any flow
+ where you need messages as they arrive.
 
  Errors: `Timeout`, `ConnectionDown`, `ConnectionError`, `StreamError`,
  `InvalidMessage`, `ErlangError`.
 
 ```gleam
 pub fn await(
-  internal.Connection,
-  internal.Stream,
+  connection.Connection,
+  request.Stream,
   connection.Timeout
 ) -> Result(Message, error.GluegunError)
 ```
@@ -204,9 +219,10 @@ pub fn await(
 
 Await and collect the full response body for a stream.
 
- Drains body chunks until the final `Fin` and returns the concatenated
- payload. Headers must already have been consumed (e.g. via a prior
- `await` that returned `Response`). When the response ends with trailers,
+ Drains body chunks until `Data(Fin, ...)` or `Trailers(...)` and returns
+ the concatenated payload. Call only after `Response(NoFin, ...)` (e.g.
+ from a prior `await`); `Response(Fin, ...)` is already complete and has
+ no body to await. When the response ends with trailers,
  the collected body is returned and the trailer headers are dropped; use
  `await` if you need them. For incremental access use `await`
  directly. The full body is held in memory; use the lower-level loop for
@@ -217,8 +233,8 @@ Await and collect the full response body for a stream.
 
 ```gleam
 pub fn await_body(
-  internal.Connection,
-  internal.Stream,
+  connection.Connection,
+  request.Stream,
   connection.Timeout
 ) -> Result(BitArray, error.GluegunError)
 ```

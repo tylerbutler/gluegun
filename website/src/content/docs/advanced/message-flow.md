@@ -18,7 +18,7 @@ The high-level `gluegun/client` functions use this flow to send an HTTP request 
 ## `message.await` and `message.await_body`
 
 - `message.await(conn, stream, timeout)` returns the *next* message for a stream as a typed `Message`. Use it in a loop to process `Inform`, `Response`, `Data`, `Trailers`, `Push`, `Upgrade`, and `WebSocket` values explicitly. This is the correct option for streams, server push, upgrade flows, or when you apply backpressure.
-- `message.await_body(conn, stream, timeout)` collects body chunks until `Fin` and returns the bytes as one value. Call it only after you receive the `Response` message (for example, from a previous `await`). The full body stays in memory. If the response ends with trailers, `await_body` still returns the body, but it discards the trailer headers. Use `await` when you must get the trailers.
+- `message.await_body(conn, stream, timeout)` collects body chunks until `Data(fin.Fin, ...)` or `Trailers(...)` and returns the bytes as one value. Call it only after you receive `Response(fin.NoFin, ...)` (for example, from a previous `await`). After `Response(fin.Fin, ...)`, the response is complete and there is no body to await. The full body stays in memory. If the response ends with trailers, `await_body` still returns the body, but it discards the trailer headers. Use `await` when you must get the trailers.
 - `message.decode(gun_message)` changes a raw Gun mailbox message into a typed `Envelope(connection:, stream:, message:)`. The envelope contains the decoded `Message` and its connection and stream. It accepts the mailbox tuples that Gun sends to the process that owns the stream (`gun_response`, `gun_data`, `gun_inform`, `gun_trailers`, `gun_push`, `gun_upgrade`, `gun_ws`). It rejects the shorter terms that `gun:await/3` returns with `DecodeError`, because those terms have no connection or stream identity. Use `decode` when your own Erlang FFI receives Gun messages outside the Gluegun functions. If your process owns several streams, use the envelope to identify the source of each message. For `Push`, the envelope's `stream` is the existing stream that received the notification. The new stream is inside `message.Push`.
 
 For chunked bodies, see the [streaming guide](/guides/streaming/). For WebSocket upgrade flows, see the [websockets guide](/guides/websockets/).
@@ -55,21 +55,36 @@ produce a Gun supervisor report with reason `killed`.
 
 ## `Fin` and `NoFin`: HTTP is half-closed
 
-Gluegun shows the half-close model of Gun with `gluegun/fin.Fin` and `gluegun/fin.NoFin`.
+Inside a stream, each side tells the other when it has finished. Gluegun shows this half-close model of Gun with `gluegun/fin.Fin` and `gluegun/fin.NoFin`.
 
 On the request side, `request.data(conn, stream, fin.NoFin, chunk)` sends more bytes and tells Gun that the request body is not complete. `fin.Fin` on the last chunk tells Gun that there are no more request bytes. This final signal lets many servers start the response.
 
-On the response side, `message.Response(fin, status, headers)` tells you if the final response has only headers (`fin.Fin`) or if body data follows (`fin.NoFin`). Later `message.Data(fin, data)` chunks use the same signal. `fin.Fin` means that the server has sent the full body. `fin.NoFin` means that more data follows. Response trailers, when present, arrive separately as `message.Trailers`.
+On the response side, a normal HTTP response starts with zero or more
+`message.Inform` messages, then follows one of three sequences:
+
+- `message.Response(fin.Fin, status, headers)` ends a headers-only response.
+- `message.Response(fin.NoFin, status, headers)`, zero or more
+  `message.Data(fin.NoFin, data)` messages, then
+  `message.Data(fin.Fin, data)` deliver a body without trailers.
+- `message.Response(fin.NoFin, status, headers)`, zero or more
+  `message.Data(fin.NoFin, data)` messages, then `message.Trailers(headers)`
+  deliver a response with trailers.
+
+Stop receiving for that response at any of these three terminal events:
+`Response(fin.Fin, ...)`, `Data(fin.Fin, ...)`, or `Trailers(...)`.
+`fin.NoFin` means that body chunks or trailers follow. With trailers, all
+body chunks use `fin.NoFin`; there is no separate `Data(fin.Fin, ...)`.
+Do not wait for trailers after `Fin`.
 
 ## Cancellation
 
-`request.cancel(conn, stream)` sends an asynchronous cancellation for one stream. Queued messages and late arrivals can remain while Gun processes it. The connection stays open for other streams.
+Sometimes you must stop a stream before it reaches a terminal event. `request.cancel(conn, stream)` sends an asynchronous cancellation for one stream. Queued messages and late arrivals can remain while Gun processes it. The connection stays open for other streams.
 
 `request.flush(conn)` removes only messages queued at that instant. For terminal cleanup, cancel the stream if needed, then call `connection.terminate(conn)` from the receiver. Termination discards all streams on the connection.
 
 ### Flush and monitor notifications
 
-`request.flush` and `connection.terminate` call `gun:flush` with the connection
+Both cleanup calls flush the mailbox, and that flush reaches further than the connection's own stream messages. `request.flush` and `connection.terminate` call `gun:flush` with the connection
 handle. The flush removes queued messages for all streams on that connection
 in the caller's mailbox. It also removes queued Erlang
 `{'DOWN', monitor_ref, process, connection_pid, reason}` messages for every
@@ -86,13 +101,13 @@ its flush can consume the notification your own lifecycle code expected.
 
 ## Flow control
 
-Set finite credit with `request.with_initial_flow(options, credit)` before `request.request` or `request.start_stream`. Without it, Gun starts with unlimited credit; a later `update_flow` cannot change unlimited credit to finite credit.
+Cancellation stops a stream; flow control only slows it. Set finite credit with `request.with_initial_flow(options, credit)` before `request.request` or `request.start_stream`. Without it, Gun starts with unlimited credit; a later `update_flow` cannot change unlimited credit to finite credit.
 
 With Gun's default data handler, one credit permits one data message in both HTTP/1.1 and HTTP/2. Headers do not consume credit. `request.update_flow(conn, stream, increment)` adds credit in the same unit. HTTP/1.1 pauses socket reads when credit runs out. HTTP/2 stops replenishing the stream's byte window; it can still process frames already in that window or socket read. Credit is not the HTTP/2 byte window and does not impose a strict message-count or memory bound. See the [streaming guide](/guides/streaming/#finite-response-credit) for allocation limits.
 
 ## WebSocket frame model
 
-`message.WebSocket(frame)` holds typed WebSocket frames. Gluegun keeps text, binary, ping, pong, and close frames as different variants. It does not merge them into one shape.
+After a WebSocket upgrade, the stream carries frames instead of HTTP messages. `message.WebSocket(frame)` holds typed WebSocket frames. Gluegun keeps text, binary, ping, pong, and close frames as different variants. It does not merge them into one shape.
 
 Gun processes ping and pong automatically by default. `websocket.with_silence_pings` controls if automatic ping processing stays hidden, or if ping frames are visible to your code. `Ping` and `Pong` each hold a payload `BitArray`. An empty payload is valid. It means that no application data was attached.
 
@@ -100,7 +115,7 @@ Gun processes ping and pong automatically by default. `websocket.with_silence_pi
 
 ## Process ownership and `reply_to`
 
-The process that calls `connection.open` is the connection owner. Gun
+Each message on this page goes to a process, and the rules for which process explain many surprises. The process that calls `connection.open` is the connection owner. Gun
 monitors this process and stops the connection when it exits. Passing a
 `Connection` or `Socket` handle to another process does not transfer
 ownership. A short-lived task cannot open a connection, return its handle,

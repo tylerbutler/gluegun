@@ -270,25 +270,41 @@ pub fn responses_and_messages_decodes_push_messages_test() -> Nil {
 pub fn responses_and_messages_preserves_custom_push_method_case_test() -> Nil {
   let stream = stream_ref()
 
-  let actual_30 = {
-    push_message(stream, "PropFind", "/collection", [])
+  let assert Ok(message.Push(decoded_stream, method, uri, headers)) =
+    push_message(stream, "PropFind", "/collection", [#("Accept", "text/plain")])
     |> safe_decode_message
-  }
-  let expected_30 =
-    Ok(message.Push(stream, http.Other("PropFind"), "/collection", []))
-  let assert #(True, _, _) = #(actual_30 == expected_30, actual_30, expected_30)
+
+  assert #(decoded_stream, method, uri, headers)
+    == #(stream, http.Other("PropFind"), "/collection", [
+      #("accept", "text/plain"),
+    ])
+  assert request.method_to_string(method) == "PropFind"
   Nil
 }
 
-pub fn responses_and_messages_matches_known_push_methods_case_insensitively_test() -> Nil {
+pub fn responses_and_messages_decodes_standard_push_method_test() -> Nil {
   let stream = stream_ref()
 
-  let actual_31 = {
-    push_message(stream, "get", "/", [])
+  let assert Ok(message.Push(decoded_stream, method, uri, headers)) =
+    push_message(stream, "GET", "/assets/app.css", [#("Accept", "text/css")])
     |> safe_decode_message
-  }
-  let expected_31 = Ok(message.Push(stream, http.Get, "/", []))
-  let assert #(True, _, _) = #(actual_31 == expected_31, actual_31, expected_31)
+
+  assert #(decoded_stream, method, uri, headers)
+    == #(stream, http.Get, "/assets/app.css", [#("accept", "text/css")])
+  assert request.method_to_string(method) == "GET"
+  Nil
+}
+
+pub fn responses_and_messages_preserves_lowercase_push_method_test() -> Nil {
+  let stream = stream_ref()
+
+  let assert Ok(message.Push(decoded_stream, method, uri, headers)) =
+    push_message(stream, "get", "/assets/app.css", [#("Accept", "text/css")])
+    |> safe_decode_message
+
+  assert #(decoded_stream, method, uri, headers)
+    == #(stream, http.Other("get"), "/assets/app.css", [#("accept", "text/css")])
+  assert request.method_to_string(method) == "get"
   Nil
 }
 

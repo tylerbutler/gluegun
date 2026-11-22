@@ -113,7 +113,8 @@ pub opaque type Options {
 /// Build with `upgrade_options()` then chain `with_closing_timeout`,
 /// `with_compress`, `with_flow`, `with_keepalive`, `with_subprotocols`, and
 /// `with_silence_pings`. The fallible `with_flow` builder rejects nonpositive
-/// credit.
+/// credit. `with_keepalive` is supported only through high-level `connect`
+/// and `with_socket`; low-level upgrades require open-time configuration.
 pub opaque type UpgradeOptions {
   UpgradeOptions(
     closing_timeout: Option(Timeout),
@@ -199,6 +200,9 @@ pub fn options() -> Options {
 }
 
 /// Set headers sent with the WebSocket upgrade request.
+///
+/// Upgrades have no request body. A positive `Content-Length` returns
+/// `InvalidOptions` before calling Gun; omit it or use zero.
 pub fn with_headers(
   options: Options,
   headers headers: List(Header),
@@ -278,12 +282,28 @@ pub fn upgrade_options() -> UpgradeOptions {
 ///
 /// Defaults to HTTP/1.1; HTTP/2 is rejected with `UnsupportedFeature`
 /// because Gun does not support WebSocket over HTTP/2.
+/// An explicit upgrade `with_keepalive` setting takes precedence over
+/// `connection.with_websocket_keepalive` and is applied when opening.
+/// If absent, the connection setting or Gun's default (no pings) is preserved.
+///
+/// The caller must receive the handshake. A `reply_to` PID other than the
+/// caller returns `InvalidOptions` before opening a connection, even with
+/// `Infinity`. For another receiver, use `upgrade`, then `await_upgrade` and
+/// `from_upgrade` in that receiver.
 pub fn connect(
   host host: String,
   port port: Int,
   path path: String,
   options options: Options,
 ) -> Result(Socket, error.GluegunError) {
+  let caller = process.self()
+  use _ <- result.try(case options.upgrade_options.reply_to {
+    Some(receiver) if receiver != caller ->
+      Error(error.InvalidOptions(
+        "WebSocket connect requires reply_to to be the calling process; use upgrade and await_upgrade for another receiver",
+      ))
+    Some(_) | None -> Ok(Nil)
+  })
   use opened_connection <- result.try(connection.open(
     connect_options(options),
     host: host,
@@ -300,7 +320,7 @@ pub fn connect(
       protocol,
       path,
       options.headers,
-      options.upgrade_options,
+      UpgradeOptions(..options.upgrade_options, keepalive: None),
     ))
     use handshake <- result.try(await_upgrade(
       opened_connection,
@@ -314,7 +334,12 @@ pub fn connect(
 /// Effective options: WebSockets cannot negotiate HTTP/2 or resume on retry.
 @internal
 pub fn connect_options(options: Options) -> connection.ConnectOptions {
-  options.connect_options
+  let connect_options = case options.upgrade_options.keepalive {
+    Some(interval) ->
+      connection.with_websocket_keepalive(options.connect_options, interval)
+    None -> options.connect_options
+  }
+  connect_options
   |> connection.with_protocols([connection.Http1])
   |> connection.with_retry(connection.default_retry_count())
 }
@@ -342,6 +367,9 @@ fn close_on_error(
 /// or raises an Erlang exception, teardown uses a finite close deadline before
 /// re-raising the original exception class, reason, and stack. Cleanup cannot
 /// replace it.
+///
+/// Like `connect`, rejects a different `reply_to` PID with `InvalidOptions`
+/// before opening a connection or calling the callback.
 pub fn with_socket(
   host host: String,
   port port: Int,
@@ -400,7 +428,16 @@ pub fn with_flow(
   }
 }
 
-/// Set Gun's WebSocket keepalive timeout.
+/// Set the interval between automatic pings for `connect` and `with_socket`.
+///
+/// High-level helpers apply this value at connection open, overriding any
+/// `connection.with_websocket_keepalive` setting. Without it, they preserve
+/// the connection setting or Gun's default `infinity()` (no pings).
+/// This does not change the caller's receive timeout.
+///
+/// Low-level `upgrade` rejects this option with `InvalidOptions`, even for
+/// `infinity()`: configure `connection.with_websocket_keepalive` before
+/// opening the connection instead.
 pub fn with_keepalive(
   options: UpgradeOptions,
   timeout timeout: Timeout,
@@ -438,8 +475,9 @@ pub fn with_protocol_module(
   )
 }
 
-/// Offer subprotocols using Gun's standard WebSocket handler. Every token is
-/// validated before sending; order and case are preserved.
+/// Offer subprotocols using Gun's standard WebSocket handler. Invalid tokens
+/// and exact duplicate names return `InvalidOptions` before sending.
+/// Order and case are preserved; `"chat"` and `"Chat"` are distinct names.
 pub fn with_subprotocols(
   options: UpgradeOptions,
   protocols protocols: List(String),
@@ -457,6 +495,10 @@ pub fn with_subprotocols(
 /// `gun_down`; those still go only to the process that opened the connection.
 /// A non-owner receiver can get a close error after a successful handshake;
 /// see `close`. Keep the connection owner alive for the socket's lifetime.
+///
+/// `connect` and `with_socket` accept only the caller's PID. To delegate
+/// reception, use `upgrade`, then `await_upgrade` and `from_upgrade` in the
+/// receiver.
 pub fn with_reply_to(
   options: UpgradeOptions,
   receiver receiver: Pid,
@@ -507,8 +549,13 @@ pub fn upgrade_options_to_ffi(options: UpgradeOptions) -> List(UpgradeOption) {
 /// Initiate a WebSocket upgrade with options when the negotiated protocol is known.
 ///
 /// Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
-/// WebSocket over HTTP/2. Path, headers, and all subprotocol tokens are
-/// validated before calling Gun; invalid input returns `InvalidOptions`.
+/// WebSocket over HTTP/2. Path, headers, subprotocol tokens, and subprotocol
+/// name uniqueness are validated before calling Gun; invalid input returns
+/// `InvalidOptions`. Subprotocol names are case-sensitive.
+/// Upgrades have no request body, so a positive `Content-Length` also returns
+/// `InvalidOptions`. An absent or zero `Content-Length` is accepted.
+/// `with_keepalive` also returns `InvalidOptions` before sending an upgrade:
+/// use `connection.with_websocket_keepalive` before `connection.open`.
 pub fn upgrade(
   connection connection: Connection,
   protocol protocol: Protocol,
@@ -664,6 +711,8 @@ pub fn close(socket socket: Socket) -> Result(Nil, error.GluegunError) {
 ///
 /// Validates the complete list before sending. If a frame is invalid, returns
 /// `InvalidMessage` without sending any frame.
+/// `Close` or `CloseWithReason` must be the last frame in the list. A frame
+/// after either close variant returns `InvalidMessage` without sending any frame.
 ///
 /// Binary, ping, pong, and close-reason payloads must contain whole bytes.
 /// Empty payloads are valid. A non-byte-aligned `BitArray` returns

@@ -1,7 +1,7 @@
 -module(gluegun_client_test).
 
 -export([failure_cleanup/3, no_cleanup/1, delayed_response/1, local_failure/1,
-    late_after_drain/0, push_cleanup/1, malformed_push_cleanup/0]).
+    late_after_drain/0, push_cleanup/1, malformed_push_cleanup/0, zero_budget_post/0]).
 
 failure_cleanup(Messages, Expected, InvalidConnection) ->
     check(fun() ->
@@ -186,6 +186,68 @@ late_after_drain() ->
 delayed_response(BodyDelay) -> local_response(BodyDelay, none).
 
 local_failure(ReceiveFailure) -> local_response(false, {inject, ReceiveFailure}).
+
+zero_budget_post() ->
+    check(fun() ->
+        {ok, Listener} = gen_tcp:listen(0, [
+            binary, {active, false}, {packet, raw}, {ip, {127, 0, 0, 1}},
+            {reuseaddr, true}
+        ]),
+        try
+            {ok, {_, Port}} = inet:sockname(Listener),
+            Owner = self(),
+            {Server, Monitor} = spawn_monitor(fun() ->
+                zero_budget_peer(Listener, Owner)
+            end),
+            try
+                Options = gluegun@connection:with_protocols(
+                    gluegun@connection:with_transport(gluegun@connection:options(), tcp),
+                    [http1]
+                ),
+                {ok, Conn} = gluegun@connection:open(Options, <<"127.0.0.1">>, Port),
+                try
+                    {ok, http1} = gluegun_ffi:await_up(Conn, {milliseconds, 2000}),
+                    receive {ready, Server} -> ok
+                    after 2000 -> error(server_not_ready) end,
+                    {error, timeout} = gluegun@client:post(
+                        Conn, <<"/must-not-dispatch">>, [], <<"side effect">>, {milliseconds, 0}
+                    ),
+                    %% Request and cancel are casts from this process. This
+                    %% synchronous call orders both before the peer's check,
+                    %% so an unscheduled dispatch cannot cause a false pass.
+                    {ok, undefined} = gun:stream_info(Conn, make_ref()),
+                    Server ! {check_bytes, self()},
+                    receive
+                        {checked, Server, {error, timeout}} -> ok;
+                        {checked, Server, Other} -> error({unexpected_request_bytes, Other})
+                    after 2000 -> error(server_check_timeout)
+                    end
+                after
+                    gun:close(Conn),
+                    gun:flush(Conn)
+                end
+            after
+                exit(Server, kill),
+                receive {'DOWN', Monitor, process, Server, _} -> ok
+                after 2000 -> error(server_teardown_timeout) end
+            end
+        after
+            gen_tcp:close(Listener)
+        end
+    end).
+
+zero_budget_peer(Listener, Owner) ->
+    {ok, Socket} = gen_tcp:accept(Listener, 2000),
+    try
+        Owner ! {ready, self()},
+        receive {check_bytes, Owner} -> ok
+        after 2000 -> error(check_bytes_timeout) end,
+        %% Raw mode catches even a partial request line, header, or body.
+        Owner ! {checked, self(), gen_tcp:recv(Socket, 0, 100)},
+        receive stop -> ok after 2000 -> ok end
+    after
+        gen_tcp:close(Socket)
+    end.
 
 local_response(BodyDelay, Injection) ->
     check(fun() ->

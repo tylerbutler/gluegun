@@ -35,15 +35,20 @@ fn fetch_json(conn, path, timeout) {
 }
 ```
 
-The connection determines the scheme, host, and port. Pass an encoded request
-target such as `/items?tag=a%2Fb&tag=c`; Gluegun sends it without encoding the
-path or query again. Bodies must be byte-aligned `BitArray` values, with no
-UTF-8 requirement. `client.with_timeout` sets one total budget for dispatch
-and response collection; informational responses and body chunks do not restart it.
+The builder does not ask for a host, because the connection already determines
+the scheme, host, and port. Gluegun keeps its own request type for this
+reason: a standard `gleam/http/request.Request` would repeat the destination.
+Standard request values and converter functions are not part of this API.
 
-Gluegun retains this custom request type to avoid repeating the connection's
-destination. Standard `gleam/http/request.Request` values and converter
-functions are not part of this API.
+The path is a request target that you encode, such as
+`/items?tag=a%2Fb&tag=c`. Gluegun sends it without encoding the path or query
+again. Bodies must be byte-aligned `BitArray` values, with no UTF-8
+requirement.
+
+`client.with_timeout` sets one total budget for dispatch and response
+collection; informational responses and body chunks do not restart it.
+`Infinity` has no limit. An expired budget, including zero, returns `Timeout`
+before dispatch. A later timeout cannot undo a request that Gun already sent.
 
 ## Headers
 
@@ -61,8 +66,8 @@ Gluegun normalizes header names before it sends them to Gun. Header values do no
 
 ## One-shot functions
 
-`gluegun/client` has one function for each HTTP method. Use these when you do
-not add headers one by one. Each function accepts `connection`, `path`,
+When you already have the full header list, the builder is not necessary.
+`gluegun/client` has one function for each HTTP method. Each function accepts `connection`, `path`,
 `headers`, and a `Timeout`. Methods with bodies also accept a `BitArray` body.
 
 ```gleam

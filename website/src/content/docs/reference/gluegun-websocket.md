@@ -86,7 +86,8 @@ Typed options for Gun WebSocket upgrades.
  Build with `upgrade_options()` then chain `with_closing_timeout`,
  `with_compress`, `with_flow`, `with_keepalive`, `with_subprotocols`, and
  `with_silence_pings`. The fallible `with_flow` builder rejects nonpositive
- credit.
+ credit. `with_keepalive` is supported only through high-level `connect`
+ and `with_socket`; low-level upgrades require open-time configuration.
 
 ```gleam
 pub type UpgradeOptions
@@ -104,8 +105,8 @@ Wait for the WebSocket upgrade confirmation (`101 Switching Protocols`).
 
 ```gleam
 pub fn await_upgrade(
-  connection: internal.Connection,
-  stream: internal.Stream,
+  connection: connection.Connection,
+  stream: request.Stream,
   timeout: connection.Timeout
 ) -> Result(Handshake, error.GluegunError)
 ```
@@ -155,6 +156,14 @@ Open a Gun connection, perform a WebSocket upgrade, and return a reusable
 
  Defaults to HTTP/1.1; HTTP/2 is rejected with `UnsupportedFeature`
  because Gun does not support WebSocket over HTTP/2.
+ An explicit upgrade `with_keepalive` setting takes precedence over
+ `connection.with_websocket_keepalive` and is applied when opening.
+ If absent, the connection setting or Gun's default (no pings) is preserved.
+
+ The caller must receive the handshake. A `reply_to` PID other than the
+ caller returns `InvalidOptions` before opening a connection, even with
+ `Infinity`. For another receiver, use `upgrade`, then `await_upgrade` and
+ `from_upgrade` in that receiver.
 
 ```gleam
 pub fn connect(
@@ -178,8 +187,8 @@ Adopt a completed upgrade. Call immediately after `await_upgrade`, in the
 
 ```gleam
 pub fn from_upgrade(
-  connection: internal.Connection,
-  stream: internal.Stream,
+  connection: connection.Connection,
+  stream: request.Stream,
   handshake: Handshake,
   timeout: connection.Timeout
 ) -> Socket
@@ -325,6 +334,8 @@ Send one or more WebSocket frames on the stream.
 
  Validates the complete list before sending. If a frame is invalid, returns
  `InvalidMessage` without sending any frame.
+ `Close` or `CloseWithReason` must be the last frame in the list. A frame
+ after either close variant returns `InvalidMessage` without sending any frame.
 
  Binary, ping, pong, and close-reason payloads must contain whole bytes.
  Empty payloads are valid. A non-byte-aligned `BitArray` returns
@@ -354,17 +365,22 @@ pub fn send_text(
 Initiate a WebSocket upgrade with options when the negotiated protocol is known.
 
  Returns `UnsupportedFeature` for HTTP/2 because Gun does not support
- WebSocket over HTTP/2. Path, headers, and all subprotocol tokens are
- validated before calling Gun; invalid input returns `InvalidOptions`.
+ WebSocket over HTTP/2. Path, headers, subprotocol tokens, and subprotocol
+ name uniqueness are validated before calling Gun; invalid input returns
+ `InvalidOptions`. Subprotocol names are case-sensitive.
+ Upgrades have no request body, so a positive `Content-Length` also returns
+ `InvalidOptions`. An absent or zero `Content-Length` is accepted.
+ `with_keepalive` also returns `InvalidOptions` before sending an upgrade:
+ use `connection.with_websocket_keepalive` before `connection.open`.
 
 ```gleam
 pub fn upgrade(
-  connection: internal.Connection,
+  connection: connection.Connection,
   protocol: connection.Protocol,
   path: String,
   headers: List(#(String, String)),
   options: UpgradeOptions
-) -> Result(internal.Stream, error.GluegunError)
+) -> Result(request.Stream, error.GluegunError)
 ```
 
 ### `upgrade_options`
@@ -423,6 +439,9 @@ pub fn with_flow(
 
 Set headers sent with the WebSocket upgrade request.
 
+ Upgrades have no request body. A positive `Content-Length` returns
+ `InvalidOptions` before calling Gun; omit it or use zero.
+
 ```gleam
 pub fn with_headers(
   Options,
@@ -432,7 +451,16 @@ pub fn with_headers(
 
 ### `with_keepalive`
 
-Set Gun's WebSocket keepalive timeout.
+Set the interval between automatic pings for `connect` and `with_socket`.
+
+ High-level helpers apply this value at connection open, overriding any
+ `connection.with_websocket_keepalive` setting. Without it, they preserve
+ the connection setting or Gun's default `infinity()` (no pings).
+ This does not change the caller's receive timeout.
+
+ Low-level `upgrade` rejects this option with `InvalidOptions`, even for
+ `infinity()`: configure `connection.with_websocket_keepalive` before
+ opening the connection instead.
 
 ```gleam
 pub fn with_keepalive(
@@ -450,6 +478,10 @@ Deliver upgrade and frame messages to this process. That receiver must
  `gun_down`; those still go only to the process that opened the connection.
  A non-owner receiver can get a close error after a successful handshake;
  see `close`. Keep the connection owner alive for the socket's lifetime.
+
+ `connect` and `with_socket` accept only the caller's PID. To delegate
+ reception, use `upgrade`, then `await_upgrade` and `from_upgrade` in the
+ receiver.
 
 ```gleam
 pub fn with_reply_to(
@@ -482,6 +514,9 @@ Open a WebSocket, run a callback, then send the close frame and close
  re-raising the original exception class, reason, and stack. Cleanup cannot
  replace it.
 
+ Like `connect`, rejects a different `reply_to` PID with `InvalidOptions`
+ before opening a connection or calling the callback.
+
 ```gleam
 pub fn with_socket(
   host: String,
@@ -494,8 +529,9 @@ pub fn with_socket(
 
 ### `with_subprotocols`
 
-Offer subprotocols using Gun's standard WebSocket handler. Every token is
- validated before sending; order and case are preserved.
+Offer subprotocols using Gun's standard WebSocket handler. Invalid tokens
+ and exact duplicate names return `InvalidOptions` before sending.
+ Order and case are preserved; `"chat"` and `"Chat"` are distinct names.
 
 ```gleam
 pub fn with_subprotocols(

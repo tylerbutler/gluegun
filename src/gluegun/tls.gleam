@@ -143,6 +143,10 @@ pub fn options() -> TlsOptions {
 /// trust store, hostname verification, TLS 1.2/1.3 floor). This bypasses
 /// the protections that make HTTPS trustworthy — never use it against
 /// untrusted networks or production endpoints.
+///
+/// If neither CA certificates nor a CA file is set, Gluegun supplies an
+/// empty CA list so Gun does not read the system trust store. Explicit
+/// CA settings are kept.
 pub fn insecure() -> TlsOptions {
   options()
   |> with_verify(verify: VerifyNone)
@@ -165,7 +169,12 @@ pub fn with_versions(
   TlsOptions(..options, versions: Some(versions))
 }
 
-/// Set TLS cipher suite names.
+/// Set the permitted TLS cipher suite names.
+///
+/// On open, at least one suite must be usable with the effective TLS versions.
+/// An empty list or a list with no usable suite returns `InvalidOptions` before
+/// Gun starts. Mixed lists are accepted when at least one suite is usable.
+/// Leave ciphers unset to use OTP defaults.
 pub fn with_ciphers(
   options: TlsOptions,
   ciphers ciphers: List(String),

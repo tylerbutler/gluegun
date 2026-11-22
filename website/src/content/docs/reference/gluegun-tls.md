@@ -147,6 +147,10 @@ Construct TLS options that **disable** peer verification.
  the protections that make HTTPS trustworthy — never use it against
  untrusted networks or production endpoints.
 
+ If neither CA certificates nor a CA file is set, Gluegun supplies an
+ empty CA list so Gun does not read the system trust store. Explicit
+ CA settings are kept.
+
 ```gleam
 pub fn insecure() -> TlsOptions
 ```
@@ -194,7 +198,12 @@ pub fn with_certfile(
 
 ### `with_ciphers`
 
-Set TLS cipher suite names.
+Set the permitted TLS cipher suite names.
+
+ On open, at least one suite must be usable with the effective TLS versions.
+ An empty list or a list with no usable suite returns `InvalidOptions` before
+ Gun starts. Mixed lists are accepted when at least one suite is usable.
+ Leave ciphers unset to use OTP defaults.
 
 ```gleam
 pub fn with_ciphers(

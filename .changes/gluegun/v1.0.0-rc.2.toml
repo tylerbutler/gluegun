@@ -1,0 +1,219 @@
+[[fragments]]
+package = "gluegun"
+kind = "Fixed"
+body = """
+Reject positive body lengths on WebSocket upgrades.
+
+WebSocket upgrades have no request body. A positive `Content-Length` returns
+`InvalidOptions` before sending the request to Gun, so the server cannot wait
+for a body that will never arrive. Omit the header or use zero when reusing
+HTTP headers. Ordinary HTTP requests with bodies are unchanged."""
+
+[fragments.source]
+commit = "da62a71cf3f52a77ceea40ca4fd76150344fed41"
+
+[[fragments.source.issues]]
+number = 178
+
+[[fragments]]
+package = "gluegun"
+kind = "Fixed"
+body = """
+Stop HTTP requests with expired budgets before dispatch.
+
+Client requests return `Timeout` before dispatch if their total request budget
+has expired. Zero-budget requests no longer reach the server or change its
+state. A later timeout cannot undo a request that was already sent."""
+
+[fragments.source]
+commit = "45bb1ee8b087d1f9c287a2a103456c9e477d7ba3"
+
+[[fragments.source.issues]]
+number = 167
+
+[[fragments]]
+package = "gluegun"
+kind = "Fixed"
+body = """
+Avoid trust store reads when TLS verification is disabled.
+
+Connections with explicit `VerifyNone` and no CA settings no longer read the
+system trust store. This lets development connections work on hosts without
+a usable CA bundle. Explicit CA settings and secure defaults for verifying
+connections are unchanged. Use `tls.insecure()` only for development."""
+
+[fragments.source]
+commit = "d28ba9c219f4c12b27f6c91acdf116016c96e9cc"
+
+[[fragments.source.issues]]
+number = 170
+
+[[fragments]]
+package = "gluegun"
+kind = "Fixed"
+body = """
+Fix connections to IP literals and absolute DNS names.
+
+Gluegun passes IPv4 and IPv6 literals, including bracketed IPv6, to Gun as
+address tuples. This prevents numeric TLS SNI and gives IPv6 HTTP authorities
+the required brackets. DNS lookup keeps absolute names, but derived SNI
+omits the final root dot.
+
+Explicit SNI settings and certificate identity checks are unchanged.
+No caller migration is required."""
+
+[fragments.source]
+commit = "893a11d8ebf1e4d5756702d2282b13499aa8487d"
+
+[[fragments.source.issues]]
+number = 171
+
+[[fragments]]
+package = "gluegun"
+kind = "Fixed"
+body = """
+Use the first requested protocol for plain TCP connections.
+
+Plain TCP uses only the first protocol in an explicit preference list, with
+no fallback. This also applies when `Auto` selects TCP. Passing the full list
+to Gun could prevent the connection from reaching readiness.
+
+An empty protocol list returns `InvalidOptions` before Gun starts. Remove
+`with_protocols([])` to use Gun's default, or supply a nonempty list."""
+
+[fragments.source]
+commit = "66bfd0e969d925358eefb09c08661bf5ce0cffcb"
+
+[[fragments.source.issues]]
+number = 179
+
+[[fragments]]
+package = "gluegun"
+kind = "Fixed"
+body = """
+Preserve HTTP method case in server push messages.
+
+Only exact standard method tokens map to standard `Method` variants.
+For example, `get` decodes as `Other("get")` instead of `Get`. Update
+receivers that treated lowercase pushed methods as standard variants to
+handle `Other` instead. Outbound method encoding is unchanged."""
+
+[fragments.source]
+commit = "7b35d30efaf6c71d1e228a8b985056d9b4160205"
+
+[[fragments.source.issues]]
+number = 181
+
+[[fragments]]
+package = "gluegun"
+kind = "Fixed"
+body = """
+Preserve HTTP protocol preference order in TLS offers.
+
+The TLS ClientHello advertises explicit protocol lists in the requested
+order. Remove any list reversal used to work around the previous behavior.
+Servers can still select a protocol using their own preference order.
+TCP behavior and omitted protocol defaults are unchanged."""
+
+[fragments.source]
+commit = "501884a3f6c1893dada0c480315565b69c969c04"
+
+[[fragments.source.issues]]
+number = 172
+
+[[fragments]]
+package = "gluegun"
+kind = "Fixed"
+body = """
+Reject delegated receivers in synchronous WebSocket helpers.
+
+`websocket.connect` and `websocket.with_socket` return `InvalidOptions` for
+a `reply_to` PID other than the caller before opening a connection. This
+prevents the caller from waiting for a handshake sent to another process.
+Default and explicit-self receivers remain valid.
+
+For delegated reception, call `upgrade` in the connection owner, then
+`await_upgrade` and `from_upgrade` in the receiver. Keep the connection owner
+alive for the socket's lifetime."""
+
+[fragments.source]
+commit = "bfa1a11b5640ca5815cf56c2ddd51f2446814781"
+
+[[fragments.source.issues]]
+number = 168
+
+[[fragments]]
+package = "gluegun"
+kind = "Fixed"
+body = """
+Reject duplicate WebSocket subprotocol names before sending.
+
+Exact duplicate names return `InvalidOptions` before the upgrade, rather
+than sending an offer that a server can reject. Remove repeated names from
+subprotocol offers. Names remain case-sensitive, so `"chat"` and `"Chat"`
+are distinct. Preference order is unchanged."""
+
+[fragments.source]
+commit = "4b82aecd6062055694b0ed1379edbbbfa9464f6a"
+
+[[fragments.source.issues]]
+number = 176
+
+[[fragments]]
+package = "gluegun"
+kind = "Fixed"
+body = """
+Reject TLS cipher lists with no usable suite.
+
+An empty explicit cipher list, or one with no suite usable for the effective
+TLS versions and runtime crypto support, returns `InvalidOptions` before
+Gun starts. This prevents OTP from falling back to default suites outside
+the caller's policy.
+
+Include at least one usable suite, or omit `with_ciphers` to use OTP defaults.
+Mixed lists with a usable suite are unchanged."""
+
+[fragments.source]
+commit = "d91e13a399b0dec8badedbfd483a68edaa8848ee"
+
+[[fragments.source.issues]]
+number = 165
+
+[[fragments]]
+package = "gluegun"
+kind = "Fixed"
+body = """
+Reject WebSocket batches with frames after a close.
+
+`send_many` returns `InvalidMessage` without sending any frames if a frame
+follows `Close` or `CloseWithReason`. Gun would otherwise discard the later
+frames without an error. Put either close variant last in the batch.
+Valid batches need no changes."""
+
+[fragments.source]
+commit = "806cc08e41ecfcab179b0f27afcebaf8e69e5806"
+
+[[fragments.source.issues]]
+number = 177
+
+[[fragments]]
+package = "gluegun"
+kind = "Fixed"
+body = """
+Apply WebSocket keepalive intervals so automatic pings work.
+
+High-level `connect` and `with_socket` apply `with_keepalive` when opening
+the connection. An explicit upgrade setting takes precedence over
+`connection.with_websocket_keepalive`; an absent setting preserves the
+connection setting. The default remains no automatic pings.
+
+For low-level upgrades, set `connection.with_websocket_keepalive` before
+`connection.open`. Upgrade-only keepalive settings, including explicit
+`infinity()` values, return `InvalidOptions` instead of leaving the timer
+unchanged."""
+
+[fragments.source]
+commit = "d3c803c893fdfa06a56f08f6f70e858624dd9e3b"
+
+[[fragments.source.issues]]
+number = 175
