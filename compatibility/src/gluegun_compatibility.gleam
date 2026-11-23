@@ -1,3 +1,4 @@
+import gleam/erlang/process
 import gleam/http
 import gleam/http/response as http_response
 import gleam/list
@@ -89,7 +90,12 @@ fn check_socket(socket: websocket.Socket) -> Result(Nil, error.GluegunError) {
   let headers = websocket.handshake(socket) |> websocket.handshake_headers
   let assert True = list.contains(headers, #("x-handshake", "yes"))
   use _ <- result.try(websocket.send_text(socket, "hello"))
-  use frame <- result.try(websocket.receive_frame(socket))
+  let selector = process.new_selector() |> message.select(fn(event) { event })
+  let assert Ok(Ok(message.StreamMessage(envelope))) =
+    process.selector_receive(selector, 2000)
+  let monitor = connection.monitor(envelope.connection)
+  process.demonitor_process(monitor)
+  use frame <- result.try(websocket.record_frame(socket, envelope))
   let assert message.Text("hello") = frame
   Ok(Nil)
 }

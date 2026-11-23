@@ -75,6 +75,14 @@ Quick Start and the HTTP/2 guide display complete canonical modules from
 `?raw` imports and Starlight `Code`. Keep their code in those modules, not in
 the pages. The existing example CLI entry points are separate and unchanged.
 
+The OTP Actors guide imports
+`examples/websocket_actor/src/websocket_actor.gleam` with the same direct
+`?raw` / `Code` pattern. Its standalone package depends on `gleam_otp`; the
+root library does not. Open Gun inside actor init, compose `message.select`
+with application subjects, and record each delivered WebSocket envelope once
+with `websocket.record_frame` before handling it. Use `connection.monitor`
+with an exact monitor selector for process exits that emit no `gun_down`.
+
 `just docs-examples` runs Python wiring tests and checks both raw imports and
 direct `Code` bindings. It compiles the canonical example packages as path
 dependencies, without source changes. It also extracts remaining

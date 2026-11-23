@@ -29,6 +29,10 @@ before calling Gun. The high-level `connect` and `with_socket` select HTTP/1.1.
 Use the reusable `Socket` API when you control the lifecycle yourself. The
 example creates its cleanup before it examines the result of the exchange:
 
+For frames and application commands in one process loop, see
+[OTP Actors](/guides/actors/). Use `message.select` and record each delivered
+envelope through `websocket.record_frame` before handling or closing.
+
 ```gleam
 import gleam/io
 import gleam/result

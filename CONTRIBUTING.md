@@ -25,6 +25,15 @@ just main         # Run CI checks and build docs
 just td           # Validate the Trellis workspace
 ```
 
+## BEAM candidate measurements
+
+Run `just measure-beam` from the repository root for the local, compiled
+measurement harness for [#103](https://github.com/tylerbutler/gluegun/issues/103).
+It uses the current locked dependencies and loopback peers, not public
+endpoints. See [the measurement report](scripts/beam-measurements.md) for
+workloads, raw results, and limits. This tooling does not change production
+cancellation, monitors, TLS trust caching, or header normalization.
+
 ## Example packages
 
 The root commands below cover all standalone packages under `examples/`:

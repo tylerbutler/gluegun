@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Added"
+body = "Add mailbox-wide typed Gun event selection for OTP actors, source-identified lifecycle and error events, connection monitoring, and WebSocket envelope recording for safe socket teardown."
