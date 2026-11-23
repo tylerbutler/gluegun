@@ -97,6 +97,22 @@ default to zero retries. Call `connection.with_retry` to opt in to HTTP
 reconnection. Even with retries, call `connection.terminate` after an
 `await_up` error to release a process that is still alive.
 
+Blocking `connection.await_up` consumes this connection's queued `gun_up` and
+`gun_down` events and uses the latest event. An up followed by a down does not
+report ready; a latest up can succeed with a zero timeout. Down events do not
+restart the wait budget. Readiness does not guarantee that the socket stays open.
+
+`client` helpers drain these lifecycle events before dispatch and after
+completion, including failures. Each drain covers mail queued when it starts;
+new deliveries cannot keep the helper in the drain. Later events can remain
+queued. The helpers preserve stream messages and unrelated mail. Call blocking
+helpers from the receiving process; use an actor receive loop instead if you
+need to observe lifecycle events. Gluegun does not drain idle owners. With retry
+enabled, events can collect until the next blocking call. Gun resets its retry
+count after each established disconnect, so this count does not limit the
+number of reconnect cycles. Reconnection does not replay failed requests or
+restore WebSockets.
+
 ## Send requests on an open connection
 
 In that example, the connection holds the host and port, and the request holds

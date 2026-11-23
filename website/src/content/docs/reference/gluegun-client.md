@@ -23,6 +23,14 @@ High-level HTTP helpers for existing Gun connections.
  messages in transit can arrive after the drain. For strict mailbox
  isolation, use the low-level API in a separate receiving process.
 
+ Blocking helpers consume queued `gun_up` and `gun_down` events for this
+ connection before dispatch and after completion, including failures.
+ Each drain covers mail queued when it starts, so new lifecycle deliveries
+ cannot keep the helper in the drain. Later events can remain queued.
+ They preserve stream messages and unrelated mail. Use an actor receive
+ loop instead when you need to observe connection lifecycle events.
+ These helpers do not drain the owner's mailbox while it is idle.
+
 ## Types
 
 ### `Request`
