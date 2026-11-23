@@ -1,3 +1,11 @@
 package = "gluegun"
 kind = "Fixed"
-body = "Try supervisor shutdown before forced termination so clean WebSocket close and failed connection cleanup do not produce killed-child error reports. Limit the stop attempt to 100 milliseconds, then kill on failure or expiry; wait for process exit and flush queued Gun messages."
+body = '''
+Connection cleanup tries supervisor shutdown before forced termination.
+
+Clean WebSocket close and failed connection cleanup do not produce
+killed-child error reports when supervisor shutdown succeeds. The stop
+attempt has a 100 millisecond limit, then cleanup kills the process on
+failure or expiry. Cleanup waits for process exit and flushes queued Gun
+messages.
+'''
