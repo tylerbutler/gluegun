@@ -48,8 +48,11 @@ The three ways to stop a connection clean up different amounts.
 `connection.close` stops a connection through Gun's supervisor. It waits for
 process exit, but does not drain HTTP streams or flush your mailbox.
 `connection.shutdown` requests graceful shutdown without waiting, and it
-cannot interrupt blocked setup. Only `connection.terminate` suits deadline
-cleanup: it forces exit, waits, then flushes the caller's Gun messages. See
+cannot interrupt blocked setup. Use `connection.terminate` for deadline
+cleanup: it attempts supervisor shutdown for up to 100 milliseconds, then
+kills on failure or expiry. It waits for exit before flushing the caller's
+Gun messages. The stop allowance is separate from the operation's deadline;
+waiting for exit and mailbox cleanup can add time. See
 [Message Flow](/advanced/message-flow/#close-and-shutdown).
 
 ## High-level client functions collect bodies in memory

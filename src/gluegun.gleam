@@ -78,7 +78,10 @@ pub fn shutdown(connection: Connection) -> Result(Nil, error.GluegunError) {
   connection.shutdown(connection)
 }
 
-/// Force connection exit and flush its queued messages from this receiver.
+/// Stop the connection and flush its queued messages from this receiver.
+///
+/// Tries supervisor shutdown for up to 100 milliseconds, then kills on
+/// failure or expiry. Waits for process exit before flushing.
 pub fn terminate(connection: Connection) -> Result(Nil, error.GluegunError) {
   connection.terminate(connection)
 }
