@@ -1,8 +1,0 @@
-package = "gluegun"
-kind = "Fixed"
-body = '''
-Blocking HTTP helpers consume queued connection lifecycle events.
-
-When waiting for readiness, the helpers use the latest queued up/down state
-without restarting the timeout.
-'''

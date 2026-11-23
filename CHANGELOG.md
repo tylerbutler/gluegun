@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.1.0 - 2026-11-23
+
+### Added
+
+#### OTP actors can select typed Gun events across their mailbox.
+
+Actors can use source-identified lifecycle and error events, connection
+monitoring, and WebSocket envelope recording for safe socket teardown.
+#### WebSocket receives support per-call timeouts and flow updates.
+
+Use `websocket.receive_frame_within` and `websocket.receive_app_frame_within`
+for per-call receive timeouts without changing setup or close limits.
+Use `websocket.update_flow` to replenish finite `Socket` flow credit.
+
+### Fixed
+
+#### Blocking HTTP helpers consume queued connection lifecycle events.
+
+When waiting for readiness, the helpers use the latest queued up/down state
+without restarting the timeout.
+#### Connection cleanup tries supervisor shutdown before forced termination.
+
+Clean WebSocket close and failed connection cleanup do not produce
+killed-child error reports when supervisor shutdown succeeds. The stop
+attempt has a 100 millisecond limit, then cleanup kills the process on
+failure or expiry. Cleanup waits for process exit and flushes queued Gun
+messages.
+
 ## 1.0.0 - 2026-11-19
 
 ### Fixed

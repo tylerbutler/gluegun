@@ -1,8 +1,0 @@
-package = "gluegun"
-kind = "Added"
-body = '''
-OTP actors can select typed Gun events across their mailbox.
-
-Actors can use source-identified lifecycle and error events, connection
-monitoring, and WebSocket envelope recording for safe socket teardown.
-'''
