@@ -22,6 +22,7 @@ const sidebar = [
 			{ label: "Basic Requests", slug: "guides/basic-requests" },
 			{ label: "Streaming", slug: "guides/streaming" },
 			{ label: "WebSockets", slug: "guides/websockets" },
+			{ label: "OTP Actors", slug: "guides/actors" },
 			{ label: "HTTP/2", slug: "guides/http2" },
 			{ label: "TLS", slug: "guides/tls" },
 		],
