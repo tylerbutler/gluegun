@@ -419,9 +419,13 @@ pub fn shutdown(connection: Connection) -> Result(Nil, error.GluegunError) {
   ffi_shutdown(connection)
 }
 
-/// Force termination, wait for process exit, then flush its Gun messages.
+/// Stop the connection, wait for process exit, then flush its Gun messages.
 ///
 /// Use on deadline expiry, including during DNS, connect, or TLS setup.
+/// Attempts supervisor shutdown for up to 100 milliseconds, then uses a kill
+/// signal if the stop fails or exceeds that allowance. The allowance is
+/// separate from the operation's deadline; waiting for exit and mailbox
+/// cleanup can add time. This is not a graceful HTTP drain.
 /// Call from the process that receives the connection's messages. On return,
 /// the Gun process cannot send more messages and its queued messages are gone.
 /// This does not drain other receiving processes or third-party forwarders.

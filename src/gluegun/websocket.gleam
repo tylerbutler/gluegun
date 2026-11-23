@@ -676,12 +676,16 @@ pub fn send_close_frame(
 
 /// Send a close frame, await the peer, then release the Gun process.
 ///
-/// Uses one deadline: the socket's finite timeout, or five seconds for
-/// `Infinity`. Other frames do not extend it. A missing peer close returns
-/// `Timeout`; connection and stream failures return their typed errors.
+/// The handshake uses one deadline: the socket's finite timeout, or five
+/// seconds for `Infinity`. Other frames do not extend it. A missing peer close
+/// returns `Timeout`; connection and stream failures return their typed errors.
 /// Teardown still terminates the process and flushes its queued Gun messages
 /// from this caller after a handshake error. The handshake error takes
 /// precedence over a termination error.
+///
+/// Process teardown tries supervisor shutdown for up to 100 milliseconds,
+/// then kills on failure or expiry. This allowance is separate from the
+/// handshake deadline; waiting for exit and mailbox cleanup can add time.
 ///
 /// An already-exited connection returns `Ok(Nil)`. Repeated close is safe.
 /// Call from the socket's receiver; other receivers and external forwarders
