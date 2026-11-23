@@ -167,6 +167,19 @@ configured timeout. Skipped control frames do not restart the deadline.
 without consuming queued frames. `receive_frame` waits for one frame using
 the socket's timeout.
 
+Use `receive_frame_within(socket, timeout)` or
+`receive_app_frame_within(socket, timeout)` to set the timeout for one call.
+Pass a timeout from `connection.milliseconds(...)` or `connection.infinity()`.
+You can wait longer for frames while keeping a short `with_timeout` limit for
+setup and close. The override does not change the socket's default timeout.
+After a receive returns `Error(Timeout)`, you can continue to send and receive
+on the socket. You must still close it when you finish.
+
+`receive_app_frame_within` uses one total deadline while skipping ping and
+pong frames. A zero application timeout consumes no queued frames.
+`receive_frame_within` keeps raw receive's polling behavior: a zero timeout
+can consume a frame that is already queued.
+
 When you send control frames yourself, Gluegun checks them against the protocol limits. You can send up to 125 bytes in a Ping or Pong payload. A `CloseWithReason`
 reason must contain valid UTF-8 and at most 123 bytes. The close code uses two
 more bytes. Gluegun accepts close codes 1000-1003, 1007-1014, and 3000-4999.
@@ -270,6 +283,21 @@ with `websocket.with_keepalive` returns `InvalidOptions` before sending,
 even for `infinity()`. Move that setting to
 `connection.with_websocket_keepalive`: Gun does not apply upgrade-only
 keepalive values to its connection timer.
+
+## Flow control
+
+Set finite initial credit with `websocket.with_flow(upgrade_options, credit)`,
+then pass those options to `websocket.with_upgrade_options`. Add credit with
+`websocket.update_flow(socket, increment)` as you consume frames. Both values
+must be positive; Gluegun returns `InvalidOptions` for zero or negative values
+before calling Gun.
+
+With Gun's default handler, each delivered frame consumes one credit,
+including visible ping and pong frames that application receives skip.
+Finite credit pauses socket reads. It does not bound the bytes in a frame or
+frames that Gun has already buffered. A successful update confirms dispatch
+to Gun, not receipt by the peer. The update does not change close bookkeeping;
+close still restores credit for consumed frames during teardown.
 
 ## Subprotocols
 
