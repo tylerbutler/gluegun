@@ -125,6 +125,13 @@ failures also trigger teardown and return typed errors. A handshake error takes
 precedence over a termination error. An already-exited connection returns
 `Ok(Nil)`, so repeated close is safe.
 
+Process teardown first attempts supervisor shutdown for up to 100 milliseconds.
+If the stop fails or exceeds that allowance, it sends a kill signal. This avoids
+a supervisor error report for a successful stop. The stop allowance is separate
+from the handshake deadline; waiting for process exit and mailbox cleanup can
+add time. Close returns only after the Gun process has exited and this
+receiver's queued Gun messages have been flushed.
+
 Call `websocket.close` from the socket's receiver. If upgrade options redirect
 frames to another process or an external forwarder, drain that receiver
 separately. Do not reuse the socket after close.

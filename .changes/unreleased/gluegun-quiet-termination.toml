@@ -1,0 +1,3 @@
+package = "gluegun"
+kind = "Fixed"
+body = "Try supervisor shutdown before forced termination so clean WebSocket close and failed connection cleanup do not produce killed-child error reports. Limit the stop attempt to 100 milliseconds, then kill on failure or expiry; wait for process exit and flush queued Gun messages."

@@ -95,7 +95,7 @@ When you read messages yourself, you also decide what happens to the stream:
 - Use `request.cancel(conn, stream)` to cancel a request stream.
 - Use `request.update_flow(conn, stream, increment)` to add data-message credit. The increment must be positive.
 - Use `request.flush(conn)` to remove Gun messages queued at the time of the call. Cancellation can still produce late arrivals.
-- Use `connection.terminate(conn)` for terminal cleanup: force process exit, wait, and flush its Gun messages from this receiver.
+- Use `connection.terminate(conn)` for terminal cleanup: stop the process, wait for exit, and flush its Gun messages from this receiver.
 
 ## Finite response credit
 
@@ -170,7 +170,15 @@ Before `open`, record `deadline = monotonic_now_ms + budget_ms`. Before each `aw
 
 Use Erlang's `erlang:monotonic_time(millisecond)` for the clock. Include time spent processing chunks in the budget and check the deadline before further credit. An `await` timeout only stops that receive; it does not stop Gun. On expiry or rejection, cancel the stream if one exists, then call `connection.terminate` even if cancellation fails. Report cleanup errors as well as the original failure.
 
-`terminate` can interrupt Gun during DNS lookup, socket connect, or TLS handshake. It sends a kill signal, waits for the process monitor's exit notification, then flushes that connection's Gun messages. Call it from the process that receives the messages, with no external forwarder still sending them. Other receiving processes must drain their own mailboxes. `request.flush` alone only clears the current queue.
+`terminate` can interrupt Gun during DNS lookup, socket connect, or TLS handshake.
+It first attempts supervisor shutdown for up to 100 milliseconds, then sends a
+kill signal if the stop fails or exceeds that allowance. The allowance is
+separate from your operation's deadline; waiting for exit and mailbox cleanup
+can add time. It waits for the process monitor's exit notification, then flushes
+that connection's Gun messages. Call it from the process that receives the
+messages, with no external forwarder still sending them. Other receiving
+processes must drain their own mailboxes. `request.flush` alone only clears the
+current queue.
 
 The buildable [`examples/streaming_download`](https://github.com/tylerbutler/gluegun/tree/main/examples/streaming_download) demonstrates finite credit, header checks, actual-byte checks, stage timeouts, a monotonic total deadline, and terminal cleanup.
 
