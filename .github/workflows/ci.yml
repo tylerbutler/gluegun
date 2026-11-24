@@ -74,6 +74,18 @@ jobs:
         if: needs.changes.outputs.full == 'true'
         run: just ci-library
 
+      - name: Generate CycloneDX SBOM
+        if: needs.changes.outputs.full == 'true'
+        run: just sbom
+
+      - name: Upload CycloneDX SBOM
+        if: needs.changes.outputs.full == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7
+        with:
+          name: gluegun-sbom
+          path: build/sbom/gluegun.cdx.json
+          if-no-files-found: error
+
       - name: Validate workspace metadata
         if: needs.changes.outputs.full == 'false'
         run: just trellis-doctor

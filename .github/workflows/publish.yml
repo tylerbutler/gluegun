@@ -15,6 +15,8 @@ concurrency:
 jobs:
   package:
     runs-on: ubuntu-latest
+    outputs:
+      tarball: ${{ steps.export.outputs.path }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
         with:
@@ -33,12 +35,31 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Export Hex package
-        run: gleam export hex-tarball
+        id: export
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gleam export hex-tarball
+          package_path="build/gluegun-${RELEASE_TAG#v}.tar"
+          test -f "$package_path"
+          echo "path=$package_path" >> "$GITHUB_OUTPUT"
 
       - name: Check release tag and preview publication
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: trellis publish --dry-run --tag "$RELEASE_TAG"
+
+      - name: Generate CycloneDX SBOM
+        run: just sbom
+
+      - name: Upload release files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7
+        with:
+          name: gluegun-release
+          path: |
+            ${{ steps.export.outputs.path }}
+            build/sbom/gluegun.cdx.json
+          if-no-files-found: error
 
   test:
     uses: ./.github/workflows/ci.yml
@@ -62,3 +83,42 @@ jobs:
           test -n "$HEXPM_API_KEY" || { echo "::error::HEXPM_API_KEY is missing"; exit 1; }
           trellis publish --tag "$RELEASE_TAG"
           gleam docs publish
+
+  release-assets:
+    needs: [package, test, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Download release files
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # ratchet:actions/download-artifact@v8
+        with:
+          name: gluegun-release
+          path: build
+
+      - name: Attest release file provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # ratchet:actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            ${{ needs.package.outputs.tarball }}
+            build/sbom/gluegun.cdx.json
+
+      - name: Associate SBOM with exported Hex package
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # ratchet:actions/attest@v4
+        with:
+          subject-path: ${{ needs.package.outputs.tarball }}
+          sbom-path: build/sbom/gluegun.cdx.json
+
+      - name: Attach files to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          PACKAGE_PATH: ${{ needs.package.outputs.tarball }}
+        run: gh release upload "$RELEASE_TAG" "$PACKAGE_PATH" build/sbom/gluegun.cdx.json --repo "$GITHUB_REPOSITORY" --clobber
