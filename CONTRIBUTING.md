@@ -125,6 +125,58 @@ job and the required Test check. To change the licence policy, run
 `licence_audit update` in an interactive terminal and review the changes
 to `gleam.toml`.
 
+## Dependency SBOMs
+
+Run `just sbom` to write `build/sbom/gluegun.cdx.json` with the pinned native
+`licence_audit` CLI. The command uses `--reproducible` to create a CycloneDX 1.6
+document from checksum-verified locked package archives. It needs network
+access on cache misses. The same project files, tool version, options, and
+`SOURCE_DATE_EPOCH` produce identical bytes; an unset timestamp uses the Unix
+epoch.
+
+The SBOM covers the root `manifest.toml`, including development dependencies.
+It marks production dependencies as required and development-only dependencies
+as optional. It excludes website npm dependencies, standalone example
+lockfiles, and the compatibility consumer. Generation does not enforce licence
+or vulnerability policy. Keep `just audit-check` for those checks; OSV
+enrichment cannot run with `--reproducible`.
+
+Full Library CI checks generate the SBOM and upload the `gluegun-sbom` artifact
+with the repository's default retention period. Generation or upload failure
+fails Library and the required Test check.
+
+The **Hex release** workflow exports `build/gluegun-<version>.tar` and generates
+the SBOM from the same release revision. After package checks, CI, and Hex
+publication succeed, it attests provenance for both files and associates the
+SBOM with that tarball. It attaches `gluegun-<version>.tar` and
+`gluegun.cdx.json` to the existing GitHub release. A retry on the same tag
+replaces those assets with files from that tag. Only the release-assets job
+has signing and release-write permissions; pull request CI does not sign files.
+
+To verify files from a release, replace the tag and version below with the
+release you want to check. These commands apply to releases that include the
+SBOM and attestation steps; older tags retain their original workflows.
+
+```sh
+gh release download v1.1.0 --repo tylerbutler/gluegun \
+  --pattern gluegun-1.1.0.tar --pattern gluegun.cdx.json
+gh attestation verify gluegun-1.1.0.tar --repo tylerbutler/gluegun \
+  --signer-workflow tylerbutler/gluegun/.github/workflows/publish.yml \
+  --source-ref refs/tags/v1.1.0
+gh attestation verify gluegun.cdx.json --repo tylerbutler/gluegun \
+  --signer-workflow tylerbutler/gluegun/.github/workflows/publish.yml \
+  --source-ref refs/tags/v1.1.0
+gh attestation verify gluegun-1.1.0.tar --repo tylerbutler/gluegun \
+  --signer-workflow tylerbutler/gluegun/.github/workflows/publish.yml \
+  --predicate-type https://cyclonedx.org/bom
+```
+
+These attestations identify the GitHub asset bytes and their release revision.
+They do not prove that Hex received identical bytes: Trellis runs a separate
+package build for publication. Verify Hex publication through the release
+checks below. Local validation does not establish that GitHub signed or
+attached the assets; confirm that after an approved release run.
+
 ## CI checks
 
 CI runs library and standalone example checks on separate runners. Each

@@ -70,6 +70,11 @@ audit-vulns:
 audit-check:
     licence_audit check --vulns
 
+# Generate a reproducible CycloneDX SBOM for the root lockfile
+sbom:
+    mkdir -p build/sbom
+    licence_audit sbom --reproducible --output=build/sbom/gluegun.cdx.json
+
 # === EXAMPLES ===
 
 # Trellis exec accepts package names, not path globs; each command checks its package path.
